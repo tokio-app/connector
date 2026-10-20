@@ -452,6 +452,14 @@ yarn capture <username> --seconds 60 --anonymize
 - `yarn smoke` connects with a listener on every event and prints each transition and the first of each LIVE event. `--drop-after` drops the socket to check the reconnect, `--gifts` shows which gift source answered, and `--json` prints the summary as JSON. It exits 0 when it connected, saw a LIVE event and no `error`, and every check passed.
 - `yarn capture` records the raw messages into `captures/<username>-<time>.json` (gitignored): method, ids, flags and the payload in base64, without cookies, session, API key or `internalExt`. The payloads still hold viewers' nicknames and comments: `--anonymize` only drops the username for now. A fixture committed under `test/fixtures/` must come from your own LIVE.
 
+To look into a capture offline:
+
+```sh
+yarn inspect <capture.json> [--method <name>] [--json]
+```
+
+- `yarn inspect` reads the payloads without any table, straight from the protobuf wire format, and prints each method's fields merged over every sample: field number, wire type, how many samples hold it, whether it repeats, and what the values look like (range, distinct values, text, nested messages). It is how the fields of a message no reference describes are worked out. It prints to the terminal only.
+
 ## Compared with tiktok-live-connector
 
 This library will replace [tiktok-live-connector](https://github.com/zerodytrash/TikTok-Live-Connector) in Tokio. Compared with its 2.4.0 release, the last one under MIT:

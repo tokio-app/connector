@@ -4,6 +4,7 @@ import {
   connectionOptions,
   createLogger,
   parseCommand,
+  parseFileCommand,
   readDuration,
   startClock,
   UsageError,
@@ -114,6 +115,39 @@ describe("parseCommand", () => {
   ])("refuses %j", (argv, message) => {
     expect(() => parseCommand(argv, {}, spec)).toThrow(UsageError);
     expect(() => parseCommand(argv, {}, spec)).toThrow(message);
+  });
+});
+
+describe("parseFileCommand", () => {
+  const flags = { json: { type: "boolean" } } as const;
+
+  it("reads one file and the script's own flags", () => {
+    expect(parseFileCommand([" live.json ", "--json"], flags)).toEqual({
+      help: false,
+      args: { file: "live.json", values: { json: true } },
+    });
+    expect(parseFileCommand(["live.json"], {})).toEqual({
+      help: false,
+      args: { file: "live.json", values: {} },
+    });
+  });
+
+  it.each([["--help"], ["-h"], ["live.json", "--help"], ["--nope", "-h"]])(
+    "asks for help with %j",
+    (...argv) => {
+      expect(parseFileCommand(argv, flags)).toEqual({ help: true });
+    },
+  );
+
+  it.each([
+    [[], "Missing the capture file"],
+    [[" "], "Missing the capture file"],
+    [["a.json", "b.json"], 'Unexpected argument "b.json": one file only'],
+    [["a.json", "--nope"], "--nope"],
+    [["a.json", "--seconds", "5"], "--seconds"],
+  ])("refuses %j", (argv, message) => {
+    expect(() => parseFileCommand(argv, flags)).toThrow(UsageError);
+    expect(() => parseFileCommand(argv, flags)).toThrow(message);
   });
 });
 

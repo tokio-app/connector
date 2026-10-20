@@ -1,7 +1,8 @@
-// Shared by `yarn smoke` and `yarn capture`: the flags both take, the
-// connection options they build, their logger, their clock, and how they start
-// and end. runScript, onInterrupt and the clock touch the process; the rest is
-// pure and tested in cli.test.ts.
+// Shared by the scripts: the flags `yarn smoke` and `yarn capture` both take,
+// the connection options they build, their logger and their clock; the command
+// line of the scripts that read a capture (`yarn inspect`, `yarn replay`); and
+// how every script starts and ends. runScript, onInterrupt and the clock touch
+// the process; the rest is pure and tested in cli.test.ts.
 import { Console } from "node:console";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import {
@@ -129,6 +130,51 @@ function readApiKey(value: string | undefined, env: Env): string | undefined {
   return (value ?? env[API_KEY_ENV])?.trim() || undefined;
 }
 
+// Parses the arguments with `options` and --help. Undefined for --help, which
+// wins over every mistake; a UsageError for a mistake.
+function parseFlags(
+  argv: readonly string[],
+  options: ParseArgsOptionsConfig,
+): { values: FlagValues; positionals: string[] } | undefined {
+  let parsed: { values: FlagValues; positionals: string[] };
+  try {
+    parsed = parseArgs({
+      args: [...argv],
+      options: { ...options, help: COMMON_FLAGS.help },
+      allowPositionals: true,
+      strict: true,
+    });
+  } catch (error) {
+    // --help with a mistake elsewhere still shows the help.
+    if (argv.includes("--help") || argv.includes("-h")) return undefined;
+    throw new UsageError(
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+  return booleanFlag(parsed.values, "help") ? undefined : parsed;
+}
+
+/**
+ * Parses the arguments of a script that reads a capture (without the node and
+ * script paths): one file, --help and the script's own `flags`. Throws a
+ * {@link UsageError} for anything else. `--help` wins over every mistake.
+ */
+export function parseFileCommand(
+  argv: readonly string[],
+  flags: ParseArgsOptionsConfig,
+): Command<{ file: string; values: FlagValues }> {
+  const parsed = parseFlags(argv, flags);
+  if (parsed === undefined) return { help: true };
+  const [file, extra] = parsed.positionals;
+  if (file === undefined || file.trim() === "") {
+    throw new UsageError("Missing the capture file");
+  }
+  if (extra !== undefined) {
+    throw new UsageError(`Unexpected argument "${extra}": one file only`);
+  }
+  return { help: false, args: { file: file.trim(), values: parsed.values } };
+}
+
 /**
  * Parses a script's arguments (without the node and script paths): one
  * username, the common flags and the script's own `flags`. Throws a
@@ -139,23 +185,9 @@ export function parseCommand(
   env: Env,
   spec: { flags: ParseArgsOptionsConfig; defaultSeconds: number },
 ): Command<{ common: CommonArgs; values: FlagValues }> {
-  let parsed: { values: FlagValues; positionals: string[] };
-  try {
-    parsed = parseArgs({
-      args: [...argv],
-      options: { ...spec.flags, ...COMMON_FLAGS },
-      allowPositionals: true,
-      strict: true,
-    });
-  } catch (error) {
-    // --help with a mistake elsewhere still shows the help.
-    if (argv.includes("--help") || argv.includes("-h")) return { help: true };
-    throw new UsageError(
-      error instanceof Error ? error.message : String(error),
-    );
-  }
+  const parsed = parseFlags(argv, { ...spec.flags, ...COMMON_FLAGS });
+  if (parsed === undefined) return { help: true };
   const { values, positionals } = parsed;
-  if (booleanFlag(values, "help")) return { help: true };
 
   const [username, extra] = positionals;
   if (username === undefined) throw new UsageError("Missing the username");
