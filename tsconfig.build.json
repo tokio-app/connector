@@ -3,7 +3,10 @@
   "compilerOptions": {
     // Only the build emits, and only src/ goes in the package. The base config
     // also covers test/, scripts/ and vitest.config.ts, so rootDir lives here.
-    "rootDir": "src"
+    "rootDir": "src",
+    // The package doesn't ship src/, so maps would point at missing files.
+    "sourceMap": false,
+    "declarationMap": false
   },
   "include": ["src"],
   "exclude": ["src/**/*.test.ts"]
