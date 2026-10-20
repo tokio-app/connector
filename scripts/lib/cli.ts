@@ -207,18 +207,43 @@ export function connectionOptions(args: CommonArgs): ConnectOptions {
   };
 }
 
-/** When the script started, as `performance.now()` gave it. */
-export const startedAt = performance.now();
-
-/** Milliseconds since the script started, rounded. */
-export function elapsed(): number {
-  return Math.round(performance.now() - startedAt);
+/** A run's clock: when it started, and how long ago that was. */
+export interface Clock {
+  /** When the run started, as `performance.now()` gave it. */
+  readonly startedAt: number;
+  /** Milliseconds since the start, rounded. */
+  elapsed(): number;
 }
 
-/** Resolves after `ms` milliseconds (at once for 0 or less). */
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+/** A clock that starts now. */
+export function startClock(): Clock {
+  const startedAt = performance.now();
+  return {
+    startedAt,
+    elapsed: () => Math.round(performance.now() - startedAt),
+  };
 }
+
+/**
+ * Waits until `promise` settles, `ms` milliseconds at most (none for 0 or
+ * less). Never rejects, and leaves no timer behind.
+ */
+export async function within(
+  promise: Promise<unknown>,
+  ms: number,
+): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, Math.max(0, ms));
+  });
+  try {
+    await Promise.race([promise.then(ignore, ignore), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function ignore(): void {}
 
 /**
  * Calls `stop` on the first Ctrl-C, so the script can disconnect and report.

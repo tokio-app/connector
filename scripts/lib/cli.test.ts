@@ -5,7 +5,9 @@ import {
   createLogger,
   parseCommand,
   readDuration,
+  startClock,
   UsageError,
+  within,
   type CommonArgs,
 } from "./cli.js";
 
@@ -199,5 +201,50 @@ describe("connectionOptions", () => {
     expect(options.roomId).toBe("7140000000000000001");
     expect(options.signer).toBeInstanceOf(EulerSigner);
     expect(options.logger).toEqual(expect.any(Function));
+  });
+});
+
+describe("startClock", () => {
+  it("counts whole milliseconds from its start", () => {
+    vi.spyOn(performance, "now").mockReturnValueOnce(1_000);
+    const clock = startClock();
+    vi.spyOn(performance, "now").mockReturnValue(1_234.6);
+    expect(clock.startedAt).toBe(1_000);
+    expect(clock.elapsed()).toBe(235);
+  });
+});
+
+describe("within", () => {
+  it("resolves when the promise settles, even by rejecting", async () => {
+    vi.useFakeTimers();
+    try {
+      await within(Promise.resolve(1), 1_000);
+      await within(Promise.reject(new Error("no")), 1_000);
+      // No timer is left behind.
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resolves once the time runs out", async () => {
+    vi.useFakeTimers();
+    try {
+      let done = false;
+      const waiting = within(new Promise(() => {}), 500).then(() => {
+        done = true;
+      });
+      await vi.advanceTimersByTimeAsync(499);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await waiting;
+      expect(done).toBe(true);
+      // A time of 0 or less doesn't wait.
+      const now = within(new Promise(() => {}), -5);
+      await vi.advanceTimersByTimeAsync(0);
+      await now;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

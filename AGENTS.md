@@ -66,7 +66,7 @@ test/
                       fakeTikTok.ts (a local ws server standing in for TikTok's push server)
   fixtures/           recorded pages and captures, replayed by tests
 scripts/              reference/, capture/, smoke/: each an index.ts run with tsx
-  lib/                shared by capture and smoke: cli.ts (flags, connection options, logger, entry point), format.ts (errors, tables)
+  lib/                shared by capture and smoke: cli.ts (flags, connection options, logger, clock, entry point), format.ts (errors, tables)
 reference/            gitignored: the MIT reference copies `yarn reference` downloads (see Licensing)
 ```
 
@@ -97,7 +97,7 @@ Public payloads are JSON-safe: 64-bit ids are decimal strings, 64-bit counters a
 - Build protobuf bytes with `test/helpers/encoder.ts`: `encodeMessage(schema, value)` for fixtures, and `fields.*` (explicit field numbers, independent of the schemas) to check a table's field numbers against the `.proto`.
 - Tests never touch the network, and neither does CI: use `FakeSigner`, the fake TikTok server (`ws` on `127.0.0.1:0`) and stubbed `fetch`. Keep real-timer tests short (50–200 ms values, `vi.waitFor`).
 - `yarn smoke` and `yarn capture` are opt-in and need the network and a LIVE. Ask the user before running them. Fixtures from a capture come only from the user's own LIVE, anonymized (`--anonymize`) and kept small. Read one with `parseFixture` and replay its messages with `fromFixtureMessage` (`scripts/capture/fixture.ts`).
-- The scripts' pure parts are tested next to them and run with `yarn test`: `scripts/lib/{cli,format}.test.ts` (flags, logger, error and table formatting), `scripts/smoke/{args,summary}.test.ts` (the event bookkeeping, the reconnect check and the verdict) and `scripts/capture/{args,fixture}.test.ts` (the fixture format and its validator). The `index.ts` files only wire them to a real connection; `summary.test.ts` fails to typecheck when `WebcastEventMap` gains an event the smoke run doesn't listen to.
+- The scripts are tested next to them and run with `yarn test`: `scripts/lib/{cli,format}.test.ts` (flags, logger, clock, error and table formatting), `scripts/smoke/{args,summary}.test.ts` (the event bookkeeping, the reconnect check and the verdict), `scripts/capture/{args,fixture}.test.ts` (the fixture format and its validator), and `scripts/{smoke,capture}/run.test.ts`, which run each script's `run.ts` offline against `FakeTikTok`, `FakeSigner` and a stubbed `fetch` (the drop, the gift list, the summary; the capture's fixture replayed through dispatch). The `index.ts` files only wire `run.ts` to the console and a real connection; `summary.test.ts` fails to typecheck when `WebcastEventMap` gains an event the smoke run doesn't listen to.
 - `restoreMocks` and `unstubGlobals` are on: mocks and stubbed globals reset after each test.
 - The codec (`src/codec/`) is kept at 100% coverage (`yarn test:coverage`).
 

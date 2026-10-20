@@ -552,43 +552,52 @@ function describeDrop(drop: DropCheck): string {
 
 /** Why the run failed, from its summary; empty when it passed. */
 function verdict(summary: SmokeSummary): string[] {
-  const reasons: string[] = [];
-  if (!summary.connected) {
-    if (summary.interrupted) reasons.push("interrupted before connecting");
-    else if (summary.connectError) {
-      reasons.push(`connect() failed: ${shortError(summary.connectError)}`);
-    } else reasons.push("never connected");
-  } else {
-    const [firstError] = summary.errors;
-    if (firstError) {
-      reasons.push(
-        `${plural(summary.errors.length, "error event")} (first: ${shortError(firstError)})`,
-      );
-    }
-    if (summary.liveEvents === 0) {
-      reasons.push(
-        `no LIVE event in ${formatSeconds(summary.durationMs)}: is @${summary.username} LIVE, with viewers?`,
-      );
-    }
-    const stoppedBy = summary.stoppedBy;
-    if (
-      stoppedBy &&
-      stoppedBy.reason !== "user" &&
-      stoppedBy.reason !== "streamEnd"
-    ) {
-      reasons.push(
-        `the connection stopped: ${stoppedBy.reason}${stoppedBy.error ? ` (${shortError(stoppedBy.error)})` : ""}`,
-      );
-    }
-    if (summary.drop && summary.drop.status !== "passed") {
-      reasons.push(`reconnect check ${describeDrop(summary.drop)}`);
-    }
-    if (summary.gifts && summary.gifts.status !== "fetched") {
-      reasons.push(`fetchGifts() ${describeGifts(summary.gifts)}`);
-    }
-  }
+  const reasons = summary.connected
+    ? connectedFailures(summary)
+    : [connectFailure(summary)];
   if (summary.disconnectError) {
     reasons.push(`disconnect() failed: ${shortError(summary.disconnectError)}`);
+  }
+  return reasons;
+}
+
+// Why a run that never connected failed.
+function connectFailure(summary: SmokeSummary): string {
+  if (summary.interrupted) return "interrupted before connecting";
+  if (summary.connectError) {
+    return `connect() failed: ${shortError(summary.connectError)}`;
+  }
+  return "never connected";
+}
+
+// What went wrong in a run that connected.
+function connectedFailures(summary: SmokeSummary): string[] {
+  const reasons: string[] = [];
+  const [firstError] = summary.errors;
+  if (firstError) {
+    reasons.push(
+      `${plural(summary.errors.length, "error event")} (first: ${shortError(firstError)})`,
+    );
+  }
+  if (summary.liveEvents === 0) {
+    reasons.push(
+      `no LIVE event in ${formatSeconds(summary.durationMs)}: is @${summary.username} LIVE, with viewers?`,
+    );
+  }
+  const { stoppedBy } = summary;
+  if (
+    stoppedBy &&
+    stoppedBy.reason !== "user" &&
+    stoppedBy.reason !== "streamEnd"
+  ) {
+    const error = stoppedBy.error ? ` (${shortError(stoppedBy.error)})` : "";
+    reasons.push(`the connection stopped: ${stoppedBy.reason}${error}`);
+  }
+  if (summary.drop && summary.drop.status !== "passed") {
+    reasons.push(`reconnect check ${describeDrop(summary.drop)}`);
+  }
+  if (summary.gifts && summary.gifts.status !== "fetched") {
+    reasons.push(`fetchGifts() ${describeGifts(summary.gifts)}`);
   }
   return reasons;
 }
