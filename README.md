@@ -155,7 +155,9 @@ Once connected, the connection reconnects by itself when the WebSocket closes or
 
 It resumes from the last cursor, so the messages of the gap can still come through, and duplicates are dropped. With `d = min(maxDelayMs, baseDelayMs * factor ** (n - 1))`, the wait before attempt `n` is a random time from `d / 2` up to `d` ("equal jitter"), at least `minDelayMs`, and at least what a `RateLimitError` asks for: with the defaults, the first five attempts wait at least 1, 1, 2, 4 and 8 seconds. The count starts over after each successful reconnect.
 
-Every attempt is a request to the signer. Without an API key, Euler Stream allows 5 a minute: the waits keep a reconnect from spending them all at once, and when its limit is hit anyway, the `RateLimitError` says how long to wait, and the next attempt waits that long. An attempt resumes the stream where it stopped; when TikTok refuses to resume (its push server answers the WebSocket upgrade with a plain HTTP response), the attempt connects afresh right away, which costs one more request to the signer. The messages of the gap still come through.
+Every attempt is a request to the signer. Without an API key, Euler Stream allows 5 a minute: the waits keep a reconnect from spending them all at once, and when its limit is hit anyway, the `RateLimitError` says how long to wait, and the next attempt waits that long.
+
+A reconnect delivers the messages sent while the connection was away (the gap): once the new socket is in the room, it signs a second time, with the last cursor, to get them. That makes a reconnect cost two signs (an attempt whose socket fails costs one). With `resume: false` a reconnect signs once and only delivers the room's recent backlog: the rest of the gap is lost. Choose that when signs are scarce.
 
 ```ts
 const connection = new TikTokLiveConnection("username", {
@@ -175,6 +177,7 @@ connection.on("reconnecting", ({ attempt, delayMs, reason }) => {
 | `minDelayMs`           | `1000`  | The shortest wait, whatever the jitter draws (at most `maxDelayMs`). Lower it only with a signer that has no tight rate limit |
 | `factor`               | `2`     | How much the ceiling grows per attempt                                                                                        |
 | `checkLiveBeforeRetry` | `true`  | Check that the room is still LIVE before each attempt. If it isn't, emit `streamEnd` and stop                                 |
+| `resume`               | `true`  | Get the messages of the gap after a reconnect, at the cost of a second sign. `false` signs once and loses them                |
 
 The connection stops for good, with `disconnected` and `willReconnect: false`, for these reasons:
 

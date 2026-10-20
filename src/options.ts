@@ -48,6 +48,14 @@ export interface ReconnectOptions {
    * the connection emits `streamEnd` and stops instead of retrying. Default `true`.
    */
   checkLiveBeforeRetry: boolean;
+  /**
+   * Deliver the messages sent while the connection was away. A reconnect
+   * then signs twice: once for its socket, once with the last cursor for the
+   * messages of the gap. `false` signs once and loses them (a reconnect only
+   * gets the room's recent backlog). Each sign is a request to the signer, and
+   * Euler Stream allows 5 a minute without an API key. Default `true`.
+   */
+  resume: boolean;
 }
 
 /**
@@ -138,6 +146,7 @@ const DEFAULT_RECONNECT: Readonly<ReconnectOptions> = Object.freeze({
   minDelayMs: 1_000,
   factor: 2,
   checkLiveBeforeRetry: true,
+  resume: true,
 });
 
 /** The defaults of the {@link ConnectOptions} that have one. */
@@ -218,10 +227,12 @@ function resolveReconnect(
     (value) => Number.isFinite(value) && value >= 1,
     "a number of at least 1",
   );
-  if (typeof merged.checkLiveBeforeRetry !== "boolean") {
-    throw new RangeError(
-      `reconnect.checkLiveBeforeRetry must be a boolean, got ${String(merged.checkLiveBeforeRetry)}`,
-    );
+  for (const name of ["checkLiveBeforeRetry", "resume"] as const) {
+    if (typeof merged[name] !== "boolean") {
+      throw new RangeError(
+        `reconnect.${name} must be a boolean, got ${String(merged[name])}`,
+      );
+    }
   }
   return Object.freeze(merged);
 }

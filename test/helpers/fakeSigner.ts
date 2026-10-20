@@ -30,27 +30,25 @@ export interface FakeSignCall {
 /**
  * Signs connections without a network. Each signed connect is a fresh
  * `ProtoMessageFetchResult`: cursor `signed-cursor-<n>`, internalExt
- * `signed-ext-<n>`, the push server, and whatever {@link FakeSigner.batch}
- * adds (messages, route params), or {@link FakeSigner.resumed} for a connect
- * asked for with a cursor. `failNext` makes the next calls throw.
+ * `signed-ext-<n>`, then, for a fresh connect (cursor `""`), the push server
+ * and whatever {@link FakeSigner.batch} adds (messages, route params). A
+ * connect asked for with a cursor has no push server, as TikTok answers it,
+ * and {@link FakeSigner.resumed}'s fields. `failNext` and `failResumed` make
+ * the next fresh or resumed calls throw.
  */
 export class FakeSigner implements Signer {
   /** Every call, oldest first. */
   readonly calls: FakeSignCall[] = [];
   /** The push server the signed connects name. */
   pushServer: string;
-  /** Push servers for the next signed connects, one each, before `pushServer`. */
+  /** Push servers for the next fresh connects, one each, before `pushServer`. */
   pushServers: string[] = [];
   /** The cookies every signed connect returns. */
   cookies: string[];
-  /** Fields added to every signed batch, such as `messages` and `routeParams`. */
+  /** Fields added to every fresh signed batch, such as `messages` and `routeParams`. */
   batch: EncodeInput<FetchResult> = {};
-  /**
-   * When set, the fields of a signed batch asked for with a cursor (a
-   * resume), instead of `batch`. TikTok answers those without a push server:
-   * `{ pushServer: "" }` does the same.
-   */
-  resumed: EncodeInput<FetchResult> | undefined;
+  /** Fields added to every batch signed with a cursor, such as the gap's `messages`. */
+  resumed: EncodeInput<FetchResult> = {};
   /** Replaces the encoded batch of every signed connect, when set. */
   body: Uint8Array | undefined;
   /** The room id the signed connects name (Euler Stream's `x-room-id`), if any. */
@@ -58,6 +56,7 @@ export class FakeSigner implements Signer {
   /** While set, calls wait for it (and stop when their signal aborts). */
   hold: Promise<void> | undefined;
   readonly #failures: unknown[] = [];
+  readonly #resumedFailures: unknown[] = [];
   #signed = 0;
 
   constructor(options: FakeSignerOptions) {
@@ -65,9 +64,17 @@ export class FakeSigner implements Signer {
     this.cookies = options.cookies ?? ["ttwid=fake-ttwid"];
   }
 
-  /** Makes the next `times` calls throw `error`. */
+  /** Makes the next `times` fresh calls (cursor `""`) throw `error`. */
   failNext(error: unknown, times = 1): this {
     for (let index = 0; index < times; index++) this.#failures.push(error);
+    return this;
+  }
+
+  /** Makes the next `times` calls with a cursor throw `error`. */
+  failResumed(error: unknown, times = 1): this {
+    for (let index = 0; index < times; index++) {
+      this.#resumedFailures.push(error);
+    }
     return this;
   }
 
@@ -88,18 +95,23 @@ export class FakeSigner implements Signer {
       }
     }
     if (context.signal.aborted) throw new AbortError();
-    if (this.#failures.length > 0) throw this.#failures.shift();
+    const resumed = request.cursor !== "";
+    const failures = resumed ? this.#resumedFailures : this.#failures;
+    if (failures.length > 0) throw failures.shift();
     const count = ++this.#signed;
+    const fields = resumed
+      ? this.resumed
+      : {
+          pushServer: this.pushServers.shift() ?? this.pushServer,
+          ...this.batch,
+        };
     return {
       body:
         this.body ??
         encodeMessage(FetchResultSchema, {
           cursor: `signed-cursor-${count}`,
           internalExt: `signed-ext-${count}`,
-          pushServer: this.pushServers.shift() ?? this.pushServer,
-          ...(request.cursor !== "" && this.resumed !== undefined
-            ? this.resumed
-            : this.batch),
+          ...fields,
         }),
       cookies: [...this.cookies],
       ...(this.roomId === undefined ? {} : { roomId: this.roomId }),

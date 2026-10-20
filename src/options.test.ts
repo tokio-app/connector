@@ -74,6 +74,7 @@ describe("DEFAULT_OPTIONS", () => {
         minDelayMs: 1_000,
         factor: 2,
         checkLiveBeforeRetry: true,
+        resume: true,
       },
       heartbeatIntervalMs: 10_000,
       idleTimeoutMs: 30_000,
@@ -128,6 +129,7 @@ describe("resolveOptions", () => {
         baseDelayMs: 0,
         minDelayMs: 0,
         factor: 1.5,
+        resume: false,
       },
       heartbeatIntervalMs: 5_000,
       idleTimeoutMs: 0,
@@ -152,6 +154,7 @@ describe("resolveOptions", () => {
         minDelayMs: 0,
         factor: 1.5,
         checkLiveBeforeRetry: true,
+        resume: false,
       },
       heartbeatIntervalMs: 5_000,
       idleTimeoutMs: 0,
@@ -253,6 +256,10 @@ describe("resolveOptions", () => {
     [
       { reconnect: { checkLiveBeforeRetry: "yes" as unknown as boolean } },
       "reconnect.checkLiveBeforeRetry must be a boolean, got yes",
+    ],
+    [
+      { reconnect: { resume: 1 as unknown as boolean } },
+      "reconnect.resume must be a boolean, got 1",
     ],
   ])("refuses %j", (options, message) => {
     expect(() => resolveOptions(options)).toThrow(RangeError);
