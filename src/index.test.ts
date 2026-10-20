@@ -8,6 +8,9 @@ describe("public API", () => {
     expect(Object.keys(api).sort()).toEqual(
       [
         "AbortError",
+        "BadgeSceneType",
+        "FansClubStatus",
+        "PunishTypeId",
         "ConnectorError",
         "ControlAction",
         "DEFAULT_OPTIONS",

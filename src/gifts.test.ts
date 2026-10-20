@@ -10,6 +10,8 @@ const details = (type: number): GiftDetails => ({
   name: "Rose",
   diamondCount: 1,
   type,
+  describe: "",
+  combo: false,
 });
 
 describe("isStreakable", () => {

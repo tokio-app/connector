@@ -26,10 +26,11 @@ export const SAMPLE_USER: User = {
   avatarThumb: SAMPLE_IMAGE,
   badgeList: [
     {
+      sceneType: 10,
       combine: { icon: { urlList: [], uri: "webcast/fans_badge_lv12" } },
       privilegeLogExtra: { level: "12" },
     },
-    { privilegeLogExtra: { level: "3" } },
+    { sceneType: 0, privilegeLogExtra: { level: "3" } },
   ],
 };
 

@@ -186,7 +186,7 @@ describe("encodeMessage", () => {
         userId: "6900000000000000001",
         nickname: "",
         displayId: "someone",
-        badgeList: [{ privilegeLogExtra: { level: "2" } }],
+        badgeList: [{ sceneType: 0, privilegeLogExtra: { level: "2" } }],
       },
       content: "hi",
       contentLanguage: "",

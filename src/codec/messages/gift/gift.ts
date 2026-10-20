@@ -4,13 +4,16 @@ import type { GiftDetails, GiftMessage } from "../../../events/index.js";
 import { defineSchema, f } from "../../schema.js";
 import { CommonSchema, ImageSchema, UserSchema } from "../common.js";
 
-/** `webcast.model.Gift`: the gift a gift message is about. */
+/** `webcast.model.Gift` [proto: webcast/model/gift.proto, line 10]: the gift a gift message is about. */
 const GiftDetailsSchema = defineSchema<GiftDetails>("Gift", {
   image: f.message(1, ImageSchema),
+  describe: f.string(2),
   id: f.id(5),
+  combo: f.bool(10),
   type: f.int32(11),
   diamondCount: f.int32(12),
   name: f.string(16),
+  icon: f.message(21, ImageSchema),
 });
 
 /** `WebcastGiftMessage`. `repeat_end` is an int32 on the wire, read as a bool. */

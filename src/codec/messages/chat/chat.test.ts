@@ -228,7 +228,7 @@ describe("ChatMessageSchema", () => {
         userId: "0",
         nickname: "",
         displayId: "ann",
-        badgeList: [{ privilegeLogExtra: { level: "7" } }],
+        badgeList: [{ sceneType: 0, privilegeLogExtra: { level: "7" } }],
       },
       content: "olé",
       emotes: [

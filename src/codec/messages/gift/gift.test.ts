@@ -24,7 +24,7 @@ import {
 const decode = (bytes: Uint8Array) => decodeMessage(GiftMessageSchema, bytes);
 
 describe("GiftMessageSchema", () => {
-  it("reads common (1), gift_id (2), repeat_count (5), combo_count (6), user (7), repeat_end (9), group_id (11) and gift (15)", () => {
+  it("reads common (1), gift_id (2), repeat_count (5), combo_count (6), user (7), repeat_end (9), group_id (11) and gift (15: image 1, describe 2, id 5, combo 10, type 11, diamond_count 12, name 16, icon 21)", () => {
     const bytes = concat(
       fields.message(1, fields.string(1, "WebcastGiftMessage")),
       fields.varint(2, 5655),
@@ -43,12 +43,14 @@ describe("GiftMessageSchema", () => {
           fields.string(1, "https://p16.example/rose.webp"),
           fields.string(2, "webcast/rose"),
         ),
-        fields.string(2, "A rose"), // describe, not read
+        fields.string(2, "A rose"),
         fields.varint(5, 5655),
-        fields.varint(10, 1), // combo, not read
+        fields.varint(10, 1),
         fields.varint(11, 1),
         fields.varint(12, 1),
         fields.string(16, "Rose"),
+        fields.message(21, fields.string(2, "webcast/rose_icon")),
+        fields.string(24, "gold"), // gold_effect, not read
       ),
       fields.message(32, fields.varint(4, 1)), // user_identity, not read
     );
@@ -71,10 +73,13 @@ describe("GiftMessageSchema", () => {
           urlList: ["https://p16.example/rose.webp"],
           uri: "webcast/rose",
         },
+        describe: "A rose",
         id: "5655",
+        combo: true,
         type: 1,
         diamondCount: 1,
         name: "Rose",
+        icon: { urlList: [], uri: "webcast/rose_icon" },
       },
     });
   });
@@ -97,7 +102,9 @@ describe("GiftMessageSchema", () => {
       groupId: "0",
     });
     expect(decode(fields.message(15)).gift).toStrictEqual({
+      describe: "",
       id: "0",
+      combo: false,
       type: 0,
       diamondCount: 0,
       name: "",
@@ -119,6 +126,9 @@ describe("GiftMessageSchema", () => {
         diamondCount: 1,
         image: SAMPLE_IMAGE,
         type: 1,
+        describe: "A rose",
+        combo: true,
+        icon: SAMPLE_IMAGE,
       },
     };
     expect(decode(encodeMessage(GiftMessageSchema, gift))).toStrictEqual(gift);
@@ -146,7 +156,9 @@ describe("GiftMessageSchema", () => {
       groupId: "0",
       gift: {
         image: { urlList: [], uri: "tos/g" },
+        describe: "",
         id: "0",
+        combo: false,
         type: 0,
         diamondCount: 30,
         name: "",
@@ -178,7 +190,14 @@ describe("GiftMessageSchema", () => {
       user: { userId: "0", nickname: "Jo", displayId: "", badgeList: [] },
       repeatEnd: true,
       groupId: "42",
-      gift: { id: "5655", type: 1, diamondCount: 1, name: "Rose" },
+      gift: {
+        describe: "",
+        id: "5655",
+        combo: false,
+        type: 1,
+        diamondCount: 1,
+        name: "Rose",
+      },
     };
     expect(decode(bytes)).toStrictEqual(gift);
     expect(toHex(encodeMessage(GiftMessageSchema, gift))).toBe(toHex(bytes));
@@ -199,9 +218,9 @@ describe("GiftMessageSchema", () => {
         "0a 02 75 31", //     url_list (1): "u1"
         "0a 02 75 32", //     url_list (1): "u2"
         "12 01 78", //     uri (2): "x"
-        "12 01 61", //   describe (2), not read
+        "12 01 61", //   describe (2): "a"
         "28 97 2c", //   id (5): 5655
-        "50 01", //   combo (10), not read
+        "50 01", //   combo (10): true
         "58 01", //   type (11): 1
         "60 01", //   diamond_count (12): 1
         "82 01 04 52 6f 73 65", //   name (16): "Rose"
@@ -216,7 +235,9 @@ describe("GiftMessageSchema", () => {
       groupId: "7400000000000000001",
       gift: {
         image: { urlList: ["u1", "u2"], uri: "x" },
+        describe: "a",
         id: "5655",
+        combo: true,
         type: 1,
         diamondCount: 1,
         name: "Rose",
