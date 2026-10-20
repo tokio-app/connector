@@ -102,6 +102,14 @@ describe("WebcastSession.open", () => {
     expect(BigInt(first!.enter!.enterUniqueId)).toBeGreaterThan(0n);
   });
 
+  it("logs that the server's answer confirmed the entry", async () => {
+    const { logger } = await openSession();
+    expect(logger).toHaveBeenCalledWith(
+      "debug",
+      `Entered room ${ROOM_ID}: the server's im_enter_room_resp`,
+    );
+  });
+
   it("makes a new entry id for each session", async () => {
     await openSession();
     await openSession();
@@ -112,13 +120,18 @@ describe("WebcastSession.open", () => {
   it("resolves on the first batch when the entry isn't confirmed", async () => {
     fake.answerEnter = false;
     const { session, batches } = track();
-    const opening = session.open(sessionOptions());
+    const options = sessionOptions();
+    const opening = session.open(options);
     await vi.waitFor(() =>
       expect(fake.framesOfType("im_enter_room")).toHaveLength(1),
     );
     fake.push([chat("1")]);
     await opening;
     expect(batches).toHaveLength(1);
+    expect(vi.mocked(options.logger)).toHaveBeenCalledWith(
+      "debug",
+      `Entered room ${ROOM_ID}: the first batch`,
+    );
   });
 
   it("rejects with a TimeoutError when the room isn't entered in time", async () => {
@@ -366,7 +379,7 @@ describe("batches", () => {
   it("ignores other payload types and encodings, with a debug log", async () => {
     const { batches, logger } = await openSession();
     fake.pushFrame(
-      serverFrame({ payloadType: "hb", payload: fromHex("08 01") }),
+      serverFrame({ payloadType: "close", payload: fromHex("08 01") }),
     );
     fake.pushFrame(
       serverFrame({
@@ -379,13 +392,35 @@ describe("batches", () => {
     await vi.waitFor(() => expect(batches).toHaveLength(1));
     expect(logger).toHaveBeenCalledWith(
       "debug",
-      'Ignored a WebSocket frame of type "hb"',
-      { payloadType: "hb", payloadEncoding: "pb", bytes: 2 },
+      'Ignored a WebSocket frame of type "close"',
+      { payloadType: "close", payloadEncoding: "pb", bytes: 2 },
     );
     expect(logger).toHaveBeenCalledWith(
       "debug",
       'Ignored a batch encoded as "json"',
       { bytes: 2 },
+    );
+  });
+
+  it("takes the server's hb frames as heartbeat replies, logging the first", async () => {
+    const { batches, logger } = await openSession();
+    for (let reply = 0; reply < 3; reply++) {
+      fake.pushFrame(
+        serverFrame({ payloadType: "hb", payload: fromHex("08 01") }),
+      );
+    }
+    fake.push([chat("1")]);
+    await vi.waitFor(() => expect(batches).toHaveLength(1));
+    const replies = vi
+      .mocked(logger)
+      .mock.calls.filter(
+        ([, message]) => message === "The server answers heartbeats",
+      );
+    expect(replies).toEqual([["debug", "The server answers heartbeats"]]);
+    expect(logger).not.toHaveBeenCalledWith(
+      "debug",
+      expect.stringMatching(/^Ignored a WebSocket frame/),
+      expect.anything(),
     );
   });
 

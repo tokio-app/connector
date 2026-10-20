@@ -153,6 +153,7 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
   #unlink: () => void = () => {};
   #seqId = 0;
   #pinged = false;
+  #heartbeatAnswered = false;
   #connectTimer: NodeJS.Timeout | undefined;
   #heartbeatTimer: NodeJS.Timeout | undefined;
   #idleTimer: NodeJS.Timeout | undefined;
@@ -337,7 +338,10 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
         this.#onBatch(frame);
         break;
       case PayloadType.ENTER_ROOM_RESPONSE:
-        this.#entered();
+        this.#entered("the server's im_enter_room_resp");
+        break;
+      case PayloadType.HEARTBEAT:
+        this.#onHeartbeatReply();
         break;
       default:
         // PROTOCOL.md, open item 4: which other types the server sends.
@@ -370,7 +374,7 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
       return;
     }
     if (result.needAck) this.#ack(frame.logId, result.internalExt);
-    this.#entered();
+    this.#entered("the first batch");
     this.emit("batch", { result, frame });
   }
 
@@ -385,11 +389,13 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
     this.#send(encodeAck({ logId, internalExt }));
   }
 
-  #entered(): void {
+  // `by` says what showed the room was entered (PROTOCOL.md, open item 16).
+  #entered(by: string): void {
     const opening = this.#opening;
     if (opening === undefined) return;
     this.#opening = undefined;
-    const { idleTimeoutMs } = this.#options!;
+    const { idleTimeoutMs, logger, roomId } = this.#options!;
+    logger("debug", `Entered room ${roomId}: ${by}`);
     clearTimeout(this.#connectTimer);
     this.#unlink();
     if (idleTimeoutMs > 0) {
@@ -399,6 +405,15 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
       );
     }
     opening.resolve();
+  }
+
+  // The server answers each heartbeat with an `hb` frame of its own (seen in
+  // the first smoke run). Like any frame, it keeps the idle check quiet; the
+  // first one is logged.
+  #onHeartbeatReply(): void {
+    if (this.#heartbeatAnswered) return;
+    this.#heartbeatAnswered = true;
+    this.#options!.logger("debug", "The server answers heartbeats");
   }
 
   #onPing(): void {

@@ -308,7 +308,7 @@ Every `heartbeatIntervalMs` (default 10 000 ms, 2.4.0's `DEFAULT_WS_PING_INTERVA
 
 A frame with `payloadType` `msg` and `payloadEncoding` `pb` carries a batch: when its payload starts with `1f 8b 08` (gzip, deflate method) it is gunzipped first [TLC: proto-utils.ts, `deserializeWebSocketMessage`], then decoded as a `ProtoMessageFetchResult` ([Batches](#batches)). A payload that can't be gunzipped or decoded is a `ProtocolError`, reported through `error`; the socket stays open.
 
-`im_enter_room_resp` confirms the entry; other payload types, and `msg` frames with another `payloadEncoding`, are logged (debug, with their type, encoding and size) and ignored. 2.4.0 decoded every `pb` payload, whatever its type, as a batch; see [Open items](#open-items).
+`im_enter_room_resp` confirms the entry; the session logs at `debug` whether that or the first batch did (`Entered room …`). The server answers each heartbeat with an `hb` frame of its own (seen in the first smoke run); like any frame it resets the idle timer, and the first one is logged at `debug` ("The server answers heartbeats"). Other payload types, and `msg` frames with another `payloadEncoding`, are logged (debug, with their type, encoding and size) and ignored. 2.4.0 decoded every `pb` payload, whatever its type, as a batch; see [Open items](#open-items).
 
 ### Ack
 
