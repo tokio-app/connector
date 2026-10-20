@@ -83,39 +83,48 @@ export class FakeSigner implements Signer {
     context: SignContext,
   ): Promise<SignedConnect> {
     this.calls.push({ request, context });
-    if (context.signal.aborted) throw new AbortError();
-    if (this.hold !== undefined) {
-      const { promise, reject } = Promise.withResolvers<never>();
-      const onAbort = () => reject(new AbortError());
-      context.signal.addEventListener("abort", onAbort, { once: true });
-      try {
-        await Promise.race([this.hold, promise]);
-      } finally {
-        context.signal.removeEventListener("abort", onAbort);
-      }
-    }
-    if (context.signal.aborted) throw new AbortError();
+    await this.#wait(context.signal);
     const resumed = request.cursor !== "";
     const failures = resumed ? this.#resumedFailures : this.#failures;
     if (failures.length > 0) throw failures.shift();
     const count = ++this.#signed;
+    return {
+      body: this.body ?? this.#encode(count, resumed),
+      cookies: [...this.cookies],
+      ...(this.roomId === undefined ? {} : { roomId: this.roomId }),
+      requestId: `request-${count}`,
+    };
+  }
+
+  // Waits for `hold`, if set, and throws an AbortError once `signal` aborts.
+  async #wait(signal: AbortSignal): Promise<void> {
+    if (signal.aborted) throw new AbortError();
+    if (this.hold !== undefined) {
+      const { promise, reject } = Promise.withResolvers<never>();
+      const onAbort = () => reject(new AbortError());
+      signal.addEventListener("abort", onAbort, { once: true });
+      try {
+        await Promise.race([this.hold, promise]);
+      } finally {
+        signal.removeEventListener("abort", onAbort);
+      }
+    }
+    if (signal.aborted) throw new AbortError();
+  }
+
+  // The `count`th signed batch: a fresh one names a push server, a resumed
+  // one (signed with a cursor) doesn't, as TikTok answers them.
+  #encode(count: number, resumed: boolean): Uint8Array {
     const fields = resumed
       ? this.resumed
       : {
           pushServer: this.pushServers.shift() ?? this.pushServer,
           ...this.batch,
         };
-    return {
-      body:
-        this.body ??
-        encodeMessage(FetchResultSchema, {
-          cursor: `signed-cursor-${count}`,
-          internalExt: `signed-ext-${count}`,
-          ...fields,
-        }),
-      cookies: [...this.cookies],
-      ...(this.roomId === undefined ? {} : { roomId: this.roomId }),
-      requestId: `request-${count}`,
-    };
+    return encodeMessage(FetchResultSchema, {
+      cursor: `signed-cursor-${count}`,
+      internalExt: `signed-ext-${count}`,
+      ...fields,
+    });
   }
 }
