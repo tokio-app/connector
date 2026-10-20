@@ -2,14 +2,9 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { decodeMessage } from "./codec/decode.js";
-import {
-  FetchResultSchema,
-  type FetchResultMessage,
-} from "./codec/messages/fetchResult.js";
-import { defineSchema, f } from "./codec/schema.js";
+import { FetchResultSchema } from "./codec/messages/fetchResult.js";
 import { TikTokLiveConnection } from "./connection.js";
-import { dispatch, type DispatchContext } from "./dispatch.js";
+import { dispatch } from "./dispatch.js";
 import {
   AbortError,
   ConnectorError,
@@ -23,142 +18,62 @@ import {
   TimeoutError,
   WebSocketError,
 } from "./errors.js";
-import type { StreamEndAction, WebcastEventMap } from "./events.js";
-import type { HttpClientOptions } from "./http/client.js";
+import type { WebcastEventMap } from "./events.js";
+import { HttpClient } from "./http/client.js";
 import { DEFAULT_USER_AGENT } from "./http/params.js";
 import type { ConnectOptions } from "./options.js";
-import { fetchGiftList } from "./room/gifts.js";
 import { checkLive, resolveRoomId } from "./room/resolver.js";
 import type { SignedConnect } from "./signer/types.js";
 import { WebcastSession, type SessionOptions } from "./ws/session.js";
 import { encodeMessage, fromHex } from "../test/helpers/encoder.js";
 import { FakeSigner } from "../test/helpers/fakeSigner.js";
 import { FakeTikTok, serverFrame } from "../test/helpers/fakeTikTok.js";
+import {
+  jsonResponse,
+  never,
+  stubFetch,
+  type StubHandler,
+} from "../test/helpers/fetchStub.js";
 
-// dispatch() (T1) and the HTTP client, resolver and gift list (T2) are
-// written in parallel with this file: these tests stand in for them with
-// fakes that follow their contracts.
-vi.mock("./dispatch.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./dispatch.js")>()),
-  dispatch: vi.fn(),
-}));
-vi.mock("./room/resolver.js", () => ({
+// The real modules, with two targeted stand-ins: dispatch is spied on (and
+// made to throw where a test needs it), and the room lookup and live check
+// answer what each test asks, without HTTP requests. The real lookup and
+// check run in connection.integration.test.ts.
+vi.mock("./dispatch.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./dispatch.js")>();
+  return { ...actual, dispatch: vi.fn(actual.dispatch) };
+});
+vi.mock("./room/resolver.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./room/resolver.js")>()),
   resolveRoomId: vi.fn(),
   checkLive: vi.fn(),
 }));
-vi.mock("./room/gifts.js", () => ({ fetchGiftList: vi.fn() }));
-
-interface FakeHttp {
-  readonly options: HttpClientOptions;
-  cookieHeader(): string;
-}
-const httpClients = vi.hoisted((): FakeHttp[] => []);
-
-// A cookie jar as PROTOCOL.md describes it, without any request.
-vi.mock("./http/client.js", async (importOriginal) => {
-  const { SESSION_COOKIE_NAMES, userAgentOf } =
-    await import("./http/params.js");
-  class HttpClient implements FakeHttp {
-    readonly options: HttpClientOptions;
-    readonly #jar = new Map<string, string>();
-
-    constructor(options: HttpClientOptions) {
-      this.options = options;
-      const { session } = options;
-      this.#jar.set("tt-target-idc", session?.ttTargetIdc ?? "useast1a");
-      for (const name of session === undefined ? [] : SESSION_COOKIE_NAMES) {
-        this.#jar.set(name, session!.sessionId);
-      }
-      httpClients.push(this);
-    }
-
-    get userAgent(): string {
-      return userAgentOf(this.options.headers);
-    }
-
-    cookieHeader(): string {
-      return [...this.#jar]
-        .map(([name, value]) => `${name}=${value}`)
-        .join("; ");
-    }
-
-    sessionCookieHeader(): string | undefined {
-      const { session } = this.options;
-      return (
-        session &&
-        `sessionid=${session.sessionId}; tt-target-idc=${session.ttTargetIdc}`
-      );
-    }
-
-    addCookies(pairs: readonly string[]): void {
-      for (const pair of pairs) {
-        const at = pair.indexOf("=");
-        this.#jar.set(pair.slice(0, at), pair.slice(at + 1));
-      }
-    }
-  }
-  return {
-    ...(await importOriginal<typeof import("./http/client.js")>()),
-    HttpClient,
-  };
-});
 
 const ROOM_ID = "7140000000000000001";
 const OTHER_ROOM_ID = "7140000000000000002";
+
+// A gift list entry, as TikTok's gift lists hold them.
+const ROSE = {
+  id: 5655,
+  name: "Rose",
+  diamond_count: 1,
+  image: { url_list: ["https://p16.example/rose.webp"], uri: "rose" },
+};
 
 // The real WebcastSession.open, for spies that wrap it (called with each
 // session as `this`).
 // oxlint-disable-next-line typescript/unbound-method
 const realOpen = WebcastSession.prototype.open;
 
-// T1's dispatch, reduced to what the connection relies on: duplicates
-// dropped through the context's RecentIds, `raw` for listened messages,
-// history dropped unless processInitialData, control messages ending the
-// stream.
-const ControlSchema = defineSchema<{ action: number }>(
-  "WebcastControlMessage",
-  {
-    action: f.enum(2),
-  },
-);
-
-const STREAM_ENDS: Readonly<Record<number, StreamEndAction>> = {
-  3: "ended",
-  4: "suspended",
-};
-
-// Messages whose dispatch throws: an Error, and a value that isn't one.
-const THROWS: Readonly<Record<string, unknown>> = {
-  Boom: new Error("dispatch failed"),
-  BoomText: "dispatch failed as text",
-};
-
-function fakeDispatch(context: DispatchContext, message: FetchResultMessage) {
-  if (Object.hasOwn(THROWS, message.method)) throw THROWS[message.method];
-  if (message.msgId !== "0" && !context.recentIds.add(message.msgId)) return;
-  if (context.listenerCount("raw") > 0) {
-    const { method, payload, msgId, isHistory } = message;
-    context.emit("raw", { method, payload, msgId, isHistory, createTime: "0" });
-  }
-  if (message.isHistory && !context.processInitialData) return;
-  if (message.method === "WebcastControlMessage") {
-    const { action } = decodeMessage(ControlSchema, message.payload);
-    const ended = STREAM_ENDS[action];
-    if (ended !== undefined) context.endStream(ended);
-  }
-}
-
 let fake: FakeTikTok;
 let signer: FakeSigner;
 let connections: TikTokLiveConnection[];
 
 beforeEach(async () => {
+  // Resets the stand-ins; dispatch's spy goes back to the real dispatch.
   vi.resetAllMocks();
-  httpClients.length = 0;
-  vi.mocked(dispatch).mockImplementation(fakeDispatch);
   vi.mocked(resolveRoomId).mockResolvedValue(ROOM_ID);
   vi.mocked(checkLive).mockResolvedValue(true);
-  vi.mocked(fetchGiftList).mockResolvedValue({ gifts: [], source: "region" });
   fake = await FakeTikTok.start();
   signer = new FakeSigner({ pushServer: fake.url });
   connections = [];
@@ -267,28 +182,78 @@ describe("TikTokLiveConnection", () => {
     );
   });
 
-  it("makes one HTTP client from the options", () => {
-    const fetch = vi.fn();
-    const { logger } = create({
-      fetch,
-      requestTimeoutMs: 1_234,
-      clientParams: { a: "1" },
+  it("makes its HTTP requests with the fetch, clientParams, headers and session options", async () => {
+    const stub = stubFetch(() => jsonResponse({ data: { gifts: [ROSE] } }));
+    const { connection, logger } = create({
+      fetch: stub.fetch,
+      roomId: ROOM_ID,
+      clientParams: { app_language: "fr" },
       headers: { "X-Test": "1" },
       session: { sessionId: "sid" },
     });
-    expect(httpClients).toHaveLength(1);
-    const { options } = httpClients[0]!;
-    expect(options).toEqual({
-      fetch,
-      timeoutMs: 1_234,
-      clientParams: { a: "1" },
-      headers: { "X-Test": "1" },
-      session: { sessionId: "sid", ttTargetIdc: "useast1a" },
-      logger: expect.any(Function),
+    await expect(connection.fetchGifts()).resolves.toMatchObject({
+      source: "room",
     });
-    // The logger option, wrapped so that it can't throw.
-    options.logger("info", "hello", { a: 1 });
-    expect(logger).toHaveBeenCalledWith("info", "hello", { a: 1 });
+    const [request] = stub.requests;
+    expect(request?.url.searchParams.get("room_id")).toBe(ROOM_ID);
+    expect(request?.url.searchParams.get("app_language")).toBe("fr");
+    expect(request?.headers.get("x-test")).toBe("1");
+    expect(request?.headers.get("cookie")).toBe(
+      "tt-target-idc=useast1a; sessionid=sid; sessionid_ss=sid; sid_tt=sid; sid_guard=sid",
+    );
+    // The logger option gets the HTTP client's entries.
+    expect(logger).toHaveBeenCalledWith(
+      "debug",
+      "HTTP GET webcast.tiktok.com/webcast/gift/list/: 200",
+      expect.objectContaining({ status: 200 }),
+    );
+  });
+
+  it("keeps one cookie jar and device id for its whole life", async () => {
+    let answered = 0;
+    const stub = stubFetch(() =>
+      jsonResponse(
+        { data: { gifts: [ROSE] } },
+        answered++ === 0
+          ? { headers: { "set-cookie": "ttwid=abc; Path=/" } }
+          : {},
+      ),
+    );
+    const { connection } = create({ fetch: stub.fetch, roomId: ROOM_ID });
+    await connection.fetchGifts();
+    await connection.fetchGifts();
+    const [first, second] = stub.requests;
+    expect(second?.headers.get("cookie")).toBe(
+      "tt-target-idc=useast1a; ttwid=abc",
+    );
+    expect(first?.url.searchParams.get("device_id")).toMatch(/^\d{19}$/);
+    expect(second?.url.searchParams.get("device_id")).toBe(
+      first?.url.searchParams.get("device_id"),
+    );
+    // The WebSocket gets the same jar, with the signer's cookies.
+    await connection.connect();
+    expect(fake.last.headers.cookie).toBe(
+      "tt-target-idc=useast1a; ttwid=fake-ttwid",
+    );
+  });
+
+  it("times its HTTP requests out after requestTimeoutMs", async () => {
+    const stub = stubFetch(never);
+    const { connection } = create({
+      fetch: stub.fetch,
+      roomId: ROOM_ID,
+      requestTimeoutMs: 50,
+    });
+    const error = await connection
+      .fetchGifts()
+      .catch((failure: unknown) => failure);
+    expect(error).toMatchObject({
+      code: "GIFTS_UNAVAILABLE",
+      cause: [
+        expect.objectContaining({ code: "TIMEOUT", phase: "request" }),
+        expect.objectContaining({ code: "TIMEOUT", phase: "request" }),
+      ],
+    });
   });
 
   it("keeps going when the logger throws", async () => {
@@ -325,7 +290,7 @@ describe("connect()", () => {
     expect(resolveRoomId).toHaveBeenCalledTimes(1);
     const [username, context] = vi.mocked(resolveRoomId).mock.calls[0]!;
     expect(username).toBe("someone");
-    expect(context.http).toBe(httpClients[0]);
+    expect(context.http).toBeInstanceOf(HttpClient);
     expect(context.signer).toBe(signer);
     expect(checkLive).toHaveBeenCalledWith(ROOM_ID, context);
 
@@ -701,24 +666,30 @@ describe("batches", () => {
   });
 
   it("reports a message dispatch throws for, and goes on", async () => {
+    // dispatch() never throws; the connection guards against it anyway.
+    vi.mocked(dispatch)
+      .mockImplementationOnce(() => {
+        throw new Error("dispatch failed");
+      })
+      .mockImplementationOnce(() => {
+        throw "dispatch failed as text";
+      });
     const { connection, raw } = create();
     const errors: ConnectorError[] = [];
     connection.on("error", (error) => errors.push(error));
     await connection.connect();
-    fake.push([
-      { method: "Boom", msgId: "1" },
-      { method: "BoomText", msgId: "2" },
-      chat("3"),
-    ]);
+    fake.push([chat("1"), chat("2"), chat("3")]);
     await until(() => expect(raw).toEqual(["3"]));
     expect(errors).toEqual([
       expect.objectContaining({
         code: "INTERNAL",
-        message: "Handling a Boom message failed: dispatch failed",
+        message:
+          "Handling a WebcastChatMessage message failed: dispatch failed",
       }),
       expect.objectContaining({
         code: "INTERNAL",
-        message: "Handling a BoomText message failed: dispatch failed as text",
+        message:
+          "Handling a WebcastChatMessage message failed: dispatch failed as text",
       }),
     ]);
   });
@@ -1416,36 +1387,78 @@ describe("the signal option", () => {
 });
 
 describe("fetchGifts()", () => {
-  it("asks for the region list without a room id", async () => {
-    const list = { gifts: [], source: "region" as const };
-    vi.mocked(fetchGiftList).mockResolvedValue(list);
-    const { connection } = create();
-    await expect(connection.fetchGifts()).resolves.toBe(list);
-    const [request, context] = vi.mocked(fetchGiftList).mock.calls[0]!;
-    expect(request).toEqual({ roomId: null, region: "US", language: "en-US" });
-    expect(context.http).toBe(httpClients[0]);
-    expect(context.signer).toBe(signer);
-    expect(context.signContext.signal.aborted).toBe(false);
-  });
+  // Answers the room list (a request with a room id) and the region list.
+  function giftLists(routes: { room?: StubHandler; region?: StubHandler }) {
+    const missing: StubHandler = () => new Response("", { status: 404 });
+    return stubFetch((request) =>
+      (request.url.searchParams.has("room_id")
+        ? (routes.room ?? missing)
+        : (routes.region ?? missing))(request),
+    );
+  }
 
-  it("passes the room id, the region, the language and the signal", async () => {
-    const controller = new AbortController();
-    const { connection } = create({ signal: controller.signal });
-    await connection.connect();
-    await connection.fetchGifts({ region: "DE", language: "de-DE" });
-    const [request, context] = vi.mocked(fetchGiftList).mock.calls[0]!;
-    expect(request).toEqual({
-      roomId: ROOM_ID,
-      region: "DE",
-      language: "de-DE",
+  it("asks only for the region list without a room id, US and en-US by default", async () => {
+    const stub = giftLists({
+      region: () => jsonResponse({ data: { gifts: [ROSE] } }),
     });
-    expect(context.signContext.signal).toBe(controller.signal);
+    const { connection } = create({ fetch: stub.fetch });
+    await expect(connection.fetchGifts()).resolves.toEqual({
+      gifts: [
+        {
+          id: "5655",
+          name: "Rose",
+          diamondCount: 1,
+          image: { urlList: ["https://p16.example/rose.webp"], uri: "rose" },
+        },
+      ],
+      source: "region",
+    });
+    expect(stub.requests).toHaveLength(1);
+    const params = stub.requests[0]!.url.searchParams;
+    expect(params.get("region")).toBe("US");
+    expect(params.get("app_language")).toBe("en-US");
   });
 
-  it("rejects when the gift list does", async () => {
-    const failure = new ConnectorError("GIFTS_UNAVAILABLE", "no gifts");
-    vi.mocked(fetchGiftList).mockRejectedValue(failure);
-    const { connection } = create();
-    await expect(connection.fetchGifts()).rejects.toBe(failure);
+  it("tries the room's list once connected, then the signer's, then the region asked for", async () => {
+    const stub = giftLists({
+      room: () => jsonResponse({ data: { gifts: [] } }),
+      region: () => jsonResponse({ data: { gifts: [ROSE] } }),
+    });
+    const signerGifts = vi.fn(() => Promise.resolve(null));
+    Object.assign(signer, { fetchGifts: signerGifts });
+    const { connection } = create({ fetch: stub.fetch });
+    await connection.connect();
+    await expect(
+      connection.fetchGifts({ region: "DE", language: "de-DE" }),
+    ).resolves.toMatchObject({ source: "region" });
+    const [room, region] = stub.requests;
+    expect(room?.url.searchParams.get("room_id")).toBe(ROOM_ID);
+    expect(signerGifts).toHaveBeenCalledWith(ROOM_ID, expect.any(Object));
+    expect(region?.url.searchParams.get("region")).toBe("DE");
+    expect(region?.url.searchParams.get("sys_region")).toBe("DE");
+    expect(region?.url.searchParams.get("app_language")).toBe("de-DE");
+  });
+
+  it("stops when the signal option aborts", async () => {
+    const controller = new AbortController();
+    const stub = stubFetch(never);
+    const { connection } = create({
+      fetch: stub.fetch,
+      roomId: ROOM_ID,
+      signal: controller.signal,
+    });
+    const fetching = connection.fetchGifts();
+    await until(() => expect(stub.requests).toHaveLength(1));
+    controller.abort();
+    await expect(fetching).rejects.toBeInstanceOf(AbortError);
+  });
+
+  it("rejects with GIFTS_UNAVAILABLE when every source fails", async () => {
+    const stub = stubFetch(() => new Response("", { status: 500 }));
+    const { connection } = create({ fetch: stub.fetch, roomId: ROOM_ID });
+    await expect(connection.fetchGifts()).rejects.toMatchObject({
+      code: "GIFTS_UNAVAILABLE",
+      message: "No gift list source answered (room: HTTP, region: HTTP)",
+    });
   });
 });
