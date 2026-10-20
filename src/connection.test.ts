@@ -1078,6 +1078,25 @@ describe("reconnecting", () => {
     );
   });
 
+  it.each([
+    ["its own route params when one has a value", "8", "8"],
+    ["the kept route params when none has a value", "", "7"],
+  ])("uses %s on a reconnect", async (_, value, expected) => {
+    signer.batch = { routeParams: [{ key: "wrds_v", value: "7" }] };
+    const { connection, ofType } = create();
+    await connection.connect();
+    signer.batch = {
+      pushServer: "",
+      routeParams: [
+        { key: "wrds_v", value },
+        { key: "empty", value: "" },
+      ],
+    };
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(fake.connections[1]?.url.searchParams.get("wrds_v")).toBe(expected);
+  });
+
   it("falls back on the last cursor and internalExt when a reconnect's signed batch has none", async () => {
     const { connection, ofType, raw } = create();
     await connection.connect();
