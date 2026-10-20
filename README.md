@@ -121,19 +121,19 @@ A LIVE message is decoded only when one of the events it leads to has a listener
 
 ### Link-mic and battles
 
-| Event                       | Fires when                                                      | Payload                     | Fields you'll use |
-| --------------------------- | --------------------------------------------------------------- | --------------------------- | ----------------- |
-| `linkMicBattle`             | A battle between hosts started, changed or ended                | `LinkMicBattle`             | pending           |
-| `linkMicArmies`             | The scores of a battle changed                                  | `LinkMicArmies`             | pending           |
-| `linkMicBattlePunishFinish` | A battle's punishment ended                                     | `LinkMicBattlePunishFinish` | pending           |
-| `linkMicBattleTask`         | A battle task started, progressed or settled                    | `LinkMicBattleTask`         | pending           |
-| `linkMicFanTicketMethod`    | The fan tickets of a link changed                               | `LinkMicFanTicketMethod`    | pending           |
-| `linkMicMethod`             | A link-mic signal of the older kind                             | `LinkMicMethod`             | pending           |
-| `linkMessage`               | A multi-guest link changed: invitations, replies, joins, leaves | `LinkMessage`               | pending           |
-| `linkLayer`                 | A link changed, in the newer link layer                         | `LinkLayerMessage`          | pending           |
-| `linkState`                 | The state of a link's users                                     | `LinkStateMessage`          | pending           |
-| `linkMicBattleItemCard`     | A battle card was used or awarded                               | `LinkMicBattleItemCard`     | pending           |
-| `linkMicLayoutState`        | A link's layout changed                                         | `LinkMicLayoutStateMessage` | pending           |
+| Event                       | Fires when                                                      | Payload                     | Fields you'll use                                                                         |
+| --------------------------- | --------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
+| `linkMicBattle`             | A battle between hosts started, changed or ended                | `LinkMicBattle`             | `battleId`, `action` (`BattleAction`), `anchorsInfo`, `battleResult`                      |
+| `linkMicArmies`             | The scores of a battle changed                                  | `LinkMicArmies`             | `battleId`, `armies` (per host: `hostScore`, `userArmies`), `triggerReason`               |
+| `linkMicBattlePunishFinish` | A battle's punishment ended                                     | `LinkMicBattlePunishFinish` | `battleId`, `reason` (`PunishFinishReason`)                                               |
+| `linkMicBattleTask`         | A battle task started, progressed or settled                    | `LinkMicBattleTask`         | `taskMessageType`, `taskUpdate`, `taskSettle`, `battleId`                                 |
+| `linkMicFanTicketMethod`    | The fan tickets of a link changed                               | `LinkMicFanTicketMethod`    | `fanTicketRoomNotice.userFanTicket`, `fanTicketRoomNotice.totalLinkmicFanTicket`          |
+| `linkMicMethod`             | A link-mic signal of the older kind                             | `LinkMicMethod`             | `messageType`, `userId`, `linkedUsers`, `replyType`                                       |
+| `linkMessage`               | A multi-guest link changed: invitations, replies, joins, leaves | `LinkMessage`               | `messageType`, `inviteContent`, `enterContent`, `leaveContent`                            |
+| `linkLayer`                 | A link changed, in the newer link layer                         | `LinkLayerMessage`          | `messageType` (`LinkLayerMessageType`), `channelId`, `inviteContent`, `listChangeContent` |
+| `linkState`                 | The state of a link's users                                     | `LinkStateMessage`          | `stateType` (`LinkStateType`), `channelId`, `userStates`                                  |
+| `linkMicBattleItemCard`     | A battle card was used or awarded                               | `LinkMicBattleItemCard`     | `battleId`, `msgType` (`BattleCardMsgType`)                                               |
+| `linkMicLayoutState`        | A link's layout changed                                         | `LinkMicLayoutStateMessage` | `channelId`, `scene`, `version`                                                           |
 
 ### Room, ranks, polls, shopping and system
 

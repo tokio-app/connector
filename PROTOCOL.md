@@ -635,19 +635,190 @@ Not read: `msg_type` (3, `BarrageMessage_BarrageType`), `icon` (4), and the rest
 
 #### Link-mic and battles (`messages/link/`)
 
-Nothing is decoded yet. The nested types the messages share (`Player`, `LinkUser`, `BattleSetting`) will live in `link/shared.ts`.
+The nested types several tables share are in `link/shared.ts`: `Player`, `BattleSetting`, a host's supporters (`BattleArmiesEntry`) and a linked user (`LinkUser`).
 
-`WebcastLinkMicBattle` (`link/linkMicBattle.ts`): pending.
-`WebcastLinkMicArmies` (`link/linkMicArmies.ts`): pending.
-`WebcastLinkMicBattlePunishFinish` (`link/linkMicBattlePunishFinish.ts`): pending.
-`WebcastLinkmicBattleTaskMessage` (`link/linkMicBattleTask.ts`): pending.
-`WebcastLinkMicFanTicketMethod` (`link/linkMicFanTicketMethod.ts`): pending.
-`WebcastLinkMicMethod` (`link/linkMicMethod.ts`): pending.
-`WebcastLinkMessage` (`link/linkMessage.ts`): pending.
-`WebcastLinkLayerMessage` [proto: webcast/model/message/linkcore_webcast_link_layer_message.proto] (`link/linkLayer.ts`): pending.
-`WebcastLinkStateMessage` [proto: webcast/im.proto] (`link/linkState.ts`): pending.
-`WebcastLinkMicBattleItemCard` (`link/tail.ts`): pending.
-`WebcastLinkMicLayoutStateMessage` [proto: webcast/im.proto] (`link/tail.ts`): pending.
+Two kinds of participant appear. The link-layer and link-state messages carry a `webcast.model.message.linkcore.Player` [proto: webcast/model/message/linkcore_player.proto, line 5] (`PlayerSchema`): `room_id` (1, int64) → `roomId`, id; `user_id` (2, int64) → `userId`, id. It has no name or picture: an app matches the ids against a `User` it saw elsewhere ([Open items](#open-items) 44). The older link messages (`WebcastLinkMessage`, `WebcastLinkMicMethod`) carry full `User`s, and battles their own `BattleBaseUserInfo` (a name, a username and a picture).
+
+A `map<int64, X>` field is read as its entries, a repeated message of `key` (1, int64) → `key`, id and `value` (2, `X`) → `value`, message, in wire order; a key that comes twice is kept twice.
+
+`WebcastLinkMicBattle` [proto: webcast/model/message/messages.proto, line 1423] (`link/linkMicBattle.ts`)
+
+| No. | Proto field          | Type                                         | Property           | Kind                       |
+| --- | -------------------- | -------------------------------------------- | ------------------ | -------------------------- |
+| 2   | `battle_id`          | int64                                        | `battleId`         | id                         |
+| 3   | `battle_settings`    | `battle.BattleSetting`                       | `battleSettings`   | message                    |
+| 4   | `action`             | `webcast.im.LinkMicBattle_BattleAction` enum | `action`           | enum                       |
+| 5   | `battle_result`      | `map<int64, battle.BattleResult>`            | `battleResult`     | repeated message (entries) |
+| 9   | `armies`             | repeated `battle.UserArmiesWrapper`          | `armies`           | repeated message           |
+| 10  | `anchors_info`       | repeated `battle.BattleUserInfoWrapper`      | `anchorsInfo`      | repeated message           |
+| 14  | `team_member`        | repeated `TeamUsersInfo`                     | `teamMember`       | repeated message           |
+| 16  | `action_by_user_id`  | int64                                        | `actionByUserId`   | id                         |
+| 17  | `team_battle_result` | repeated `live.match.BattleTeamResult`       | `teamBattleResult` | repeated message           |
+
+`armies` and `anchors_info` are repeated wrapper messages with a map entry's shape (`key` 1, `value` 2), read the same way. Not read: `fuzzy_display_config` (6), `invitee_gift_permission_type` (8), `bubble_text` (11), `supported_actions` (12), `battle_combo_v2` (13), `invitees_gift_permission_type` (15), `team_armies` (18), and 19–30 (A/B settings, campaigns, league and enigma data, the cross-room layout, tracking).
+`webcast.model.message.battle.BattleSetting` [proto: webcast/model/message/battle.proto, line 35] (`BattleSettingSchema`): `battle_id` (1, int64) → `battleId`, id; `start_time_ms` (2, int64) → `startTimeMs`, id; `duration` (3, int32) → `duration`, int32; `channel_id` (4, int64) → `channelId`, id; `status` (5, `webcast.model.data.BattleSettings_BattleStatus`) → `status`, enum; `battle_type` (8, `webcast.model.data.BattleType`) → `battleType`, enum; `end_time_ms` (10, int64) → `endTimeMs`, id. Not read: `invite_type` (6), `gift_mode_meta` (7), `extra_duration_second` (9), `scene` (11), `source_type` (12), 13–15.
+`webcast.model.message.battle.BattleResult` [battle.proto, line 18] (`BattleUserResultSchema`, the `BattleUserResult` type): `user_id` (1, int64) → `userId`, id; `result` (2, `webcast.model.data.BattleResult_Result`) → `result`, enum; `score` (3, int64) → `score`, count; `diamond_score` (4, int64) → `diamondScore`, count. Not read: `enigma_score` (5), `enigma_uv` (6). The entries of `battle_result` are `BattleResultEntrySchema` (`BattleResultEntry`).
+`webcast.model.message.battle.UserArmiesWrapper` [battle.proto, line 111] (`BattleArmiesEntrySchema`, the `BattleArmiesEntry` type): `key` (1, int64) → `key`, id; `value` (2, `BattleUserArmies`) → `value`, message. An entry of `WebcastLinkMicArmies.armies` has the same shape and shares the table.
+`webcast.model.message.battle.BattleUserArmies` [battle.proto, line 77] (`BattleUserArmiesSchema`): `user_armies` (1, repeated `BattleUserArmy`) → `userArmies`, repeated message; `hostscore` (2, int64) → `hostScore`, count. Not read: `anchor_id_str` (3), `host_enigma_score` (4), `host_enigma_uv` (5).
+`webcast.model.message.battle.BattleUserArmy` [battle.proto, line 85] (`BattleUserArmySchema`): `user_id` (1, int64) → `userId`, id; `score` (2, int64) → `score`, count; `nickname` (3, string) → `nickname`; `avatar_thumb` (4, `ImageModel`) → `avatarThumb`, message; `diamond_score` (5, int64) → `diamondScore`, count. Not read: `user_id_str` (6), `enigma_score` (7).
+`webcast.model.message.battle.BattleUserInfoWrapper` [battle.proto, line 95] (`BattleUserInfoEntrySchema`): `key` (1, int64) → `key`, id; `value` (2, `live.match.BattleUserInfo`) → `value`, message.
+`webcast.model.live.match.BattleUserInfo` [proto: webcast/model/live_match.proto, line 121] (`BattleUserInfoSchema`): `user` (1, `BattleBaseUserInfo`) → `user`, message. Not read: `tags` (2).
+`webcast.model.live.match.BattleBaseUserInfo` [live_match.proto, line 32] (`BattleBaseUserInfoSchema`): `user_id` (1, int64) → `userId`, id; `nick_name` (2, string) → `nickName`; `avatar_thumb` (3, `ImageModel`) → `avatarThumb`, message; `display_id` (4, string) → `displayId` (the username); `room_id` (5, int64) → `roomId`, id. Not read: `invitation_role` (6).
+`webcast.model.message.TeamUsersInfo` [messages.proto, line 856] (`TeamUsersInfoSchema`): `team_id` (1, int64) → `teamId`, id; `user_id` (2, repeated int64, packed or not) → `userId`, repeated id.
+`webcast.model.live.match.BattleTeamResult` [live_match.proto, line 105] (`BattleTeamResultSchema`): `team_id` (1, int64) → `teamId`, id; `team_user` (2, repeated `BattleTeamUser`) → `teamUser`, repeated message; `result` (3, int32) → `result`, int32 (an int32, not `BattleResult_Result`); `total_score` (4, int64) → `totalScore`, count. Not read: `total_enigma_score` (5), `total_enigma_uv` (6).
+`webcast.model.live.match.BattleTeamUser` [live_match.proto, line 114] (`BattleTeamUserSchema`): `user_id` (1, int64) → `userId`, id; `score` (2, int64) → `score`, count. Not read: `user_id_str` (3), `enigma_score` (4).
+`LinkMicBattle_BattleAction` [proto: webcast/im.proto, line 224]: `LINK_MIC_BATTLE_BATTLE_ACTION_UNKNOWN` 0, `INVITE` 1, `REJECT` 2, `CANCEL` 3, `OPEN` 4, `FINISH` 5, `LINK_MIC_BATTLE_BATTLE_ACTION_CUT_SHORT` 6, `ACCEPT` 7, `QUIT_APPLY` 8, `DECLINE_QUIT` 9, `DECLINE_OFF_QUIT` 10, `LEAVE_LINKMIC` 11; exported as `BattleAction` (`UNKNOWN`, `CUT_SHORT` without the prefix). `BattleSettings_BattleStatus` [proto: webcast/model/data/messages.proto, line 126]: `BATTLE_NOT_STARTED` 0, `BATTLE_STARTED` 1, `BATTLE_FINISHED` 2, `BATTLE_PUNISH_STARTED` 3, `BATTLE_PUNISH_FINISHED` 4; exported as `BattleStatus` without the `BATTLE_` prefix. `BattleResult_Result` [line 115]: **`WIN` 0**, `LOSE` 1, `DRAW` 2; exported as `BattleResult`: a result left out reads as a win ([Open items](#open-items) 43). `BattleType` [line 134]: `UNKNOWN_BATTLE_TYPE` 0, `NORMAL_BATTLE` 1, `TEAM_BATTLE` 2, `INDIVIDUAL_BATTLE` 3, `NUM_1_VN` 4, `TAKE_THE_STAGE` 51, `GROUP_SHOW` 52, `BEANS` 53, `GROUP_RANK_LIST` 54; exported as `BattleType` (`UNKNOWN` for 0).
+
+`WebcastLinkMicArmies` [proto: webcast/model/message/messages.proto, line 1397] (`link/linkMicArmies.ts`)
+
+| No. | Proto field           | Type                                          | Property            | Kind                       |
+| --- | --------------------- | --------------------------------------------- | ------------------- | -------------------------- |
+| 2   | `battle_id`           | int64                                         | `battleId`          | id                         |
+| 3   | `armies`              | `map<int64, battle.BattleUserArmies>`         | `armies`            | repeated message (entries) |
+| 7   | `trigger_reason`      | `webcast.im.LinkMicArmies_TriggerReason` enum | `triggerReason`     | enum                       |
+| 8   | `from_user_id`        | int64                                         | `fromUserId`        | id                         |
+| 9   | `gift_id`             | int64                                         | `giftId`            | id                         |
+| 10  | `gift_count`          | int32                                         | `giftCount`         | int32                      |
+| 12  | `total_diamond_count` | int32                                         | `totalDiamondCount` | int32                      |
+
+`armies` entries are read by `BattleArmiesEntrySchema` (above): the host's user id, and the host's score and top supporters. Not read: `channel_id` (4), `send_gift_success_time` (5), `update_battle_score_time` (6), `gift_icon_image` (11), `repeat_count` (13), `team_armies` (14), `trigger_critical_strike` (15), `has_team_match_mvp_sfx` (16), `log_id` (17), `battle_settings` (18), 19–21.
+`LinkMicArmies_TriggerReason` [proto: webcast/im.proto, line 210]: `LINK_MIC_ARMIES_TRIGGER_REASON_UNKNOWN` 0, `SCORE_UPDATE` 1, `BATTLE_END` 2, `OPT_OUT_UPDATE` 3, `KEEP_ALIVE` 4, `EFFECT_UPDATE` 5; exported as `ArmiesTriggerReason` (`UNKNOWN` for 0).
+
+`WebcastLinkMicBattlePunishFinish` [proto: webcast/model/message/messages.proto, line 1479] (`link/linkMicBattlePunishFinish.ts`)
+
+| No. | Proto field  | Type                                               | Property    | Kind |
+| --- | ------------ | -------------------------------------------------- | ----------- | ---- |
+| 2   | `channel_id` | int64                                              | `channelId` | id   |
+| 3   | `op_uid`     | int64                                              | `opUid`     | id   |
+| 4   | `reason`     | `webcast.im.LinkMicBattlePunishFinish_Reason` enum | `reason`    | enum |
+| 5   | `battle_id`  | int64                                              | `battleId`  | id   |
+
+Not read: `battle_settings` (6), `match_punish_extra_info` (7).
+`LinkMicBattlePunishFinish_Reason` [proto: webcast/im.proto, line 219]: `TIME_UP` 0, `CUT_SHORT` 1; exported as `PunishFinishReason`.
+
+`WebcastLinkmicBattleTaskMessage` [proto: webcast/model/message/messages.proto, line 1569] (`link/linkMicBattleTask.ts`). The lowercase `mic` is the message's own name, and the batch's `method`.
+
+| No. | Proto field         | Type                                    | Property          | Kind    |
+| --- | ------------------- | --------------------------------------- | ----------------- | ------- |
+| 2   | `task_message_type` | `webcast.im.BattleTaskMessageType` enum | `taskMessageType` | enum    |
+| 4   | `task_update`       | `battle.BattleTaskUpdate`               | `taskUpdate`      | message |
+| 5   | `task_settle`       | `battle.BattleTaskSettle`               | `taskSettle`      | message |
+| 20  | `battle_id`         | int64                                   | `battleId`        | id      |
+
+Not read: `start` (3, `BattleTaskStart`, the bonus settings), `reward` (6, `BattleRewardSettle`).
+`webcast.model.message.battle.BattleTaskUpdate` [proto: webcast/model/message/battle.proto, line 70] (`BattleTaskUpdateSchema`): `progress` (1, int64) → `progress`, count; `from_user_id` (2, int64) → `fromUserId`, id. Not read: `prompt_key` (3), `log_id` (21).
+`webcast.model.message.battle.BattleTaskSettle` [battle.proto, line 59] (`BattleTaskSettleSchema`): `result` (1, `webcast.im.BattleTaskSettle_Result`) → `result`, enum. Not read: `reward_start_time` (2), `reward_start_timestamp` (3).
+`BattleTaskMessageType` [proto: webcast/im.proto, line 76]: `START` 0, `TASK_UPDATE` 1, `TASK_SETTLE` 2, `REWARD_SETTLE` 3; exported as `BattleTaskMessageType`. `BattleTaskSettle_Result` [line 83]: `SUCCEED` 0, `FAILED` 1, `BOTH_SUCCEED` 2; exported as `BattleTaskResult`.
+
+`WebcastLinkMicFanTicketMethod` [proto: webcast/model/message/messages.proto, line 1491] (`link/linkMicFanTicketMethod.ts`)
+
+| No. | Proto field              | Type                         | Property              | Kind    |
+| --- | ------------------------ | ---------------------------- | --------------------- | ------- |
+| 2   | `fan_ticket_room_notice` | `FanTicketRoomNoticeContent` | `fanTicketRoomNotice` | message |
+
+`webcast.model.message.FanTicketRoomNoticeContent` [messages.proto, line 382] (`FanTicketRoomNoticeSchema`, the `FanTicketRoomNotice` type): `user_fan_ticket` (1, repeated `UserFanTicket`) → `userFanTicket`, repeated message; `total_linkmic_fan_ticket` (2, int64) → `totalLinkmicFanTicket`, count. Not read: `match_id` (3), `event_time` (4), `fan_ticket_icon_url` (5), `play_id` (6), `play_scene` (7), `version` (8), `score_type` (9).
+`webcast.model.message.UserFanTicket` [messages.proto, line 983] (`UserFanTicketSchema`): `user_id` (1, int64) → `userId`, id; `fan_ticket` (2, int64) → `fanTicket`, count; `match_rank` (4, int32) → `matchRank`, int32. Not read: `match_total_score` (3), `countdown_info` (5), `play_info` (6), and 7–12 (icons, animations and styles).
+
+`WebcastLinkMicMethod` [proto: webcast/model/message/messages.proto, line 1497] (`link/linkMicMethod.ts`)
+
+| No. | Proto field       | Type                                       | Property        | Kind             |
+| --- | ----------------- | ------------------------------------------ | --------------- | ---------------- |
+| 2   | `message_type`    | int32                                      | `messageType`   | int32            |
+| 5   | `user_id`         | int64                                      | `userId`        | id               |
+| 8   | `channel_id`      | int64                                      | `channelId`     | id               |
+| 13  | `invite_uid`      | int64                                      | `inviteUid`     | id               |
+| 14  | `answer`          | int32                                      | `answer`        | int32            |
+| 21  | `to_user_id`      | int64                                      | `toUserId`      | id               |
+| 24  | `from_user_id`    | int64                                      | `fromUserId`    | id               |
+| 38  | `rival_anchor_id` | int64                                      | `rivalAnchorId` | id               |
+| 45  | `linked_users`    | repeated `User`                            | `linkedUsers`   | repeated message |
+| 47  | `reply_type`      | `webcast.model.data.LinkmicReplyType` enum | `replyType`     | enum             |
+
+`message_type` and `answer` are int32s with no enum in the 0.2.3 protos ([Open items](#open-items) 40). Not read: everything else, among it the RTC and app credentials (`access_key` 3, `rtc_ext_info` 32, `rtc_app_id` 33, `app_id` 34, `app_sign` 35, `rtc_app_sign` 36), which the library never reads, `fan_ticket` (6), `total_linkmic_fan_ticket` (7), `start_time` (15), `duration` (16), `match_type` (18), `win` (19), `tips` (25), `from_room_id` (28) and `scene` (43).
+`LinkmicReplyType` [proto: webcast/model/data/messages.proto, line 471]: `RT_UNKNOWN` 0, `RT_AGREE` 1, `RT_REJECT` 2; exported as `LinkmicReplyType` without the `RT_` prefix.
+
+`WebcastLinkMessage` [proto: webcast/model/message/messages.proto, line 1363] (`link/linkMessage.ts`)
+
+| No. | Proto field                  | Type                                                        | Property                  | Kind    |
+| --- | ---------------------------- | ----------------------------------------------------------- | ------------------------- | ------- |
+| 2   | `message_type`               | int32                                                       | `messageType`             | int32   |
+| 3   | `linker_id`                  | int64                                                       | `linkerId`                | id      |
+| 4   | `scene`                      | int32                                                       | `scene`                   | int32   |
+| 5   | `invite_content`             | `linker.invite_message.LinkerInviteContent`                 | `inviteContent`           | message |
+| 6   | `reply_content`              | `linker.reply_message.LinkerReplyContent`                   | `replyContent`            | message |
+| 9   | `enter_content`              | `linker.LinkerEnterContent`                                 | `enterContent`            | message |
+| 10  | `leave_content`              | `linker.LinkerLeaveContent`                                 | `leaveContent`            | message |
+| 12  | `kick_out_content`           | `linker.LinkerKickOutContent`                               | `kickOutContent`          | message |
+| 13  | `linked_list_change_content` | `linker.linked_list_change_message.LinkedListChangeContent` | `linkedListChangeContent` | message |
+| 16  | `mute_content`               | `linker.LinkerMuteContent`                                  | `muteContent`             | message |
+| 20  | `list_change_content`        | `linker.listchangemessage.LinkerListChangeContent`          | `listChangeContent`       | message |
+| 22  | `media_change_content`       | `LinkerMediaChangeContent`                                  | `mediaChangeContent`      | message |
+
+`message_type` and `scene` are int32s with no enum ([Open items](#open-items) 40); the content that is set says what happened. Not read: `create_content` (7), `close_content` (8), `cancel_content` (11), `update_user_content` (14), `waiting_list_change_content` (15), `random_match_content` (17), `update_user_setting_content` (18), `mic_idx_update_content` (19), `cohost_list_change_content` (21), `reply_accept_notice_content` (23), `sys_kick_out_content` (101), `user_toast_content` (102), `extra` (200), `expire_timestamp` (201), `transfer_extra` (202), `version` (203).
+Every content but `LinkerMediaChangeContent` is in package `webcast.model.message.linker` (files in `webcast/model/message/linker/`):
+`invite_message.LinkerInviteContent` [proto: webcast/model/message/linker/invite_message.proto, line 32] (`LinkerInviteContentSchema`): `from_user_id` (1, int64) → `fromUserId`, id; `from_user` (8, `User`) → `fromUser`, message. Not read: `from_room_id` (2), the RTC fields (3–5, 7), `sec_from_user_id` (6), 9–23 and 101.
+`reply_message.LinkerReplyContent` [linker/reply_message.proto, line 11] (`LinkerReplyContentSchema`): `reply_status` (7, int32) → `replyStatus`, int32 (an int32, not an enum); `from_user` (9, `User`) → `fromUser`, message; `to_user` (10, `User`) → `toUser`, message. Not read: `from_user_id` (1), `from_room_id` (2), `from_user_linkmic_info` (3), `to_user_id` (4), `to_user_linkmic_info` (5), `link_type` (6), `linker_setting` (8), 11–18.
+`LinkerEnterContent` [linker/messages.proto, line 26] (`LinkerEnterContentSchema`): `linked_users` (1, repeated `linked_list_change_message.ListUser`) → `linkedUsers`, repeated message. Not read: `anchor_multi_live_enum` (2), `anchor_setting_info` (3).
+`LinkerLeaveContent` [linker/messages.proto, line 39] (`LinkerLeaveContentSchema`): `user_id` (1, int64) → `userId`, id; `leave_reason` (4, int64) → `leaveReason`, count. Not read: `linkmic_id_str` (2), `send_leave_uid` (3).
+`LinkerKickOutContent` [linker/messages.proto, line 33] (`LinkerKickOutContentSchema`): `from_user_id` (1, int64) → `fromUserId`, id; `kickout_reason` (2, `webcast.linkmic.common.KickoutReason`) → `kickoutReason`, enum.
+`linked_list_change_message.LinkedListChangeContent` [linker/linked_list_change_message.proto, line 8] (`LinkedListChangeContentSchema`): `linked_users` (1, repeated `ListUser`) → `linkedUsers`, repeated message.
+`linked_list_change_message.ListUser` [linker/linked_list_change_message.proto, line 12] (`LinkUserSchema`, the `LinkUser` type): `user` (1, `User`) → `user`, message; `link_status` (4, `webcast.model.data.LinkListStatus`) → `linkStatus`, enum; `link_type` (5, `webcast.model.data.LinkType`) → `linkType`, enum; `user_position` (6, int32) → `userPosition`, int32; `role_type` (10, `webcast.model.data.LinkRoleType`) → `roleType`, enum. Not read: `linkmic_id` (2), `linkmic_id_str` (3), `silence_status` (7), `modify_time` (8), `linker_id` (9).
+`LinkerMuteContent` [linker/messages.proto, line 46] (`LinkerMuteContentSchema`): `user_id` (1, int64) → `userId`, id; `mute_status` (2, `webcast.im.MuteStatus`) → `muteStatus`, enum.
+`listchangemessage.LinkerListChangeContent` [linker/listchangemessage.proto, line 21] (`LinkerListChangeContentSchema`): `linked_users` (1), `applied_users` (2) and `connecting_users` (3), each repeated `LinkListUser` → `linkedUsers`, `appliedUsers`, `connectingUsers`, repeated message.
+`listchangemessage.LinkListUser` [linker/listchangemessage.proto, line 8] (`LinkListUserSchema`): `user` (1, `User`) → `user`, message; `link_type` (3, int32) → `linkType`, int32; `role_type` (4, int32) → `roleType`, int32. A different message from `ListUser`: its link and role types are plain int32s. Not read: `modify_time` (2), `linkmic_id_str` (5), `payed_money` (6), `fan_ticket` (7), `fan_ticket_icon_type` (8), `link_user_type` (9), `blurred_avatar` (10).
+`webcast.model.message.LinkerMediaChangeContent` [messages.proto, line 530] (`LinkerMediaChangeContentSchema`): `op` (1, `webcast.model.data.GuestMicCameraManageOp`) → `op`, enum; `to_user_id` (2, int64) → `toUserId`, id. Not read: `anchor_id` (3), `room_id` (4), `change_scene` (5), `operator_info` (7).
+`KickoutReason` [proto: webcast/linkmic/common.proto, line 39]: `KICK_OUT_REASON_UNKNOWN` 0, `KICK_OUT_REASON_FIRST_FRAME_TIME_OUT` 1, `KICK_OUT_REASON_BY_HOST` 2, `KICK_OUT_REASON_RTC_LOST_CONNECTION` 3, `KICK_OUT_REASON_BY_PUNISH` 4, `KICK_OUT_REASON_BY_ADMIN` 5, `KICK_OUT_REASON_HOST_REMOVE_ALL_GUESTS` 6, `KICK_OUT_REASON_ENIGMA_EXPIRE` 7; exported as `KickoutReason` without the `KICK_OUT_REASON_` prefix. `LinkListStatus` [proto: webcast/model/data/messages.proto, line 413]: `STATUS_UN_KOWN` 0, `STATUS_WAITING` 1, `STATUS_LINKED` 2, `STATUS_FINISHED` 3, `STATUS_WAITING_OR_LINKED` 4; exported as `LinkListStatus` (`UNKNOWN`, the others without `STATUS_`). `LinkType` [line 435]: `TYPE_UNKNOWN` 0, `TYPE_VIDEO` 1, `TYPE_AUDIO` 2, `TYPE_VIRTUAL` 3; exported as `LinkType` without `TYPE_`. `LinkRoleType` [line 421]: `TYPE_ROLE_TYPE_UN_KOWN` 0, `TYPE_LEADER` 1, `TYPE_PLAYER` 2, `TYPE_INVITEE` 3, `TYPE_APP_LIER` 4; exported as `LinkRoleType` (`UNKNOWN`, `LEADER`, `PLAYER`, `INVITEE`, `APPLIER`). `MuteStatus` [proto: webcast/synthetic_enums.proto, line 17, package `webcast.im`]: **`MUTE_STATUS_MUTE` 0**, `MUTE_STATUS_UN_MUTE` 1; exported as `MuteStatus` (`MUTE`, `UN_MUTE`): a status left out reads as muted ([Open items](#open-items) 43). `GuestMicCameraManageOp` [proto: webcast/model/data/messages.proto, line 389]: `OPEN_MIC` 0, `OPEN_CAMERA` 1, `CLOSE_MIC` 2, `CLOSE_CAMERA` 3, `CLOSE_MIC_PUNISH` 4; exported as `GuestMicCameraManageOp`.
+
+`WebcastLinkLayerMessage` [proto: webcast/model/message/linkcore_webcast_link_layer_message.proto, line 11, package `webcast.model.message.linkcore`] (`link/linkLayer.ts`)
+
+| No. | Proto field            | Type                                     | Property             | Kind    |
+| --- | ---------------------- | ---------------------------------------- | -------------------- | ------- |
+| 2   | `message_type`         | `webcast.im.LinkLayerMessageType` enum   | `messageType`        | enum    |
+| 3   | `channel_id`           | int64                                    | `channelId`          | id      |
+| 4   | `scene`                | `webcast.linkmic.common.Scene` enum      | `scene`              | enum    |
+| 9   | `linker_mode`          | `webcast.linkmic.common.LinkerMode` enum | `linkerMode`         | enum    |
+| 102 | `list_change_content`  | `LinkListChangeContent`                  | `listChangeContent`  | message |
+| 103 | `invite_content`       | `InviteContent`                          | `inviteContent`      | message |
+| 104 | `apply_content`        | `ApplyContent`                           | `applyContent`       | message |
+| 105 | `permit_apply_content` | `PermitApplyContent`                     | `permitApplyContent` | message |
+| 106 | `reply_invite_content` | `ReplyInviteContent`                     | `replyInviteContent` | message |
+| 107 | `kick_out_content`     | `KickOutContent`                         | `kickOutContent`     | message |
+| 110 | `leave_content`        | `LeaveContent`                           | `leaveContent`       | message |
+| 111 | `finish_content`       | `FinishChannelContent`                   | `finishContent`      | message |
+
+Every participant here is a `Player`. Not read: `source` (5), `centerized_idc` (6), `rtc_room_id` (7), `version` (8), `wait_cross_data` (10), `create_channel_content` (100), `cancel_apply_content` (108), `cancel_invite_content` (109), `join_direct_content` (112), the group contents (113–120), `link_envelope_content` (150), and `business_content` (200, `chatroom.model.multiguestv3.BusinessContent`: the multi-guest and co-host contents, several levels deep, where the users' names are; [Open items](#open-items) 44).
+The contents are in package `webcast.model.message.linkcore` [proto: webcast/model/message/linkcore.proto]:
+`LinkListChangeContent` [line 107] (`LinkListChangeContentSchema`): `type` (1, int32) → `type`, int32; `list` (2, `AllListUser`) → `list`, message. Not read: `linked_user_ui_positions` (3), `content_pos` (4).
+`AllListUser` [line 9] (`AllListUserSchema`): `linked_list` (2), `applied_list` (3), `invited_list` (4) and `ready_list` (5), each repeated `LinkLayerListUser` → `linkedList`, `appliedList`, `invitedList`, `readyList`, repeated message.
+`LinkLayerListUser` [line 96] (`LinkLayerListUserSchema`): `user` (1, `Player`) → `user`, message; `linkmic_id` (2, string) → `linkmicId`; `user_type` (6, `webcast.linkmic.common.LinkerUserType`) → `userType`, enum. Not read: `pos` (3), `linked_time_nano` (4), `app_version` (5), `linker_session_id` (7).
+`InviteContent` [line 57] (`LinkInviteContentSchema`, the `LinkInviteContent` type): `invitor` (1, `Player`) → `invitor`, message; `invitee` (8, `Player`) → `invitee`, message. Not read: `invitee_rtc_ext_info` (2), `invitor_link_mic_id` (3), `invitee_link_mic_id` (4), `is_owner` (5), `pos` (6), `dsl` (7), `operator` (9), `invitee_linker_session_id` (10).
+`ApplyContent` [line 16] (`LinkApplyContentSchema`): `applier` (1, `Player`) → `applier`, message. Not read: `applier_link_mic_id` (2), `applier_linker_session_id` (3).
+`PermitApplyContent` [line 114] (`LinkPermitApplyContentSchema`): `permiter` (1, `Player`) → `permiter`, message; `reply_status` (4, `webcast.linkmic.common.AgreeStatus`) → `replyStatus`, enum; `applier` (6, `Player`) → `applier`, message. Not read: `permiter_link_mic_id` (2), `applier_pos` (3), `dsl` (5), `operator` (7), 8–14.
+`ReplyInviteContent` [line 183] (`LinkReplyInviteContentSchema`): `invitee` (1, `Player`) → `invitee`, message; `reply_status` (2, `AgreeStatus`) → `replyStatus`, enum. Not read: `invitee_link_mic_id` (3), `invitee_pos` (4), `invite_operator_user` (5), 6–10.
+`KickOutContent` [line 75] (`LinkKickOutContentSchema`): `offliner` (1, `Player`) → `offliner`, message; `kickout_reason` (2, `KickoutReason`) → `kickoutReason`, enum. Not read: 3–7 (layout positions, the session id).
+`LeaveContent` [line 86] (`LinkLeaveContentSchema`): `leaver` (1, `Player`) → `leaver`, message; `leave_reason` (2, int64) → `leaveReason`, count. Not read: 3–7 (layout positions, the session id).
+`FinishChannelContent` [line 52] (`LinkFinishContentSchema`): `owner` (1, `Player`) → `owner`, message; `finish_reason` (2, int64) → `finishReason`, count.
+`LinkLayerMessageType` [proto: webcast/im.proto, line 188]: `LINKER_UNKNOWN` 0, `LINKER_CREATE` 1, `LINKER_INVITE` 2, `LINKER_APPLY` 3, `LINKER_PERMIT` 4, `LINKER_REPLY` 5, `LINKER_KICK_OUT` 6, `LINKER_CANCEL_APPLY` 7, `LINKER_CANCEL_INVITE` 8, `LINKER_LEAVE` 9, `LINKER_FINISH` 10, `LINKER_LIST_CHANGE` 11, `LINKER_JOIN_DIRECT` 12, `LINKER_JOIN_GROUP` 13, `LINKER_PERMIT_GROUP` 14, `LINKER_CANCEL_GROUP` 15, `LINKER_LEAVE_GROUP` 16, `LINKER_P_2_P_GROUP_CHANGE` 17, `LINKER_GROUP_CHANGE` 18; exported as `LinkLayerMessageType` without the `LINKER_` prefix. `Scene` [proto: webcast/linkmic/common.proto, line 155]: `SCENE_UNKNOWN` 0, `CO_HOST` 2, `MULTI_LIVE` 4; exported as `LinkScene` (`UNKNOWN` for 0). `LinkerMode` [line 70]: `LINKER_MODE_UNKNOWN` 0, `INNER` 1, `CROSS` 2, `MIXED` 3; exported as `LinkerMode` (`UNKNOWN` for 0). `AgreeStatus` [line 9]: `AGREE_UNKNOWN` 0, `AGREE` 1, `REJECT` 2; exported as `AgreeStatus` (`UNKNOWN` for 0). `LinkerUserType` [line 77]: `LINKER_USER_TYPE_UNKNOWN` 0, `GUEST` 1, `HOST` 2; spelled out on `LinkLayerListUser.userType`, not exported as a constant.
+
+`WebcastLinkStateMessage` [proto: webcast/im.proto, line 602, package `webcast.im`] (`link/linkState.ts`)
+
+| No. | Proto field   | Type                                            | Property     | Kind             |
+| --- | ------------- | ----------------------------------------------- | ------------ | ---------------- |
+| 2   | `channel_id`  | int64                                           | `channelId`  | id               |
+| 3   | `scene`       | `webcast.linkmic.common.Scene` enum             | `scene`      | enum             |
+| 7   | `user_states` | repeated `webcast.linkmic.common.LinkUserState` | `userStates` | repeated message |
+| 9   | `state_type`  | `webcast.linkmic.common.StateType` enum         | `stateType`  | enum             |
+
+Not read: `version` (4), `need_ack` (5), `layout` (6), `client_send_time` (8), `background` (10), `wallpaper_url` (12), `ui_pos` (13), `spot_list` (14), `audio_muted_remote_channels` (15), `linker_mode` (16).
+`webcast.linkmic.common.LinkUserState` [proto: webcast/linkmic/common.proto, line 362] (`LinkUserStateSchema`): `user` (1, `Player`) → `user`, message; `linkmic_id` (2, string) → `linkmicId`; `pos` (3, `linkcore.MicPositionData`) → `pos`, message; `online_user_state` (5, `OnlineUserState`) → `onlineUserState`, enum; `audio_muted` (6, `MediaState`) → `audioMuted`, enum; `video_muted` (7, `MediaState`) → `videoMuted`, enum. Not read: `linked_time_nano` (4), `rtc_connection` (8), `network_state` (9), `avatar` (10), `linker_session_id` (11).
+`webcast.model.message.linkcore.MicPositionData` [proto: webcast/model/message/linkcore_mic_position_data.proto, line 7] (`MicPositionDataSchema`): `link` (2, `LinkPosition`) → `link`, message. Not read: `type` (1).
+`webcast.model.message.linkcore.LinkPosition` [proto: webcast/model/message/linkcore_link_position.proto, line 5] (`LinkPositionSchema`): `position` (1, int32) → `position`, int32. Not read: `opt` (2).
+`StateType` [proto: webcast/linkmic/common.proto, line 222]: `STATE_INVALID` 0, `STATE_LAYOUT` 1, `STATE_ONLINE_USER_STATE` 2, `STATE_AUDIO_MUTE` 3, `STATE_VIDEO_MUTE` 4, `STATE_RTC_CONNECTION` 5, `STATE_NETWORK` 6, `STATE_BACKGROUND_IMAGE` 7, `STATE_SCREEN_ORIENTATION` 8, `STATE_AVATAR_ID` 9, `STATE_AUDIO_MUTE_CHANNELS` 10, `STATE_REQ_BATCH_CHANGE` 100; exported as `LinkStateType` without the `STATE_` prefix. `OnlineUserState` [line 101]: `STATE_UNDEFINED` 0, `STATE_NORMAL` 1, `STATE_PAUSED` 2; exported as `OnlineUserState` without `STATE_`. `MediaState` [line 83]: `MEDIA_UNDEFINED` 0, `MEDIA_NORMAL` 1, `MEDIA_MUTED` 2, `MEDIA_UN_MUTE_OCCUPIED` 3, `MEDIA_MUTED_OCCUPIED` 4; exported as `MediaState` without `MEDIA_`.
+
+The tail (`link/tail.ts`), each with `common` (1):
+
+- `WebcastLinkMicBattleItemCard` [proto: webcast/model/message/messages.proto, line 1458] (`LinkMicBattleItemCardSchema`): `battle_id` (2, int64) → `battleId`, id; `msg_type` (3, `webcast.im.BattleCardMsgType`) → `msgType`, enum; `award_reason` (16, int32) → `awardReason`, int32. Not read: the card contents (4–15, one message per kind of card). 2.4.0 has no route for it ([Open items](#open-items) 45). `BattleCardMsgType` [proto: webcast/im.proto, line 55]: `UNKNOWN_CARD_ACTION` 0, `CARD_OBTAIN_GUIDE` 1, `USE_CRITICAL_STRIKE_CARD` 2, `USE_SMOKE_CARD` 3, `AWARD_CARD_NOTICE` 4, `USE_EXTRA_TIME_CARD` 5, `USE_SPECIAL_EFFECT_CARD` 6, `USE_POTION_CARD` 7, `USE_WAVE_CARD` 8, `SPECIAL_EFFECT_NOTICE` 9, `USE_TOP_2_CARD` 10, `USE_TOP_3_CARD` 11, `USE_VAULT_GLOVE_CARD` 12; exported as `BattleCardMsgType` (`UNKNOWN` for 0).
+- `WebcastLinkMicLayoutStateMessage` [proto: webcast/im.proto, line 592, package `webcast.im`] (`LinkMicLayoutStateMessageSchema`): `channel_id` (2, int64) → `channelId`, id; `scene` (3, int32) → `scene`, int32 (an int32 here, not the `Scene` enum of the link-layer and link-state messages); `version` (4, int64) → `version`, count. Not read: `biz_layout_state` (5), `biz_spot_list` (6).
 
 #### Room, ranks, polls, shopping and system (`messages/room/`)
 
@@ -712,7 +883,19 @@ Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table
 
 ### Link-mic and battles
 
-No route yet: every message of the group is pending.
+| Message                            | Events                      | Rule                                                                       |
+| ---------------------------------- | --------------------------- | -------------------------------------------------------------------------- |
+| `WebcastLinkMicBattle`             | `linkMicBattle`             | always, whatever `action`                                                  |
+| `WebcastLinkMicArmies`             | `linkMicArmies`             | always                                                                     |
+| `WebcastLinkMicBattlePunishFinish` | `linkMicBattlePunishFinish` | always                                                                     |
+| `WebcastLinkmicBattleTaskMessage`  | `linkMicBattleTask`         | always                                                                     |
+| `WebcastLinkMicFanTicketMethod`    | `linkMicFanTicketMethod`    | always                                                                     |
+| `WebcastLinkMicMethod`             | `linkMicMethod`             | always, whatever `messageType`                                             |
+| `WebcastLinkMessage`               | `linkMessage`               | always, whatever `messageType`: the content that is set says what happened |
+| `WebcastLinkLayerMessage`          | `linkLayer`                 | always, whatever `messageType`                                             |
+| `WebcastLinkStateMessage`          | `linkState`                 | always, whatever `stateType`                                               |
+| `WebcastLinkMicBattleItemCard`     | `linkMicBattleItemCard`     | always (not routed by 2.4.0; the `method` is the message's name)           |
+| `WebcastLinkMicLayoutStateMessage` | `linkMicLayoutState`        | always                                                                     |
 
 ### Room, ranks, polls, shopping and system
 
@@ -822,3 +1005,12 @@ What the references and docs can't settle. `yarn capture` on the user's own LIVE
 17. **Quiet rooms.** _Most likely settled (the server answered heartbeats in the second smoke run too)._ The server answered the first smoke run's heartbeat with an `hb` frame. If it answers every heartbeat (10 s apart by default), a healthy socket gets a frame well within `idleTimeoutMs` (30 s) even in a LIVE where nothing happens, so the idle check never fires on it. A longer run confirms it: the session logs the first reply at `debug`, and an idle drop shows as `disconnected` with reason `idle`.
 18. **Resuming.** _Settled: TikTok refuses it._ A socket opened from a resumed batch, on the old push server, gets an HTTP `200` instead of a WebSocket, even with the first connect's route params merged in (third smoke run, an empty body). Reconnects sign fresh for their socket, and sign with the cursor only for the gap ([Reconnects](#reconnects), "The gap").
 19. **`Text.pieces`.** A display text's `pieces` (4, repeated `TextPiece`: typed parts such as a user, a gift or a pattern reference) aren't read: `key` and `default_pattern` are enough for routing and for showing the text. Read them if an app needs the parts (the user a text names, say). Items 20–59 are reserved for the groups: chat 20–29, gift 30–39, link 40–49, room 50–59.
+
+**Link-mic and battles** (items 40–49):
+
+40. **Link message types.** `WebcastLinkMessage.message_type` (2) and `scene` (4), and `WebcastLinkMicMethod.message_type` (2) and `answer` (14), are int32s with no enum in the 0.2.3 protos. The content that is set (`invite_content`, `enter_content`, `leave_content`…) says what a link message is about; `WebcastLinkMicMethod` has no such contents, so its `message_type` is the only clue. A capture of a LIVE with guests tells which values go with invitations, replies, joins and leaves, and whether the int32 `scene`s (here and in `WebcastLinkMicLayoutStateMessage`) hold the values of `linkmic.common.Scene` (2 co-host, 4 multi-guest) that `WebcastLinkLayerMessage` and `WebcastLinkStateMessage` use. `LinkerReplyContent.reply_status`, `LinkListUser.link_type` and `role_type`, `LinkListChangeContent.type`, and the int64 leave and finish reasons have no enum either.
+41. **Which link messages a viewer gets.** 2.4.0 routes all of them, but the protos hold two generations: `WebcastLinkMicMethod` (the older one, with RTC credentials) and `WebcastLinkMessage`, next to the link layer's `WebcastLinkLayerMessage` and `WebcastLinkStateMessage`. Which ones an audience connection still receives, and whether invitations and applications reach the audience or only the hosts involved, needs captures of a co-host LIVE and a multi-guest one.
+42. **Battles in traffic.** Which `BattleAction` values a viewer sees (`OPEN` 4 and `FINISH` 5 at least); whether `battle_result` comes on `FINISH` only; whether the keys of `battle_result`, `armies` and `anchors_info` are the hosts' user ids (assumed: `BattleResult.user_id` and `BattleBaseUserInfo.user_id` say so); whether `BattleSetting.duration` is in seconds (assumed) and `start_time_ms`/`end_time_ms` in milliseconds; whether `score` (battle points) and `diamond_score` (coins) differ in a normal battle; and how often `WebcastLinkMicArmies` comes (on every gift, `SCORE_UPDATE` 1, or throttled). A capture of a LIVE that battles settles them.
+43. **Enums whose 0 means something.** `BattleResult_Result` (`WIN` 0), `MuteStatus` (`MUTE` 0), `GuestMicCameraManageOp` (`OPEN_MIC` 0), `BattleTaskMessageType` (`START` 0), `BattleTaskSettle_Result` (`SUCCEED` 0) and `LinkMicBattlePunishFinish_Reason` (`TIME_UP` 0) give 0 a meaning. Proto3 never writes a field at 0, so these values always arrive as a missing field, and a field TikTok really left unset reads the same: a battle result without `result` is a win, a mute without `mute_status` a mute. A capture of a battle that ends (with a loss or a draw) and of a guest being muted and unmuted checks that the payloads read right.
+44. **Names in the link layer.** `WebcastLinkLayerMessage` and `WebcastLinkStateMessage` carry `Player`s (a room id and a user id), no names. The names are in `WebcastLinkLayerMessage.business_content` (200, `chatroom.model.multiguestv3.BusinessContent`), several levels deep and skipped. If apps need them, a later version reads the part that holds them; a capture shows how often it is set and how big it is.
+45. **`WebcastLinkMicBattleItemCard`.** The 0.2.3 protos have the message, but 2.4.0 has no route for it [TLC: src/types/events.ts], so its `method` (the message's name, as for every other message) and when it comes are unconfirmed. `award_reason` (16) has no enum, and the card contents (4–15) aren't read: `msg_type` says which card.
