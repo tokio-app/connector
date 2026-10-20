@@ -407,9 +407,9 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
     opening.resolve();
   }
 
-  // The server answers each heartbeat with an `hb` frame of its own (seen in
-  // the first smoke run). Like any frame, it keeps the idle check quiet; the
-  // first one is logged.
+  // The server answers a heartbeat with an `hb` frame of its own (seen in the
+  // first smoke run). Like any frame, it keeps the idle check quiet; the first
+  // one is logged.
   #onHeartbeatReply(): void {
     if (this.#heartbeatAnswered) return;
     this.#heartbeatAnswered = true;
