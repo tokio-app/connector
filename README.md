@@ -1,4 +1,4 @@
-# @tokioapp/connector
+# Tokio TikTok Connector
 
 Connect to a TikTok LIVE from Node and receive its events: every LIVE message type, from chat, gifts, likes, follows, viewers and super fans to battles, polls and goals. It reconnects on its own, decodes only the messages you listen to, and gives you typed events and errors. It is written from scratch, MIT-licensed, and has one runtime dependency (`ws`). It is the connector behind [Tokio](https://tokio.ialfaro.com).
 
