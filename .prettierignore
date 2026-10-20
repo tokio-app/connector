@@ -2,4 +2,6 @@ dist
 coverage
 /reference
 yarn.lock
-test/fixtures
+# Recorded data stays byte for byte as captured or written.
+test/fixtures/*.html
+test/fixtures/*.json

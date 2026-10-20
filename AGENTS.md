@@ -63,8 +63,9 @@ test/
   setup.ts            runs before every test file
   helpers/            encoder.ts (builds fixture bytes from the schemas), samples.ts (sample LIVE message values, unknown fields),
                       fetchStub.ts (a stubbed fetch that records requests), fakeSigner.ts (a Signer without network),
-                      fakeTikTok.ts (a local ws server standing in for TikTok's push server)
-  fixtures/           recorded pages and captures, replayed by tests
+                      fakeTikTok.ts (a local ws server standing in for TikTok's push server),
+                      replay.ts (captured messages through dispatch, every listener attached)
+  fixtures/           live-page.html (a LIVE page), *.capture.json (captures), fixtures.test.ts (replays the captures)
 scripts/              reference/, capture/, smoke/: each an index.ts run with tsx
   lib/                shared by capture and smoke: cli.ts (flags, connection options, logger, clock, entry point), format.ts (errors, tables)
 reference/            gitignored: the MIT reference copies `yarn reference` downloads (see Licensing)
@@ -97,6 +98,7 @@ Public payloads are JSON-safe: 64-bit ids are decimal strings, 64-bit counters a
 - Build protobuf bytes with `test/helpers/encoder.ts`: `encodeMessage(schema, value)` for fixtures, and `fields.*` (explicit field numbers, independent of the schemas) to check a table's field numbers against the `.proto`.
 - Tests never touch the network, and neither does CI: use `FakeSigner`, the fake TikTok server (`ws` on `127.0.0.1:0`) and stubbed `fetch`. Keep real-timer tests short (50–200 ms values, `vi.waitFor`).
 - `yarn smoke` and `yarn capture` are opt-in and need the network and a LIVE. Ask the user before running them. Fixtures from a capture come only from the user's own LIVE, anonymized (`--anonymize`) and kept small. Read one with `parseFixture` and replay its messages with `fromFixtureMessage` (`scripts/capture/fixture.ts`).
+- To add a captured fixture, the user records their own LIVE: `yarn capture <own-username> --out test/fixtures/<name>.capture.json --anonymize --seconds 60`. `test/fixtures/fixtures.test.ts` replays every `*.capture.json` there through dispatch with every listener attached (`test/helpers/replay.ts`) and checks that no message fails to decode, that dispatch handles as many messages of each method as the fixture's `counts`, and that the first message of each event matches its snapshot. Run `yarn test test/fixtures` once to write the snapshot (`test/fixtures/__snapshots__/`; CI never writes one), read it, and commit it with the capture. `--anonymize` only leaves out the username: the payloads still hold viewers' names and comments, and so does the snapshot. Without a capture, the test is skipped.
 - The scripts are tested next to them and run with `yarn test`: `scripts/lib/{cli,format}.test.ts` (flags, logger, clock, error and table formatting), `scripts/smoke/{args,summary}.test.ts` (the event bookkeeping, the reconnect check and the verdict), `scripts/capture/{args,fixture}.test.ts` (the fixture format and its validator), and `scripts/{smoke,capture}/run.test.ts`, which run each script's `run.ts` offline against `FakeTikTok`, `FakeSigner` and a stubbed `fetch` (the drop, the gift list, the summary; the capture's fixture replayed through dispatch). The `index.ts` files only wire `run.ts` to the console and a real connection; `summary.test.ts` fails to typecheck when `WebcastEventMap` gains an event the smoke run doesn't listen to.
 - `restoreMocks` and `unstubGlobals` are on: mocks and stubbed globals reset after each test.
 - `yarn test:coverage` fails below the thresholds in `vitest.config.ts`: 100% of lines and branches in `src/codec/`, 90% of lines and 85% of branches in `src/connection.ts`, `src/dispatch.ts` and `src/ws/`, and 90% of statements overall. CI runs it on Linux.
