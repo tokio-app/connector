@@ -14,7 +14,7 @@
 
 The TikTok LIVE protocol isn't documented by TikTok. The behavior of the protocol (how a room is found, the signed connect request, the WebSocket frames, the heartbeat and acknowledgements, how messages are routed) and the layout of its messages (field numbers and types) are learned by reading the two MIT-licensed releases below. This library's code, including its wire decoder and message tables, is written from scratch from that understanding; no source code, generated code or schema file from them is included.
 
-Only these exact releases are used. Later versions of both packages (tiktok-live-connector 2.4.1 and later, tiktok-live-proto 0.2.4 and later) are licensed AGPL-3.0-only and are not used, as a reference or otherwise. `yarn reference` (`scripts/reference/index.ts`) downloads the reference copies and checks their licenses; they are kept out of the repository and the package.
+Only these exact releases are used. Later versions of both packages (tiktok-live-connector 2.4.1 and later, tiktok-live-proto 0.2.4 and later) are licensed AGPL-3.0-only and are not used, as a reference or otherwise. `yarn reference` (`scripts/reference/index.ts`) downloads the reference copies and checks their licenses; they are kept out of the repository and the package. One folder of the tiktok-live-proto repository at that commit, `targets/typescript/tiktok-live-proto-full/`, isn't MIT: its package.json declares `UNLICENSED` (`@eulerstream/tiktok-live-proto-full`, Euler Stream's private package). It is not used, and `yarn reference` deletes it.
 
 ### tiktok-live-connector
 

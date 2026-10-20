@@ -7,7 +7,10 @@
 //   in reference/src/<repo>/ (the .proto files only live in the repository)
 //
 // Later versions of both packages are AGPL-3.0-only and must never be used, so
-// the versions and commits are pinned here and every license is checked.
+// the versions and commits are pinned here and every license is checked. The
+// folders of the sources that aren't MIT (REMOVED_FOLDERS in licenses.ts) are
+// removed after the checkout, and the run fails when any package.json left
+// under reference/ declares a license other than MIT.
 // Rerunning it skips whatever is already in place.
 import { execFileSync, execSync } from "node:child_process";
 import {
@@ -19,6 +22,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { licenseProblems, REMOVED_FOLDERS, type Manifest } from "./licenses.js";
 
 interface Reference {
   name: string;
@@ -182,6 +186,44 @@ function checkoutSource(ref: Reference) {
   log(`${ref.folder}@${ref.commit.slice(0, 7)}: license MIT`);
 }
 
+// Removes the folders that aren't MIT. A checkout at the pinned commit brings
+// them back; this runs after every one, and a rerun finds them gone.
+function removeFolders() {
+  for (const folder of REMOVED_FOLDERS) {
+    const dir = join(sourcesDir, folder);
+    if (!existsSync(dir)) continue;
+    rmSync(dir, { recursive: true, force: true });
+    log(`removed ${display(dir)}: not MIT`);
+  }
+}
+
+// Every package.json under dir, outside .git and node_modules.
+function findManifests(dir: string): Manifest[] {
+  const manifests: Manifest[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      manifests.push(...findManifests(path));
+    } else if (entry.name === "package.json") {
+      manifests.push({
+        path: display(path),
+        json: JSON.parse(readFileSync(path, "utf8")) as unknown,
+      });
+    }
+  }
+  return manifests;
+}
+
+function checkManifests() {
+  const manifests = findManifests(referenceDir);
+  const problems = licenseProblems(manifests);
+  if (problems.length > 0) {
+    fail(`not every package is MIT. Don't use them:\n${problems.join("\n")}`);
+  }
+  log(`${manifests.length} package.json files, all MIT`);
+}
+
 function countProtoFiles(dir: string): number {
   let count = 0;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -211,6 +253,7 @@ ${rows}
 
 - \`<package>-<version>/package/\`: the npm tarball, as published.
 - \`src/<repository>/\`: the source repository at that commit. The \`.proto\` files are under \`src/TikTok-Webcast-Protobuf/src/slim/v3/\`.
+- Removed after the checkout, because they aren't MIT: ${REMOVED_FOLDERS.map((folder) => `\`src/${folder}/\``).join(", ")} (\`UNLICENSED\`: Euler Stream's private package). Don't restore them.
 
 Later versions of both packages (tiktok-live-connector 2.4.1+, tiktok-live-proto 0.2.4+) are AGPL-3.0-only and must not be used.
 `,
@@ -222,6 +265,8 @@ function main() {
 
   for (const ref of REFERENCES) downloadPackage(ref);
   for (const ref of REFERENCES) checkoutSource(ref);
+  removeFolders();
+  checkManifests();
 
   const protoDir = join(sourcesDir, PROTO_DIR);
   if (!existsSync(protoDir)) fail(`${display(protoDir)} is missing`);
