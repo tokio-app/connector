@@ -11,7 +11,7 @@ Stack: Node >= 24, TypeScript 7, `ws`, Vitest (on Vite 7), Yarn 1. No Zod or pro
 ## Commands
 
 ```sh
-yarn build             # tsc -p tsconfig.build.json: dist/ (JS, .d.ts, source maps)
+yarn build             # tsc -p tsconfig.build.json: dist/ (JS and .d.ts, no maps)
 yarn clean             # delete dist/ and coverage/
 yarn test              # vitest run (yarn test:watch to watch)
 yarn test:coverage     # vitest with a coverage report in coverage/ (text + lcov)
@@ -41,6 +41,7 @@ src/
   events.ts           WebcastEventMap and the event payload types
   errors.ts           ConnectorError and its subclasses
   emitter.ts          TypedEmitter
+  logger.ts           the Logger type and the default console logger
   connection.ts       TikTokLiveConnection: connect, reconnect with backoff, disconnect
   dispatch.ts         routes decoded messages to events: dedupe, history, lazy decoding
   gifts.ts            gift helpers (isStreakable, isStreakEnd)
@@ -48,7 +49,7 @@ src/
   room/               resolver.ts (username → room id, is-live check), gifts.ts (room → signer → region gift list)
   signer/             types.ts (the Signer interface), euler.ts (EulerSigner, the default)
   ws/                 frames.ts (enter room, heartbeat, ack), session.ts (one socket's lifetime)
-  codec/              reader.ts, writer.ts, schema.ts, decode.ts, index.ts: the protobuf wire codec
+  codec/              reader.ts, writer.ts, schema.ts, decode.ts, index.ts (re-exports, SCHEMAS by message name): the protobuf wire codec
   codec/messages/     one table per message: common, frame, fetchResult, chat, gift, like, social, member, roomUser, control, envelope, barrage
   util/               backoff, random, gzip, cookies
 test/
@@ -72,7 +73,9 @@ The library is MIT and must stay clean-room. Treat this as part of every change.
 
 ## Protocol
 
-`PROTOCOL.md` is the spec: room id resolution, the is-live check, client params and headers, the signed connect request, the WebSocket URL and frames, heartbeat and ack, message routing, the gift list sources, and the field numbers of every decoded message. Change it together with the code, and check new facts against `reference/` or Euler's docs.
+`PROTOCOL.md` is the spec: room id resolution, the is-live check, client params and headers, the signed connect request, the WebSocket URL and frames, heartbeat and ack, message routing, the gift list sources, and the field numbers of every decoded message. Each fact cites its source in `reference/` or Euler's docs, and its Open items list what still needs a capture or a smoke run. Change it together with the code, and check new facts against `reference/` or Euler's docs.
+
+A message table (`src/codec/messages/`) is a `defineSchema<T>()` call keyed by the payload's properties: the compiler checks that every property has a field of the matching kind, and that optional properties are nested messages. Fields a table doesn't list are skipped when decoding.
 
 TikTok changes things without notice. The `clientParams` and `headers` options override the defaults in `src/http/params.ts`, so an app can work around a change before a release (the hotfix path); keep every param and header in that one file so they stay overridable.
 
@@ -81,6 +84,7 @@ Public payloads are JSON-safe: 64-bit ids are decimal strings, 64-bit counters a
 ## Testing
 
 - Vitest. Tests sit next to the code as `*.test.ts`; shared fakes live in `test/helpers`, recorded data in `test/fixtures`.
+- Build protobuf bytes with `test/helpers/encoder.ts`: `encodeMessage(schema, value)` for fixtures, and `fields.*` (explicit field numbers, independent of the schemas) to check a table's field numbers against the `.proto`.
 - Tests never touch the network, and neither does CI: use `FakeSigner`, the fake TikTok server (`ws` on `127.0.0.1:0`) and stubbed `fetch`. Keep real-timer tests short (50–200 ms values, `vi.waitFor`).
 - `yarn smoke` and `yarn capture` are opt-in and need the network and a LIVE. Ask the user before running them. Fixtures from a capture come only from the user's own LIVE, anonymized (`--anonymize`) and kept small.
 - `restoreMocks` and `unstubGlobals` are on: mocks and stubbed globals reset after each test.
