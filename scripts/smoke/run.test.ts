@@ -2,9 +2,9 @@
 // FakeSigner and a stubbed fetch, so its wiring (every listener, the drop,
 // the gift list, the disconnect, the summary) runs in every test pass.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChatMessageSchema } from "../../src/codec/messages/chat.js";
-import { LikeMessageSchema } from "../../src/codec/messages/like.js";
-import { RoomUserMessageSchema } from "../../src/codec/messages/roomUser.js";
+import { ChatMessageSchema } from "../../src/codec/messages/chat/chat.js";
+import { LikeMessageSchema } from "../../src/codec/messages/chat/like.js";
+import { RoomUserMessageSchema } from "../../src/codec/messages/room/roomUser.js";
 import {
   ControlAction,
   SignError,

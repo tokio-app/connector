@@ -28,7 +28,11 @@ export {
   type TimeoutPhase,
   type WebSocketErrorOptions,
 } from "./errors.js";
-export { ControlAction, EnvelopeBusinessType, MemberAction } from "./events.js";
+export {
+  ControlAction,
+  EnvelopeBusinessType,
+  MemberAction,
+} from "./events/index.js";
 export type {
   Badge,
   BarrageMessage,
@@ -65,7 +69,7 @@ export type {
   User,
   UserIdentity,
   WebcastEventMap,
-} from "./events.js";
+} from "./events/index.js";
 export { isStreakEnd, isStreakable } from "./gifts.js";
 export {
   consoleLogger,

@@ -1,8 +1,8 @@
 // Banners (WebcastBarrageMessage). Field numbers: PROTOCOL.md,
 // "Field numbers", from reference/src/TikTok-Webcast-Protobuf/src/slim/v3.
-import type { BarrageMessage } from "../../events.js";
-import { defineSchema, f } from "../schema.js";
-import { CommonSchema, TextSchema, UserSchema } from "./common.js";
+import type { BarrageMessage } from "../../../events/index.js";
+import { defineSchema, f } from "../../schema.js";
+import { CommonSchema, TextSchema, UserSchema } from "../common.js";
 
 /** `WebcastBarrageMessage`: super fan banners, told apart by their text keys. */
 export const BarrageMessageSchema = defineSchema<BarrageMessage>(

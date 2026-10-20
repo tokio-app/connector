@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MemberAction, type MemberMessage } from "../../events.js";
-import { decodeMessage } from "../decode.js";
+import { MemberAction, type MemberMessage } from "../../../events/index.js";
+import { decodeMessage } from "../../decode.js";
 import { MemberMessageSchema } from "./member.js";
 import {
   concat,
@@ -8,12 +8,12 @@ import {
   fields,
   fromHex,
   toHex,
-} from "../../../test/helpers/encoder.js";
+} from "../../../../test/helpers/encoder.js";
 import {
   SAMPLE_USER,
   sampleCommon,
   unknownFields,
-} from "../../../test/helpers/samples.js";
+} from "../../../../test/helpers/samples.js";
 
 // Field numbers: WebcastMemberMessage in webcast/model/message/messages.proto;
 // its action (10) is a webcast.im.MemberMessageAction (synthetic_enums.proto).

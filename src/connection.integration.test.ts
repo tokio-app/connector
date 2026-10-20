@@ -6,13 +6,13 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { decodeMessage } from "./codec/decode.js";
-import { ChatMessageSchema } from "./codec/messages/chat.js";
-import { GiftMessageSchema } from "./codec/messages/gift.js";
-import { LikeMessageSchema } from "./codec/messages/like.js";
-import { SocialMessageSchema } from "./codec/messages/social.js";
+import { ChatMessageSchema } from "./codec/messages/chat/chat.js";
+import { GiftMessageSchema } from "./codec/messages/gift/gift.js";
+import { LikeMessageSchema } from "./codec/messages/chat/like.js";
+import { SocialMessageSchema } from "./codec/messages/chat/social.js";
 import { TikTokLiveConnection } from "./connection.js";
 import type { ConnectorError } from "./errors.js";
-import { ControlAction, type WebcastEventMap } from "./events.js";
+import { ControlAction, type WebcastEventMap } from "./events/index.js";
 import { isStreakEnd } from "./gifts.js";
 import type { ConnectOptions } from "./options.js";
 import { encodeMessage, fields } from "../test/helpers/encoder.js";

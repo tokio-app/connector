@@ -20,6 +20,7 @@ export default defineConfig({
         "src/codec/**/*.ts": { lines: 100, branches: 100 },
         "src/connection.ts": { lines: 90, branches: 85 },
         "src/dispatch.ts": { lines: 90, branches: 85 },
+        "src/routes/**/*.ts": { lines: 90, branches: 85 },
         "src/ws/**/*.ts": { lines: 90, branches: 85 },
       },
     },

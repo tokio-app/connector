@@ -1,13 +1,13 @@
 // Chat comments (WebcastChatMessage). Field numbers: PROTOCOL.md,
 // "Field numbers", from reference/src/TikTok-Webcast-Protobuf/src/slim/v3.
-import type { ChatEmote, ChatMessage, Emote } from "../../events.js";
-import { defineSchema, f } from "../schema.js";
+import type { ChatEmote, ChatMessage, Emote } from "../../../events/index.js";
+import { defineSchema, f } from "../../schema.js";
 import {
   CommonSchema,
   ImageSchema,
   UserIdentitySchema,
   UserSchema,
-} from "./common.js";
+} from "../common.js";
 
 /** `webcast.model.base.emoji.EmoteModel`. */
 const EmoteSchema = defineSchema<Emote>("EmoteModel", {

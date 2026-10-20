@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ControlAction, type ControlMessage } from "../../events.js";
-import { decodeMessage } from "../decode.js";
+import { ControlAction, type ControlMessage } from "../../../events/index.js";
+import { decodeMessage } from "../../decode.js";
 import { ControlMessageSchema } from "./control.js";
 import {
   concat,
@@ -8,8 +8,11 @@ import {
   fields,
   fromHex,
   toHex,
-} from "../../../test/helpers/encoder.js";
-import { sampleCommon, unknownFields } from "../../../test/helpers/samples.js";
+} from "../../../../test/helpers/encoder.js";
+import {
+  sampleCommon,
+  unknownFields,
+} from "../../../../test/helpers/samples.js";
 
 // Field numbers: WebcastControlMessage in
 // webcast/model/message/messages.proto; its action (2) is a

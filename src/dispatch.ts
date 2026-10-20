@@ -1,215 +1,22 @@
 // Routes each LIVE message of a batch to the public events: drops duplicates
 // and history, emits `raw`, and decodes a payload only when someone listens
-// to an event it can produce. The routing rules are PROTOCOL.md's "Routing".
-// The exported names and signatures are a contract with connection.ts: keep
-// them.
+// to an event it can produce. The routes themselves live in src/routes/
+// (the rules are PROTOCOL.md's "Routing"); this is the pipeline that runs
+// them. The exported names and signatures are a contract with connection.ts:
+// keep them.
 import { decodeMessage, type DecodeOptions } from "./codec/decode.js";
-import { BarrageMessageSchema } from "./codec/messages/barrage.js";
-import { ChatMessageSchema } from "./codec/messages/chat.js";
 import { CommonOnlySchema } from "./codec/messages/common.js";
-import { ControlMessageSchema } from "./codec/messages/control.js";
-import { EnvelopeMessageSchema } from "./codec/messages/envelope.js";
 import type { FetchResultMessage } from "./codec/messages/fetchResult.js";
-import { GiftMessageSchema } from "./codec/messages/gift.js";
-import { LikeMessageSchema } from "./codec/messages/like.js";
-import { MemberMessageSchema } from "./codec/messages/member.js";
-import { RoomUserMessageSchema } from "./codec/messages/roomUser.js";
-import { SocialMessageSchema } from "./codec/messages/social.js";
-import type { AnyMessageSchema, MessageSchema } from "./codec/schema.js";
-import type { EventName } from "./emitter.js";
 import { ConnectorError, ProtocolError } from "./errors.js";
+import type { RawMessage, WebcastEventName } from "./events/index.js";
+import { ROUTES } from "./routes/index.js";
 import {
-  ControlAction,
-  EnvelopeBusinessType,
-  type BarrageMessage,
-  type EnvelopeMessage,
-  type RawMessage,
-  type StreamEndAction,
-  type WebcastEventMap,
-} from "./events.js";
+  RecentIds,
+  type AnyRoute,
+  type DispatchContext,
+} from "./routes/route.js";
 
-/** A public event name. */
-export type WebcastEventName = EventName<WebcastEventMap>;
-
-/** What dispatch needs from the connection. The connection keeps one for its whole life. */
-export interface DispatchContext {
-  /** The `processInitialData` option: when `false`, history messages are dropped after `raw`. */
-  readonly processInitialData: boolean;
-  /** The message ids seen recently, for dropping duplicates. Lives across reconnects. */
-  readonly recentIds: RecentIds;
-  /** Options for decoding payloads (where unsafe counts are reported). */
-  readonly decodeOptions: DecodeOptions;
-  /** How many listeners an event has: payloads are only decoded for events someone listens to. */
-  listenerCount(event: WebcastEventName): number;
-  /** Emits a public event. Never throws. */
-  emit<K extends WebcastEventName>(event: K, payload: WebcastEventMap[K]): void;
-  /** Reports a failure without throwing, such as a payload that can't be decoded. */
-  reportError(error: ConnectorError): void;
-  /** The LIVE ended: the connection emits `streamEnd` and disconnects without reconnecting. */
-  endStream(action: StreamEndAction): void;
-}
-
-/** How to handle one LIVE message type. */
-export interface Route<T> {
-  /** Decodes the payload. */
-  readonly schema: MessageSchema<T>;
-  /** The events `emit` can produce. With no listener on any of them, the payload isn't decoded. */
-  readonly events: readonly WebcastEventName[];
-  /** Decode even when no event has a listener (control messages: the stream end must be seen). */
-  readonly always?: boolean;
-  /** Emits the decoded message: one event, several, or none. */
-  emit(message: T, context: DispatchContext): void;
-}
-
-/** A {@link Route} with its message type erased, as {@link ROUTES} holds it. */
-export interface AnyRoute {
-  readonly schema: AnyMessageSchema;
-  readonly events: readonly WebcastEventName[];
-  readonly always?: boolean;
-  emit(message: any, context: DispatchContext): void;
-}
-
-/** Checks a route's types against its schema, and erases them for {@link ROUTES}. */
-export function defineRoute<T>(route: Route<T>): AnyRoute {
-  return route;
-}
-
-// The text keys that mark super fan messages (from 2.4.0), matched lowercased.
-// The join key also contains the super fan key, so it is checked first.
-const SUPER_FAN_BOX_KEY = "ttlive_superfanbox";
-const SUPER_FAN_JOINED_KEY = "ttlive_superfan_commentnotif_superfanjoined";
-const SUPER_FAN_KEY = "ttlive_superfan";
-
-/** A route that emits every message as one event. */
-function forward<K extends WebcastEventName>(
-  event: K,
-  schema: MessageSchema<WebcastEventMap[K]>,
-): AnyRoute {
-  return defineRoute({
-    schema,
-    events: [event],
-    emit: (message, context) => context.emit(event, message),
-  });
-}
-
-/** Whether an envelope is a super fan box: by its text key or its business type. */
-function isSuperFanBox(message: EnvelopeMessage): boolean {
-  const key = message.common?.displayText?.key ?? "";
-  return (
-    key.toLowerCase().includes(SUPER_FAN_BOX_KEY) ||
-    message.envelopeInfo?.businessType === EnvelopeBusinessType.SUPER_FAN_BOX
-  );
-}
-
-/** The super fan event a banner is, if any, from its two text keys. */
-function superFanEvent(
-  message: BarrageMessage,
-): "superFanJoin" | "superFan" | undefined {
-  const keys = [message.content, message.commonBarrageContent].map(
-    (text) => text?.key.toLowerCase() ?? "",
-  );
-  if (keys.some((key) => key.includes(SUPER_FAN_JOINED_KEY))) {
-    return "superFanJoin";
-  }
-  if (keys.some((key) => key.includes(SUPER_FAN_KEY))) return "superFan";
-  return undefined;
-}
-
-/** The routes, by message type (a batch message's `method`). Message types without a route only reach `raw`. */
-export const ROUTES: Readonly<Record<string, AnyRoute>> = Object.freeze({
-  WebcastChatMessage: forward("chat", ChatMessageSchema),
-  WebcastGiftMessage: forward("gift", GiftMessageSchema),
-  WebcastLikeMessage: forward("like", LikeMessageSchema),
-  // Follows and shares share a message type; the key of the text TikTok
-  // shows for them tells them apart (as is, not lowercased, like 2.4.0).
-  WebcastSocialMessage: defineRoute({
-    schema: SocialMessageSchema,
-    events: ["follow", "share"],
-    emit(message, context) {
-      const key = message.common?.displayText?.key ?? "";
-      if (key.includes("follow")) context.emit("follow", message);
-      else if (key.includes("share")) context.emit("share", message);
-    },
-  }),
-  WebcastMemberMessage: forward("member", MemberMessageSchema),
-  WebcastRoomUserSeqMessage: forward("roomUser", RoomUserMessageSchema),
-  // Decoded without listeners: the connection must see the LIVE end. The
-  // connection emits `streamEnd` itself, then disconnects.
-  WebcastControlMessage: defineRoute({
-    schema: ControlMessageSchema,
-    events: ["streamEnd"],
-    always: true,
-    emit(message, context) {
-      if (message.action === ControlAction.STREAM_ENDED) {
-        context.endStream("ended");
-      } else if (message.action === ControlAction.STREAM_SUSPENDED) {
-        context.endStream("suspended");
-      }
-    },
-  }),
-  WebcastEnvelopeMessage: defineRoute({
-    schema: EnvelopeMessageSchema,
-    events: ["superFanBox", "envelope"],
-    emit(message, context) {
-      if (isSuperFanBox(message)) context.emit("superFanBox", message);
-      context.emit("envelope", message);
-    },
-  }),
-  WebcastBarrageMessage: defineRoute({
-    schema: BarrageMessageSchema,
-    events: ["superFanJoin", "superFan"],
-    emit(message, context) {
-      const event = superFanEvent(message);
-      if (event !== undefined) context.emit(event, message);
-    },
-  }),
-});
-
-/**
- * The last `capacity` message ids, oldest dropped first. With a capacity of
- * 0 it remembers nothing.
- */
-export class RecentIds {
-  readonly #capacity: number;
-  readonly #ids = new Set<string>();
-
-  constructor(capacity: number) {
-    this.#capacity = capacity;
-  }
-
-  /** How many ids it holds. */
-  get size(): number {
-    return this.#ids.size;
-  }
-
-  /** Whether `id` was added and is still remembered. */
-  has(id: string): boolean {
-    return this.#ids.has(id);
-  }
-
-  /**
-   * Remembers `id`. Returns `false` when it was already there (a duplicate),
-   * `true` when it is new.
-   */
-  add(id: string): boolean {
-    if (this.#ids.has(id)) return false;
-    if (this.#capacity === 0) return true;
-    if (this.#ids.size >= this.#capacity) {
-      // A Set iterates in insertion order: the first id is the oldest.
-      for (const oldest of this.#ids) {
-        this.#ids.delete(oldest);
-        break;
-      }
-    }
-    this.#ids.add(id);
-    return true;
-  }
-
-  /** Forgets every id. */
-  clear(): void {
-    this.#ids.clear();
-  }
-}
+export { RecentIds, type DispatchContext };
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { BarrageMessage } from "../../events.js";
-import { decodeMessage } from "../decode.js";
+import type { BarrageMessage } from "../../../events/index.js";
+import { decodeMessage } from "../../decode.js";
 import { BarrageMessageSchema } from "./barrage.js";
 import {
   concat,
@@ -8,12 +8,12 @@ import {
   fields,
   fromHex,
   toHex,
-} from "../../../test/helpers/encoder.js";
+} from "../../../../test/helpers/encoder.js";
 import {
   SAMPLE_USER,
   sampleCommon,
   unknownFields,
-} from "../../../test/helpers/samples.js";
+} from "../../../../test/helpers/samples.js";
 
 // Field numbers: WebcastBarrageMessage in webcast/model/message/messages.proto;
 // content (5) and common_barrage_content (24) are webcast.model.message.common

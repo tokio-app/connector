@@ -1,8 +1,8 @@
 // Follows and shares (WebcastSocialMessage). Field numbers: PROTOCOL.md,
 // "Field numbers", from reference/src/TikTok-Webcast-Protobuf/src/slim/v3.
-import type { SocialMessage } from "../../events.js";
-import { defineSchema, f } from "../schema.js";
-import { CommonSchema, UserSchema } from "./common.js";
+import type { SocialMessage } from "../../../events/index.js";
+import { defineSchema, f } from "../../schema.js";
+import { CommonSchema, UserSchema } from "../common.js";
 
 /** `WebcastSocialMessage`: follows and shares, told apart by `common.displayText.key`. */
 export const SocialMessageSchema = defineSchema<SocialMessage>(

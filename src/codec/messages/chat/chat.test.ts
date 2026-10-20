@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMessage } from "../../events.js";
-import { decodeMessage } from "../decode.js";
+import type { ChatMessage } from "../../../events/index.js";
+import { decodeMessage } from "../../decode.js";
 import { ChatMessageSchema } from "./chat.js";
 import {
   concat,
@@ -8,13 +8,13 @@ import {
   fields,
   fromHex,
   toHex,
-} from "../../../test/helpers/encoder.js";
+} from "../../../../test/helpers/encoder.js";
 import {
   SAMPLE_IMAGE,
   SAMPLE_USER,
   sampleCommon,
   unknownFields,
-} from "../../../test/helpers/samples.js";
+} from "../../../../test/helpers/samples.js";
 
 // Field numbers: WebcastChatMessage in webcast/model/message/messages.proto,
 // EmoteWithIndex and EmoteModel in webcast/model/base/emoji.proto. The bytes

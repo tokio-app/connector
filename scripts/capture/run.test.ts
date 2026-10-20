@@ -3,8 +3,8 @@
 // parseFixture and replay through dispatch, as test/fixtures/fixtures.test.ts
 // replays the real ones.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChatMessageSchema } from "../../src/codec/messages/chat.js";
-import { GiftMessageSchema } from "../../src/codec/messages/gift.js";
+import { ChatMessageSchema } from "../../src/codec/messages/chat/chat.js";
+import { GiftMessageSchema } from "../../src/codec/messages/gift/gift.js";
 import { SignError } from "../../src/index.js";
 import { encodeMessage, fields } from "../../test/helpers/encoder.js";
 import { FakeSigner } from "../../test/helpers/fakeSigner.js";

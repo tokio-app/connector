@@ -1,8 +1,8 @@
 // Gifts (WebcastGiftMessage). Field numbers: PROTOCOL.md,
 // "Field numbers", from reference/src/TikTok-Webcast-Protobuf/src/slim/v3.
-import type { GiftDetails, GiftMessage } from "../../events.js";
-import { defineSchema, f } from "../schema.js";
-import { CommonSchema, ImageSchema, UserSchema } from "./common.js";
+import type { GiftDetails, GiftMessage } from "../../../events/index.js";
+import { defineSchema, f } from "../../schema.js";
+import { CommonSchema, ImageSchema, UserSchema } from "../common.js";
 
 /** `webcast.model.Gift`: the gift a gift message is about. */
 const GiftDetailsSchema = defineSchema<GiftDetails>("Gift", {

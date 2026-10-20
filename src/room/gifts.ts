@@ -2,7 +2,7 @@
 // behind the connection's fetchGifts(). src/gifts.ts holds the streak
 // helpers.
 import { ConnectorError, isConnectorError } from "../errors.js";
-import type { Gift, GiftList, GiftSource, Image } from "../events.js";
+import type { Gift, GiftList, GiftSource, Image } from "../events/index.js";
 import { callSigner } from "../signer/call.js";
 import {
   idOf,

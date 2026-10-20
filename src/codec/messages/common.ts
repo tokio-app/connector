@@ -9,7 +9,7 @@ import type {
   Text,
   User,
   UserIdentity,
-} from "../../events.js";
+} from "../../events/index.js";
 import { defineSchema, f } from "../schema.js";
 
 /** `webcast.model.base.ImageModel`. */

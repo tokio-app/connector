@@ -7,7 +7,7 @@ import {
   RateLimitError,
   SignError,
 } from "../errors.js";
-import type { Gift } from "../events.js";
+import type { Gift } from "../events/index.js";
 import { Deadline, describeFailure, previewBody } from "../http/client.js";
 import { giftsIn } from "../room/gifts.js";
 import { idOf, recordOf } from "../room/resolver.js";

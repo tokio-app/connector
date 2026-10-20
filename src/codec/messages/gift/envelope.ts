@@ -1,8 +1,8 @@
 // Treasure chests (WebcastEnvelopeMessage). Field numbers: PROTOCOL.md,
 // "Field numbers", from reference/src/TikTok-Webcast-Protobuf/src/slim/v3.
-import type { EnvelopeInfo, EnvelopeMessage } from "../../events.js";
-import { defineSchema, f } from "../schema.js";
-import { CommonSchema } from "./common.js";
+import type { EnvelopeInfo, EnvelopeMessage } from "../../../events/index.js";
+import { defineSchema, f } from "../../schema.js";
+import { CommonSchema } from "../common.js";
 
 /** `webcast.model.message.redenvelope.MessageRedEnvelopInfo`. */
 const EnvelopeInfoSchema = defineSchema<EnvelopeInfo>("MessageRedEnvelopInfo", {

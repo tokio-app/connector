@@ -1,4 +1,5 @@
-import type { ConnectorError } from "./errors.js";
+import type { EventName } from "../emitter.js";
+import type { ConnectorError } from "../errors.js";
 
 // Payloads are JSON-safe: 64-bit ids (user, message, room, gift and group ids,
 // timestamps) are decimal strings, counters are numbers, and no bigint reaches
@@ -465,3 +466,6 @@ export interface WebcastEventMap {
    */
   raw: RawMessage;
 }
+
+/** A public event name: a key of {@link WebcastEventMap}. */
+export type WebcastEventName = EventName<WebcastEventMap>;

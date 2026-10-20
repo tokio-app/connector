@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { decodeMessage } from "../../src/codec/decode.js";
-import { ChatMessageSchema } from "../../src/codec/messages/chat.js";
+import { ChatMessageSchema } from "../../src/codec/messages/chat/chat.js";
 import { FetchResultSchema } from "../../src/codec/messages/fetchResult.js";
 import { WireType } from "../../src/codec/reader.js";
 import { defineSchema, f } from "../../src/codec/schema.js";
-import type { ChatMessage } from "../../src/events.js";
+import type { ChatMessage } from "../../src/events/index.js";
 import {
   concat,
   encodeMessage,

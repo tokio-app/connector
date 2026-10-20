@@ -7,7 +7,7 @@ import {
   stubFetch,
   type StubHandler,
 } from "../../test/helpers/fetchStub.js";
-import type { Gift } from "../events.js";
+import type { Gift } from "../events/index.js";
 import { HttpClient } from "../http/client.js";
 import { DEFAULT_GIFT_OPTIONS } from "../options.js";
 import type { SignContext, Signer } from "../signer/types.js";

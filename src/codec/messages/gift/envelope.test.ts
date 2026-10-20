@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { EnvelopeBusinessType, type EnvelopeMessage } from "../../events.js";
-import { decodeMessage } from "../decode.js";
+import {
+  EnvelopeBusinessType,
+  type EnvelopeMessage,
+} from "../../../events/index.js";
+import { decodeMessage } from "../../decode.js";
 import { EnvelopeMessageSchema } from "./envelope.js";
 import {
   concat,
@@ -8,8 +11,11 @@ import {
   fields,
   fromHex,
   toHex,
-} from "../../../test/helpers/encoder.js";
-import { sampleCommon, unknownFields } from "../../../test/helpers/samples.js";
+} from "../../../../test/helpers/encoder.js";
+import {
+  sampleCommon,
+  unknownFields,
+} from "../../../../test/helpers/samples.js";
 
 // Field numbers: WebcastEnvelopeMessage and MessageRedEnvelopInfo in
 // webcast/model/message/redenvelope.proto; business_type (2) is a

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SocialMessage } from "../../events.js";
-import { decodeMessage } from "../decode.js";
+import type { SocialMessage } from "../../../events/index.js";
+import { decodeMessage } from "../../decode.js";
 import { SocialMessageSchema } from "./social.js";
 import {
   concat,
@@ -8,12 +8,12 @@ import {
   fields,
   fromHex,
   toHex,
-} from "../../../test/helpers/encoder.js";
+} from "../../../../test/helpers/encoder.js";
 import {
   SAMPLE_USER,
   sampleCommon,
   unknownFields,
-} from "../../../test/helpers/samples.js";
+} from "../../../../test/helpers/samples.js";
 
 // Field numbers: WebcastSocialMessage in webcast/model/message/messages.proto.
 // The bytes are written field by field (fields.*) or by hand, not from the
