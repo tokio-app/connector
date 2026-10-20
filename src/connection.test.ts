@@ -109,7 +109,12 @@ function create(options: ConnectOptions = {}) {
     reconnect:
       options.reconnect === false
         ? false
-        : { baseDelayMs: 10, maxDelayMs: 40, ...options.reconnect },
+        : {
+            baseDelayMs: 10,
+            maxDelayMs: 40,
+            minDelayMs: 0,
+            ...options.reconnect,
+          },
   });
   connections.push(connection);
   const events: Recorded[] = [];
@@ -937,6 +942,21 @@ describe("reconnecting", () => {
     expect(ofType("reconnecting")[1]?.reason).toBe("signError");
   });
 
+  it("waits at least minDelayMs before an attempt", async () => {
+    const { connection, ofType } = create({
+      reconnect: { maxDelayMs: 200, minDelayMs: 150 },
+    });
+    await connection.connect();
+    signer.failNext(new SignError("down", { status: 503 }));
+    const dropped = Date.now();
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(ofType("reconnecting").map(({ delayMs }) => delayMs)).toEqual([
+      150, 150,
+    ]);
+    expect(Date.now() - dropped).toBeGreaterThanOrEqual(290);
+  });
+
   it("emits each failed attempt as an error", async () => {
     const { connection, ofType } = create();
     const errors: ConnectorError[] = [];
@@ -1306,7 +1326,8 @@ describe("disconnect()", () => {
     await connection.connect();
     fake.dropSocket();
     await until(() => expect(ofType("reconnecting")).toHaveLength(1));
-    expect(ofType("reconnecting")[0]?.delayMs).toBe(1_980);
+    // Equal jitter: half the ceiling, plus up to as much again.
+    expect(ofType("reconnecting")[0]?.delayMs).toBe(1_990);
     const started = Date.now();
     await connection.disconnect();
     expect(Date.now() - started).toBeLessThan(1_000);

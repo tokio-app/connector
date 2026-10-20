@@ -153,7 +153,9 @@ Once connected, the connection reconnects by itself when the WebSocket closes or
 2. `reconnecting`, with the attempt number and the wait.
 3. `connected`, with `reconnected: true`, once back in the room.
 
-It resumes from the last cursor, so the messages of the gap can still come through, and duplicates are dropped. The wait before attempt `n` is a random value between 0 and `min(maxDelayMs, baseDelayMs * factor ** (n - 1))` ("full jitter"), and at least what a `RateLimitError` asks for. The count starts over after each successful reconnect.
+It resumes from the last cursor, so the messages of the gap can still come through, and duplicates are dropped. With `d = min(maxDelayMs, baseDelayMs * factor ** (n - 1))`, the wait before attempt `n` is a random time from `d / 2` up to `d` ("equal jitter"), at least `minDelayMs`, and at least what a `RateLimitError` asks for: with the defaults, the first five attempts wait at least 1, 1, 2, 4 and 8 seconds. The count starts over after each successful reconnect.
+
+Every attempt is a request to the signer. Without an API key, Euler Stream allows 5 a minute: the waits keep a reconnect from spending them all at once, and when its limit is hit anyway, the `RateLimitError` says how long to wait, and the next attempt waits that long.
 
 ```ts
 const connection = new TikTokLiveConnection("username", {
@@ -165,13 +167,14 @@ connection.on("reconnecting", ({ attempt, delayMs, reason }) => {
 });
 ```
 
-| `reconnect`            | Default | What it does                                                                                         |
-| ---------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| `maxAttempts`          | `10`    | Attempts before giving up. `Infinity` never gives up, `0` never reconnects (like `reconnect: false`) |
-| `baseDelayMs`          | `1000`  | The wait ceiling of the first attempt                                                                |
-| `maxDelayMs`           | `30000` | The largest wait ceiling                                                                             |
-| `factor`               | `2`     | How much the ceiling grows per attempt                                                               |
-| `checkLiveBeforeRetry` | `true`  | Check that the room is still LIVE before each attempt. If it isn't, emit `streamEnd` and stop        |
+| `reconnect`            | Default | What it does                                                                                                                  |
+| ---------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `maxAttempts`          | `10`    | Attempts before giving up. `Infinity` never gives up, `0` never reconnects (like `reconnect: false`)                          |
+| `baseDelayMs`          | `1000`  | The wait ceiling of the first attempt                                                                                         |
+| `maxDelayMs`           | `30000` | The largest wait ceiling                                                                                                      |
+| `minDelayMs`           | `1000`  | The shortest wait, whatever the jitter draws (at most `maxDelayMs`). Lower it only with a signer that has no tight rate limit |
+| `factor`               | `2`     | How much the ceiling grows per attempt                                                                                        |
+| `checkLiveBeforeRetry` | `true`  | Check that the room is still LIVE before each attempt. If it isn't, emit `streamEnd` and stop                                 |
 
 The connection stops for good, with `disconnected` and `willReconnect: false`, for these reasons:
 

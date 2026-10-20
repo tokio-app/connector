@@ -15,11 +15,13 @@ export interface SessionCookies {
 }
 
 /**
- * How the connection reconnects after it drops. The wait before attempt `n`
- * (from 1) is a random value between 0 and
- * `min(maxDelayMs, baseDelayMs * factor ** (n - 1))` ("full jitter"), and at
- * least the wait a `RateLimitError` asks for. The attempt count starts over
- * after each successful reconnect.
+ * How the connection reconnects after it drops. With
+ * `d = min(maxDelayMs, baseDelayMs * factor ** (n - 1))`, the wait before
+ * attempt `n` (from 1) is a random time from `d / 2` up to `d` ("equal
+ * jitter"), at least `minDelayMs`, and at least the wait a `RateLimitError`
+ * asks for. With the defaults, the first five attempts wait at least 1, 1, 2,
+ * 4 and 8 seconds. The attempt count starts over after each successful
+ * reconnect.
  */
 export interface ReconnectOptions {
   /**
@@ -32,6 +34,13 @@ export interface ReconnectOptions {
   baseDelayMs: number;
   /** The largest wait ceiling, in milliseconds. Default `30000`. */
   maxDelayMs: number;
+  /**
+   * The shortest wait before an attempt, in milliseconds, whatever the
+   * jitter draws; at most `maxDelayMs`. Each attempt is a request to the
+   * signer, and Euler Stream allows few without an API key (5 a minute), so
+   * attempts shouldn't come back to back. Default `1000`.
+   */
+  minDelayMs: number;
   /** How much the wait ceiling grows per attempt. Default `2`. */
   factor: number;
   /**
@@ -126,6 +135,7 @@ const DEFAULT_RECONNECT: Readonly<ReconnectOptions> = Object.freeze({
   maxAttempts: 10,
   baseDelayMs: 1_000,
   maxDelayMs: 30_000,
+  minDelayMs: 1_000,
   factor: 2,
   checkLiveBeforeRetry: true,
 });
@@ -195,6 +205,12 @@ function resolveReconnect(
     merged.maxDelayMs,
     delay(merged.baseDelayMs),
     `a number from reconnect.baseDelayMs to ${MAX_TIMER_MS}`,
+  );
+  check(
+    "reconnect.minDelayMs",
+    merged.minDelayMs,
+    (value) => delay(0)(value) && value <= merged.maxDelayMs,
+    `a number from 0 to reconnect.maxDelayMs (${merged.maxDelayMs})`,
   );
   check(
     "reconnect.factor",

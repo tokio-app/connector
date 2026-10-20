@@ -80,7 +80,7 @@ function smokeIo(options: ConnectOptions = {}) {
       logger: vi.fn(),
       heartbeatIntervalMs: 50,
       idleTimeoutMs: 0,
-      reconnect: { baseDelayMs: 10, maxDelayMs: 40 },
+      reconnect: { baseDelayMs: 10, maxDelayMs: 40, minDelayMs: 0 },
       ...options,
     },
     progress: (line) => progress.push(line),

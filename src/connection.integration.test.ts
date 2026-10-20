@@ -92,7 +92,7 @@ function create(
     heartbeatIntervalMs: 50,
     idleTimeoutMs: 0,
     connectTimeoutMs: 2_000,
-    reconnect: { baseDelayMs: 10, maxDelayMs: 40 },
+    reconnect: { baseDelayMs: 10, maxDelayMs: 40, minDelayMs: 0 },
     ...options,
   });
   connections.push(connection);
