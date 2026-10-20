@@ -78,6 +78,7 @@ describe("describeLive", () => {
         content: "hi",
         contentLanguage: "",
         emotes: [],
+        mentionUsers: [],
       }),
     ).toBe('Ana: "hi"');
   });

@@ -53,7 +53,7 @@ describe("getSchema", () => {
   });
 
   it("returns undefined for messages the library doesn't decode", () => {
-    expect(getSchema("WebcastPollMessage")).toBe(undefined);
+    expect(getSchema("WebcastNoSuchMessage")).toBe(undefined);
     expect(getSchema("toString")).toBe(undefined);
     expect(getSchema("__proto__")).toBe(undefined);
   });

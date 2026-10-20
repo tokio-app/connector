@@ -269,14 +269,14 @@ describe("a LIVE through the fakes", () => {
     await connection.connect();
     const payload = fields.message(
       1,
-      fields.string(1, "WebcastPollMessage"),
+      fields.string(1, "WebcastNoSuchMessage"),
       fields.varint(4, 1_760_000_000_456n),
     );
-    fake.push([{ method: "WebcastPollMessage", msgId: "1", payload }]);
+    fake.push([{ method: "WebcastNoSuchMessage", msgId: "1", payload }]);
     await until(() => expect(ofType("raw")).toHaveLength(1));
     const [raw] = ofType("raw");
     expect(raw).toEqual({
-      method: "WebcastPollMessage",
+      method: "WebcastNoSuchMessage",
       payload,
       msgId: "1",
       isHistory: false,

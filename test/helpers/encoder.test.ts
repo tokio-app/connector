@@ -191,6 +191,7 @@ describe("encodeMessage", () => {
       content: "hi",
       contentLanguage: "",
       emotes: [{ index: 0, emote: { emoteId: "e1" } }],
+      mentionUsers: [],
     });
   });
 

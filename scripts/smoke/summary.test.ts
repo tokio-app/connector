@@ -24,7 +24,13 @@ function user(nickname: string): User {
 }
 
 function chat(content: string, nickname = "Ana"): ChatMessage {
-  return { user: user(nickname), content, contentLanguage: "", emotes: [] };
+  return {
+    user: user(nickname),
+    content,
+    contentLanguage: "",
+    emotes: [],
+    mentionUsers: [],
+  };
 }
 
 function gift(overrides: Partial<GiftMessage> = {}): GiftMessage {
@@ -43,6 +49,9 @@ function gift(overrides: Partial<GiftMessage> = {}): GiftMessage {
       describe: "",
       combo: false,
     },
+    isFirstSent: false,
+    toMemberId: "",
+    toMemberNickname: "",
     ...overrides,
   };
 }
@@ -129,7 +138,15 @@ describe("SmokeRecorder", () => {
     expect(
       recorder.record("like", { user: user("Di"), count: 15, total: 1_234 }, 4),
     ).toBe(labeled("first like", "Di liked x15, 1,234 in total"));
-    const social = { shareType: 0, action: 1, shareTarget: "", shareCount: 0 };
+    const social = {
+      shareType: 0,
+      action: 1,
+      shareTarget: "",
+      followCount: 0,
+      shareCount: 0,
+      followType: 0,
+      targetUserId: "0",
+    };
     expect(recorder.record("follow", { ...social, user: user("Ed") }, 5)).toBe(
       labeled("first follow", "Ed followed"),
     );
@@ -137,25 +154,54 @@ describe("SmokeRecorder", () => {
       labeled("first share", "Flo shared"),
     );
     expect(
-      recorder.record("member", { user: user("Gus"), actionId: 1 }, 7),
+      recorder.record(
+        "member",
+        {
+          user: user("Gus"),
+          memberCount: 0,
+          isSetToAdmin: false,
+          isTopUser: false,
+          topUserNo: 0,
+          actionId: 1,
+          userShareType: "",
+          kickSource: 0,
+        },
+        7,
+      ),
     ).toBe(labeled("first member", "Gus joined"));
     expect(recorder.record("roomUser", roomUser(1_500), 8)).toBe(
       labeled("first roomUser", "1,500 watching, 4,500 so far, top viewer Cy"),
     );
     expect(
-      recorder.record("envelope", { envelopeInfo: { businessType: 1 } }, 9),
+      recorder.record(
+        "envelope",
+        {
+          envelopeInfo: {
+            envelopeId: "1",
+            businessType: 1,
+            sendUserName: "",
+            diamondCount: 0,
+            peopleCount: 0,
+            unpackAt: 0,
+            sendUserId: "",
+            superFanCount: 0,
+          },
+        },
+        9,
+      ),
     ).toBe(labeled("first envelope", "treasure chest, business type 1"));
     expect(
       recorder.record(
         "superFan",
         {
           user: user("Hal"),
+          msgType: 0,
           content: { key: "ttlive_superfan_x", defaultPattern: "" },
         },
         10,
       ),
     ).toBe(labeled("first superFan", "Hal (ttlive_superfan_x)"));
-    expect(recorder.record("superFanJoin", {}, 11)).toBe(
+    expect(recorder.record("superFanJoin", { msgType: 0 }, 11)).toBe(
       labeled("first superFanJoin", "(no nickname) (no key)"),
     );
     expect(recorder.record("superFanBox", {}, 12)).toBe(
@@ -221,10 +267,10 @@ describe("SmokeRecorder", () => {
     recorder.record("connected", first, 0);
     for (const method of [
       "WebcastMemberMessage",
-      "WebcastPollMessage",
+      "WebcastNoSuchMessage",
       "WebcastMemberMessage",
-      "WebcastLinkMicBattle",
-      "WebcastPollMessage",
+      "WebcastOtherUnknownMessage",
+      "WebcastNoSuchMessage",
       "WebcastMemberMessage",
     ]) {
       recorder.record("raw", raw(method), 1);
@@ -232,12 +278,12 @@ describe("SmokeRecorder", () => {
     const summary = recorder.summarize(2, { interrupted: false });
     expect(Object.entries(summary.rawMethods)).toEqual([
       ["WebcastMemberMessage", 3],
-      ["WebcastPollMessage", 2],
-      ["WebcastLinkMicBattle", 1],
+      ["WebcastNoSuchMessage", 2],
+      ["WebcastOtherUnknownMessage", 1],
     ]);
     expect(summary.unroutedMethods).toEqual([
-      "WebcastPollMessage",
-      "WebcastLinkMicBattle",
+      "WebcastNoSuchMessage",
+      "WebcastOtherUnknownMessage",
     ]);
     // Raw messages alone aren't LIVE events.
     expect(summary.ok).toBe(false);
@@ -602,7 +648,7 @@ describe("formatSummary", () => {
     recorder.record("connected", first, 0);
     recorder.record("chat", chat("hi"), 1);
     recorder.record("raw", raw("WebcastChatMessage"), 1);
-    recorder.record("raw", raw("WebcastPollMessage"), 1);
+    recorder.record("raw", raw("WebcastNoSuchMessage"), 1);
     recorder.dropped(10_000);
     recorder.record(
       "reconnecting",
@@ -621,7 +667,7 @@ describe("formatSummary", () => {
     expect(text).toContain("  reconnect    passed: back 1.0 s after the drop");
     expect(text).toContain("  gifts        region: 0 gifts");
     expect(text).toMatch(/\n {2}chat +1\n/);
-    expect(text).toContain("  WebcastPollMessage  1  no event");
+    expect(text).toContain("  WebcastNoSuchMessage  1  no event");
     expect(text.endsWith("\nPASSED")).toBe(true);
   });
 

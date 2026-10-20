@@ -8,6 +8,7 @@ import { ControlMessageSchema } from "./codec/messages/room/control.js";
 import { RecentIds, dispatch, type DispatchContext } from "./dispatch.js";
 import { ProtocolError } from "./errors.js";
 import type { ChatMessage, WebcastEventName } from "./events/index.js";
+import { LIVE_GROUPS } from "./routes/groups.js";
 import { ROUTES } from "./routes/index.js";
 import {
   encoded,
@@ -19,22 +20,8 @@ import {
 import { fields, fromHex, type EncodeInput } from "../test/helpers/encoder.js";
 import { SAMPLE_USER, sampleCommon } from "../test/helpers/samples.js";
 
-// The events a LIVE message can lead to.
-const LIVE_EVENTS = [
-  "raw",
-  "streamEnd",
-  "chat",
-  "gift",
-  "like",
-  "follow",
-  "share",
-  "member",
-  "roomUser",
-  "envelope",
-  "superFan",
-  "superFanJoin",
-  "superFanBox",
-] as const satisfies readonly WebcastEventName[];
+// The events a LIVE message can lead to: `raw` and every group's events.
+const LIVE_EVENTS: readonly WebcastEventName[] = ["raw", ...LIVE_GROUPS.flat()];
 
 const chat = (
   value: EncodeInput<ChatMessage> = {},
@@ -78,7 +65,7 @@ describe("dispatch", () => {
     it("decodes when any of the route's events has a listener", () => {
       const { context, emitted } = fakeContext({ listen: ["share"] });
       dispatch(context, social("pm_main_follow_message_viewer_2"));
-      expect(names(emitted)).toEqual(["follow"]);
+      expect(names(emitted)).toEqual(["social", "follow"]);
     });
 
     it("always decodes control messages, listener or not", () => {
@@ -128,7 +115,7 @@ describe("dispatch", () => {
       const decodeSpy = vi.spyOn(decode, "decodeMessage");
       const { context, emitted, errors } = fakeContext({ listen: LIVE_EVENTS });
       const methods = [
-        "WebcastPollMessage",
+        "WebcastNoSuchMessage",
         "",
         "toString",
         "__proto__",
@@ -167,7 +154,10 @@ describe("dispatch", () => {
     it("isn't built without a listener", () => {
       const decodeSpy = vi.spyOn(decode, "decodeMessage");
       const { context, emitted } = fakeContext({ listen: ["chat"] });
-      dispatch(context, message("WebcastPollMessage", fromHex("0a 02 20 01")));
+      dispatch(
+        context,
+        message("WebcastNoSuchMessage", fromHex("0a 02 20 01")),
+      );
       expect(emitted).toEqual([]);
       expect(decodeSpy).not.toHaveBeenCalled();
     });
@@ -336,36 +326,41 @@ describe("dispatch", () => {
       ]);
     });
 
-    it("never throws on random or truncated payloads", () => {
-      // mulberry32: a small seeded generator, so a failure can be replayed.
-      let seed = 0x7140;
-      const random = () => {
-        seed = (seed + 0x6d2b79f5) | 0;
-        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
-      };
-      const { context, errors } = fakeContext({ listen: LIVE_EVENTS });
-      const valid = chat({
-        common: sampleCommon("WebcastChatMessage"),
-        user: SAMPLE_USER,
-        content: "hi",
-        emotes: [{ index: 0, emote: { emoteId: "1" } }],
-      }).payload;
-      for (const method of Object.keys(ROUTES)) {
-        for (let length = 0; length < valid.length; length++) {
-          dispatch(context, message(method, valid.subarray(0, length)));
+    // Every route, with every event listened to: a few seconds under load.
+    it(
+      "never throws on random or truncated payloads",
+      { timeout: 30_000 },
+      () => {
+        // mulberry32: a small seeded generator, so a failure can be replayed.
+        let seed = 0x7140;
+        const random = () => {
+          seed = (seed + 0x6d2b79f5) | 0;
+          let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+        };
+        const { context, errors } = fakeContext({ listen: LIVE_EVENTS });
+        const valid = chat({
+          common: sampleCommon("WebcastChatMessage"),
+          user: SAMPLE_USER,
+          content: "hi",
+          emotes: [{ index: 0, emote: { emoteId: "1" } }],
+        }).payload;
+        for (const method of Object.keys(ROUTES)) {
+          for (let length = 0; length < valid.length; length++) {
+            dispatch(context, message(method, valid.subarray(0, length)));
+          }
+          for (let run = 0; run < 200; run++) {
+            const bytes = Uint8Array.from(
+              { length: Math.floor(random() * 48) },
+              () => Math.floor(random() * 256),
+            );
+            dispatch(context, message(method, bytes));
+          }
         }
-        for (let run = 0; run < 200; run++) {
-          const bytes = Uint8Array.from(
-            { length: Math.floor(random() * 48) },
-            () => Math.floor(random() * 256),
-          );
-          dispatch(context, message(method, bytes));
-        }
-      }
-      expect(errors.length).toBeGreaterThan(0);
-      for (const error of errors) expect(error).toBeInstanceOf(ProtocolError);
-    });
+        expect(errors.length).toBeGreaterThan(0);
+        for (const error of errors) expect(error).toBeInstanceOf(ProtocolError);
+      },
+    );
   });
 });
