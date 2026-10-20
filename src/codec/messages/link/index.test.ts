@@ -8,7 +8,13 @@ describe("linkSchemas", () => {
       "WebcastLinkMicArmies",
       "WebcastLinkMicBattlePunishFinish",
       "WebcastLinkmicBattleTaskMessage",
+      "WebcastLinkMicFanTicketMethod",
+      "WebcastLinkMicMethod",
+      "WebcastLinkMessage",
+      "WebcastLinkLayerMessage",
+      "WebcastLinkStateMessage",
       "WebcastLinkMicBattleItemCard",
+      "WebcastLinkMicLayoutStateMessage",
     ]);
     for (const [name, schema] of Object.entries(linkSchemas)) {
       expect(schema.name).toBe(name);

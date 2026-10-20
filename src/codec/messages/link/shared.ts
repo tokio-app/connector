@@ -1,5 +1,5 @@
-// The nested messages the link group's tables share: a battle's settings
-// and a host's supporters.
+// The nested messages the link group's tables share: a link participant
+// (Player), a battle's settings, a host's supporters and a linked user.
 // Field numbers: PROTOCOL.md, "LIVE messages", from
 // reference/src/TikTok-Webcast-Protobuf/src/slim/v3.
 import type {
@@ -7,9 +7,17 @@ import type {
   BattleSetting,
   BattleUserArmies,
   BattleUserArmy,
+  LinkUser,
+  Player,
 } from "../../../events/index.js";
 import { defineSchema, f } from "../../schema.js";
-import { ImageSchema } from "../common.js";
+import { ImageSchema, UserSchema } from "../common.js";
+
+/** `webcast.model.message.linkcore.Player` [proto: webcast/model/message/linkcore_player.proto, line 5]. */
+export const PlayerSchema = defineSchema<Player>("Player", {
+  roomId: f.id(1),
+  userId: f.id(2),
+});
 
 /** `webcast.model.message.battle.BattleSetting` [proto: webcast/model/message/battle.proto, line 35]. */
 export const BattleSettingSchema = defineSchema<BattleSetting>(
@@ -56,3 +64,16 @@ export const BattleArmiesEntrySchema = defineSchema<BattleArmiesEntry>(
     value: f.message(2, BattleUserArmiesSchema),
   },
 );
+
+/**
+ * `webcast.model.message.linker.linked_list_change_message.ListUser` [proto:
+ * webcast/model/message/linker/linked_list_change_message.proto, line 12]: a
+ * linked user with the link's state.
+ */
+export const LinkUserSchema = defineSchema<LinkUser>("ListUser", {
+  user: f.message(1, UserSchema),
+  linkStatus: f.enum(4),
+  linkType: f.enum(5),
+  userPosition: f.int32(6),
+  roleType: f.enum(10),
+});

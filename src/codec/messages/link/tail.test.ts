@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { MessageSchema } from "../../schema.js";
 import { decodeMessage } from "../../decode.js";
-import { LinkMicBattleItemCardSchema } from "./tail.js";
+import {
+  LinkMicBattleItemCardSchema,
+  LinkMicLayoutStateMessageSchema,
+} from "./tail.js";
 import {
   concat,
   encodeMessage,
@@ -15,7 +18,8 @@ import {
 } from "../../../../test/helpers/samples.js";
 
 // Field numbers: WebcastLinkMicBattleItemCard in
-// webcast/model/message/messages.proto. The bytes are written by hand, not from the schema, so a
+// webcast/model/message/messages.proto, WebcastLinkMicLayoutStateMessage in
+// webcast/im.proto. The bytes are written by hand, not from the schema, so a
 // wrong number in the table fails here.
 
 // The rows hold schemas of different messages: their values are checked as
@@ -49,6 +53,23 @@ const rows: Row[] = [
       fields.varint(16, 3),
     ),
     defaults: { battleId: "0", msgType: 0, awardReason: 0 },
+  },
+  {
+    schema: LinkMicLayoutStateMessageSchema,
+    hex: [
+      "10 01", // channel_id (2): 1
+      "18 04", // scene (3): 4
+      "20 e8 07", // version (4): 1000
+    ],
+    expected: { channelId: "1", scene: 4, version: 1000 },
+    neighbours: concat(
+      fields.varint(2, 1),
+      fields.varint(3, 4),
+      fields.varint(4, 1000),
+      fields.message(5, fields.string(1, "layout")), // biz_layout_state, not read
+      fields.message(6, fields.varint(1, 1)), // biz_spot_list, not read
+    ),
+    defaults: { channelId: "0", scene: 0, version: 0 },
   },
 ];
 
@@ -96,3 +117,18 @@ describe.each(rows)(
     });
   },
 );
+
+describe("LinkMicLayoutStateMessageSchema", () => {
+  it("reads a 64-bit channel id and a sign-extended scene, out of order", () => {
+    const bytes = fromHex(
+      [
+        "20 e8 07", // version (4): 1000
+        "18 ff ff ff ff ff ff ff ff ff 01", // scene (3): -1
+        "10 81 80 c0 f6 a4 bb e2 f5 63", // channel_id (2): 7200000000000000001
+      ].join(" "),
+    );
+    expect(decodeMessage(LinkMicLayoutStateMessageSchema, bytes)).toStrictEqual(
+      { channelId: "7200000000000000001", scene: -1, version: 1000 },
+    );
+  });
+});
