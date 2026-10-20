@@ -17,7 +17,6 @@ import {
   idOf,
   resolveRoomId,
   valueAt,
-  withinDeadline,
   type RoomContext,
 } from "./resolver.js";
 
@@ -284,7 +283,7 @@ describe("resolveRoomId", () => {
     });
   });
 
-  it("keeps an error that isn't a ConnectorError as a cause", async () => {
+  it("turns a signer's error that isn't a ConnectorError into a SignError", async () => {
     const failure = new Error("signer bug");
     const { context } = setup(
       {},
@@ -298,8 +297,15 @@ describe("resolveRoomId", () => {
 
     const error = await rejectionOf(resolveRoomId("someone", context));
 
-    expect(error.message).toContain("the signer: failed");
-    expect((error.cause as unknown[])[2]).toBe(failure);
+    expect(error.message).toContain("the signer: SIGN_FAILED");
+    expect((error.cause as unknown[])[2]).toMatchObject({
+      code: "SIGN_FAILED",
+      retryable: true,
+      message: "The signer's room id lookup failed: signer bug",
+      cause: failure,
+    });
+    // A SignError can pass, so the lookup can be tried again.
+    expect(error.retryable).toBe(true);
   });
 
   it("times out a signer that ignores the deadline", async () => {
@@ -451,30 +457,5 @@ describe("checkLive", () => {
       code: "ABORTED",
       message: "The signer's room info was aborted",
     });
-  });
-});
-
-describe("withinDeadline", () => {
-  it("passes the result or the error of the call through", async () => {
-    const context = signContextFor(vi.fn());
-    await expect(
-      withinDeadline("call", context, () => Promise.resolve(1)),
-    ).resolves.toBe(1);
-    const failure = new Error("no");
-    await expect(
-      withinDeadline("call", context, () => Promise.reject(failure)),
-    ).rejects.toBe(failure);
-  });
-
-  it("refuses to start once the signal aborted", async () => {
-    const call = vi.fn();
-    const context = signContextFor(vi.fn(), { signal: AbortSignal.abort() });
-    await expect(
-      withinDeadline("The call", context, call),
-    ).rejects.toMatchObject({
-      code: "ABORTED",
-      message: "The call was aborted",
-    });
-    expect(call).not.toHaveBeenCalled();
   });
 });

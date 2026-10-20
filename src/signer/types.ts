@@ -3,19 +3,23 @@ import type { Logger } from "../logger.js";
 
 /**
  * What a {@link Signer} gets with every call. Signers make their requests with
- * `fetch`, stop when `signal` aborts, and give up after `timeoutMs`.
+ * `fetch` and pass it `signal`. The connection enforces `timeoutMs` and the
+ * signal on every call itself, so a signer needn't wrap its requests.
  */
 export interface SignContext {
   /** The `fetch` to make requests with (the connection's `fetch` option). */
   readonly fetch: typeof fetch;
   /**
    * Aborts when the connection stops (`disconnect()` or the `signal` option).
-   * Throw an `AbortError` when it does.
+   * Pass it to `fetch`, so that a stop cancels the request; the call then
+   * fails with the library's `AbortError`, whatever the signer throws.
    */
   readonly signal: AbortSignal;
   /**
-   * How long one request may take, in milliseconds (the `requestTimeoutMs`
-   * option). Throw a `TimeoutError` with phase `sign` when it runs out.
+   * How long one call may take, in milliseconds (the `requestTimeoutMs`
+   * option). A call still running after that fails with a `TimeoutError`
+   * (phase `sign`). To also cancel the request then, pass `fetch`
+   * `AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])`.
    */
   readonly timeoutMs: number;
   /**
@@ -69,9 +73,14 @@ export interface RoomInfo {
  * to use another service.
  *
  * The optional methods are fallbacks for when TikTok refuses the library's
- * own requests. Each returns `null` when the signer has no answer, and throws
- * a `ConnectorError` (`SignError`, `RateLimitError`, `PremiumFeatureError`,
- * `TimeoutError`, `AbortError`) when its request fails.
+ * own requests. Each returns `null` when the signer has no answer.
+ *
+ * For the service's own failures, throw `RateLimitError`, `PremiumFeatureError`
+ * or `SignError` (with the HTTP `status`): the connection decides from them
+ * whether and when to retry. Anything else a signer throws is converted: an
+ * error named `AbortError` or `TimeoutError` (what `fetch` throws) becomes
+ * the library's `AbortError` or `TimeoutError` (phase `sign`), any other a
+ * retryable `SignError` with it as `cause`.
  */
 export interface Signer {
   /**

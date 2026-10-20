@@ -4,10 +4,10 @@ import {
   AbortError,
   ProtocolError,
   RoomNotFoundError,
-  TimeoutError,
   isConnectorError,
 } from "../errors.js";
 import type { HttpClient } from "../http/client.js";
+import { callSigner } from "../signer/call.js";
 import type { SignContext, Signer } from "../signer/types.js";
 
 /** What room lookups need: the HTTP client, the signer for fallbacks, and its context (whose `signal` also aborts HTTP requests). */
@@ -74,54 +74,6 @@ export function throwIfAborted(error: unknown, signal: AbortSignal): void {
   if (!signal.aborted) return;
   if (isConnectorError(error) && error.code === "ABORTED") throw error;
   throw new AbortError(undefined, { cause: signal.reason });
-}
-
-/**
- * Runs a signer call within the context's `timeoutMs` and `signal`, so a
- * signer that ignores them can't hold a chain up: `TimeoutError` (phase
- * `sign`) when the time runs out, `AbortError` when the signal aborts.
- */
-export function withinDeadline<T>(
-  what: string,
-  context: SignContext,
-  call: (context: SignContext) => Promise<T>,
-): Promise<T> {
-  const { signal, timeoutMs } = context;
-  if (signal.aborted) {
-    return Promise.reject(
-      new AbortError(`${what} was aborted`, { cause: signal.reason }),
-    );
-  }
-  return new Promise<T>((resolve, reject) => {
-    const finish = () => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", onAbort);
-    };
-    const onAbort = () => {
-      finish();
-      reject(new AbortError(`${what} was aborted`, { cause: signal.reason }));
-    };
-    const timer = setTimeout(() => {
-      finish();
-      reject(
-        new TimeoutError(`${what} took longer than ${timeoutMs} ms`, {
-          phase: "sign",
-        }),
-      );
-    }, timeoutMs);
-    signal.addEventListener("abort", onAbort, { once: true });
-    // A call that throws instead of rejecting fails the same way.
-    new Promise<T>((run) => run(call(context))).then(
-      (value) => {
-        finish();
-        resolve(value);
-      },
-      (error: unknown) => {
-        finish();
-        reject(error);
-      },
-    );
-  });
 }
 
 // The room id an object of a page's state gives: its `liveRoomUserInfo`'s,
@@ -235,7 +187,7 @@ async function roomIdFromSigner(
     throw new RoomNotFoundError("The signer can't look up room ids");
   }
   const roomId = idOf(
-    await withinDeadline("The signer's room id lookup", signContext, (ctx) =>
+    await callSigner("The signer's room id lookup", signContext, (ctx) =>
       resolve(username, ctx),
     ),
   );
@@ -325,7 +277,7 @@ export async function checkLive(
   const fetchRoomInfo = signer.fetchRoomInfo?.bind(signer);
   if (fetchRoomInfo === undefined) return null;
   try {
-    const info = await withinDeadline(
+    const info = await callSigner(
       "The signer's room info",
       signContext,
       (ctx) => fetchRoomInfo(roomId, ctx),

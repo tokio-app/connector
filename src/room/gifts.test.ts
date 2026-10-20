@@ -241,7 +241,7 @@ describe("fetchGiftList", () => {
     ]);
   });
 
-  it("keeps a failure that isn't a ConnectorError as a cause", async () => {
+  it("turns a signer's failure that isn't a ConnectorError into a SignError", async () => {
     const failure = new Error("signer bug");
     const { context } = setup(
       {},
@@ -256,9 +256,13 @@ describe("fetchGiftList", () => {
     const error = await rejectionOf(fetchGiftList(request(), context));
 
     expect(error.message).toBe(
-      "No gift list source answered (room: HTTP, signer: failed, region: HTTP)",
+      "No gift list source answered (room: HTTP, signer: SIGN_FAILED, region: HTTP)",
     );
-    expect((error.cause as unknown[])[1]).toBe(failure);
+    expect((error.cause as unknown[])[1]).toMatchObject({
+      code: "SIGN_FAILED",
+      message: "The signer's gift list failed: signer bug",
+      cause: failure,
+    });
   });
 
   it("times out a slow source and moves on", async () => {

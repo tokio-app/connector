@@ -59,8 +59,9 @@ import {
 } from "./options.js";
 import { fetchGiftList } from "./room/gifts.js";
 import { checkLive, resolveRoomId, type RoomContext } from "./room/resolver.js";
+import { callSigner } from "./signer/call.js";
 import { EulerSigner } from "./signer/euler.js";
-import type { Signer } from "./signer/types.js";
+import type { SignedConnect, Signer } from "./signer/types.js";
 import { backoffDelay, withRetryAfter } from "./util/backoff.js";
 import { decodeFetchResult } from "./ws/frames.js";
 import {
@@ -84,6 +85,22 @@ const NUMERIC_ID = /^\d+$/;
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+// A signer written in JavaScript can answer anything: the connection needs
+// the body's bytes and a list of cookies.
+function checkSigned(signed: SignedConnect | undefined): SignedConnect {
+  if (!(signed?.body instanceof Uint8Array)) {
+    throw new ProtocolError("The signer answered without a body");
+  }
+  const { cookies } = signed;
+  if (
+    !Array.isArray(cookies) ||
+    !cookies.every((cookie) => typeof cookie === "string")
+  ) {
+    throw new ProtocolError("The signer answered without a list of cookies");
+  }
+  return signed;
 }
 
 // The logger option, made safe: a logger that throws can't break a socket
@@ -395,22 +412,26 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
     return roomId;
   }
 
-  // Signs the connection, resuming from the run's cursor. The cookies go to
-  // the jar; the body is the first batch, with the push server and cursor the
-  // socket needs. The signer may name the room it connected to.
+  // Signs the connection, resuming from the run's cursor, within
+  // requestTimeoutMs (callSigner also turns what the signer throws into
+  // ConnectorErrors). The cookies go to the jar; the body is the first batch,
+  // with the push server and cursor the socket needs. The signer may name the
+  // room it connected to.
   async #sign(
     run: Run,
     context: RoomContext,
     roomId: string,
   ): Promise<{ roomId: string; batch: FetchResult }> {
     const sessionCookies = this.#http.sessionCookieHeader();
-    const signed = await this.#signer.fetchConnect(
-      {
-        roomId,
-        cursor: run.cursor,
-        ...(sessionCookies === undefined ? {} : { sessionCookies }),
-      },
-      context.signContext,
+    const request = {
+      roomId,
+      cursor: run.cursor,
+      ...(sessionCookies === undefined ? {} : { sessionCookies }),
+    };
+    const signed = checkSigned(
+      await callSigner("The signed connect", context.signContext, (ctx) =>
+        this.#signer.fetchConnect(request, ctx),
+      ),
     );
     this.#check(run);
     this.#http.addCookies(signed.cookies);

@@ -225,14 +225,20 @@ const connection = new TikTokLiveConnection("username", {
 To sign with another service, implement `Signer`. Only `fetchConnect` is required:
 
 ```ts
-import { SignError, type Signer } from "@tokioapp/connector";
+import { RateLimitError, SignError, type Signer } from "@tokioapp/connector";
 
 const signer: Signer = {
   async fetchConnect({ roomId, cursor }, { fetch, signal, userAgent }) {
     const url = new URL(`https://signer.example.com/rooms/${roomId}/connect`);
     url.searchParams.set("cursor", cursor);
     url.searchParams.set("user_agent", userAgent);
+    // No try/catch needed: what fetch throws becomes the library's error.
     const response = await fetch(url, { signal });
+    if (response.status === 429) {
+      throw new RateLimitError("The signer is rate limited", {
+        retryAfterMs: Number(response.headers.get("retry-after") ?? 60) * 1000,
+      });
+    }
     if (!response.ok) {
       throw new SignError(`The signer answered ${response.status}`, {
         status: response.status,
@@ -249,7 +255,8 @@ const connection = new TikTokLiveConnection("username", { signer });
 ```
 
 - `body` is the signed connect: TikTok's protobuf `ProtoMessageFetchResult` (the first messages, the cursor, the push server and its parameters). `cookies` are the `name=value` pairs to send on the WebSocket. `roomId`, `requestId` and `agentId` are optional.
-- Make requests with the context's `fetch` and stop when its `signal` aborts (`AbortError`). Give up after `timeoutMs` with a `TimeoutError` (phase `sign`), and throw `RateLimitError`, `PremiumFeatureError` or `SignError` for the service's failures.
+- Make requests with the context's `fetch` and pass it the context's `signal`, so that `disconnect()` cancels them. Nothing else needs wrapping: the connection runs every call within `timeoutMs` (after that it fails with a `TimeoutError`, phase `sign`) and converts whatever a signer throws. `fetch`'s `AbortError` and `TimeoutError` become the library's `AbortError` and `TimeoutError`, and anything else (a network failure, a bug) a retryable `SignError` with the original as `cause`. To also cancel a request on timeout, pass `AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])`.
+- Throw the library's errors for the service's own answers: `RateLimitError` (with `retryAfterMs`, the connection waits at least that long), `PremiumFeatureError`, or `SignError` with the `status` (`retryable` is `false` for 401 and 403, and a 4xx makes the connection look the room id up again before its next attempt).
 - `sessionCookies` holds the TikTok session when the connection has one. Whoever gets it can act as that account: only send it to a third party when your user asked for it.
 - `resolveRoomId`, `fetchRoomInfo` and `fetchGifts` are optional fallbacks for when TikTok refuses the library's own requests. Return `null` when the service has no answer.
 

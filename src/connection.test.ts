@@ -29,6 +29,7 @@ import { DEFAULT_USER_AGENT } from "./http/params.js";
 import type { ConnectOptions } from "./options.js";
 import { fetchGiftList } from "./room/gifts.js";
 import { checkLive, resolveRoomId } from "./room/resolver.js";
+import type { SignedConnect } from "./signer/types.js";
 import { WebcastSession, type SessionOptions } from "./ws/session.js";
 import { encodeMessage, fromHex } from "../test/helpers/encoder.js";
 import { FakeSigner } from "../test/helpers/fakeSigner.js";
@@ -54,7 +55,7 @@ interface FakeHttp {
 const httpClients = vi.hoisted((): FakeHttp[] => []);
 
 // A cookie jar as PROTOCOL.md describes it, without any request.
-vi.mock("./http/client.js", async () => {
+vi.mock("./http/client.js", async (importOriginal) => {
   const { SESSION_COOKIE_NAMES, userAgentOf } =
     await import("./http/params.js");
   class HttpClient implements FakeHttp {
@@ -96,7 +97,10 @@ vi.mock("./http/client.js", async () => {
       }
     }
   }
-  return { HttpClient };
+  return {
+    ...(await importOriginal<typeof import("./http/client.js")>()),
+    HttpClient,
+  };
 });
 
 const ROOM_ID = "7140000000000000001";
@@ -477,16 +481,73 @@ describe("connect()", () => {
       expect(signer.calls).toEqual([]);
     });
 
-    it("wraps an error that isn't a ConnectorError", async () => {
-      const failure = new TypeError("signer bug");
-      signer.failNext(failure);
-      const { connection } = create();
+    it.each([
+      [
+        "a network failure",
+        new TypeError("fetch failed"),
+        { code: "SIGN_FAILED", retryable: true, status: undefined },
+      ],
+      [
+        "fetch's TimeoutError",
+        new DOMException("The operation timed out", "TimeoutError"),
+        { code: "TIMEOUT", phase: "sign", retryable: true },
+      ],
+      [
+        "fetch's AbortError",
+        new DOMException("This operation was aborted", "AbortError"),
+        { code: "ABORTED", retryable: false },
+      ],
+    ])(
+      "turns %s from the signer into a ConnectorError",
+      async (_, failure, expected) => {
+        signer.failNext(failure);
+        const { connection } = create();
+        await expect(connection.connect()).rejects.toMatchObject({
+          ...expected,
+          cause: failure,
+        });
+        expect(connection.state).toBe("disconnected");
+      },
+    );
+
+    it("times out a signer that doesn't answer", async () => {
+      signer.hold = new Promise(() => {});
+      const { connection } = create({ requestTimeoutMs: 100 });
       await expect(connection.connect()).rejects.toMatchObject({
-        code: "INTERNAL",
-        message: "signer bug",
-        cause: failure,
+        code: "TIMEOUT",
+        phase: "sign",
+        message: "The signed connect took longer than 100 ms",
       });
     });
+
+    it.each([
+      ["nothing", undefined, "The signer answered without a body"],
+      ["no body", { cookies: [] }, "The signer answered without a body"],
+      [
+        "cookies that aren't a list",
+        { body: new Uint8Array(0), cookies: "a=1" },
+        "The signer answered without a list of cookies",
+      ],
+      [
+        "cookies that aren't strings",
+        { body: new Uint8Array(0), cookies: [1] },
+        "The signer answered without a list of cookies",
+      ],
+    ])(
+      "refuses a signer answering %s with a ProtocolError",
+      async (_, answer, message) => {
+        const { connection } = create({
+          signer: {
+            fetchConnect: () =>
+              Promise.resolve(answer as unknown as SignedConnect),
+          },
+        });
+        await expect(connection.connect()).rejects.toMatchObject({
+          code: "PROTOCOL",
+          message,
+        });
+      },
+    );
 
     it("can connect again", async () => {
       signer.failNext(new SignError("down", { status: 503 }));
@@ -873,6 +934,25 @@ describe("reconnecting", () => {
     await until(() => expect(ofType("connected")).toHaveLength(3));
     expect(ofType("reconnecting").at(-1)?.attempt).toBe(1);
     expect(ofType("connected")[2]?.attempt).toBe(1);
+  });
+
+  it("retries an attempt whose signer threw a network failure", async () => {
+    const { connection, ofType } = create();
+    const errors: ConnectorError[] = [];
+    connection.on("error", (error) => errors.push(error));
+    await connection.connect();
+    const failure = new TypeError("fetch failed");
+    signer.failNext(failure);
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "SIGN_FAILED",
+        message: "The signed connect failed: fetch failed",
+        cause: failure,
+      }),
+    ]);
+    expect(ofType("reconnecting")[1]?.reason).toBe("signError");
   });
 
   it("emits each failed attempt as an error", async () => {

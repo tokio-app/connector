@@ -3,12 +3,12 @@
 // helpers.
 import { ConnectorError, isConnectorError } from "../errors.js";
 import type { Gift, GiftList, GiftSource, Image } from "../events.js";
+import { callSigner } from "../signer/call.js";
 import {
   idOf,
   recordOf,
   throwIfAborted,
   valueAt,
-  withinDeadline,
   type RoomContext,
 } from "./resolver.js";
 
@@ -127,7 +127,7 @@ function sourcesFor(request: GiftListRequest, context: RoomContext): Source[] {
       sources.push([
         "signer",
         () =>
-          withinDeadline("The signer's gift list", signContext, (ctx) =>
+          callSigner("The signer's gift list", signContext, (ctx) =>
             fetchGifts(roomId, ctx),
           ),
       ]);

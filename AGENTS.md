@@ -53,7 +53,8 @@ src/
   gifts.ts            gift helpers (isStreakable, isStreakEnd)
   http/               client.ts (fetch with timeouts and cookies), params.ts (client params and headers, in one place)
   room/               resolver.ts (username → room id, is-live check), gifts.ts (room → signer → region gift list)
-  signer/             types.ts (the Signer interface), euler.ts (EulerSigner, the default)
+  signer/             types.ts (the Signer interface), euler.ts (EulerSigner, the default),
+                      call.ts (every signer call: its deadline, and what it throws turned into ConnectorErrors)
   ws/                 frames.ts (enter room, heartbeat, ack), session.ts (one socket's lifetime)
   codec/              reader.ts, writer.ts, schema.ts, decode.ts, index.ts (re-exports, SCHEMAS by message name): the protobuf wire codec
   codec/messages/     one table per message: common, frame, fetchResult, chat, gift, like, social, member, roomUser, control, envelope, barrage
