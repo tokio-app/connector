@@ -21,6 +21,10 @@ describe("ROUTES", () => {
     for (const routes of GROUPS) expect(Object.isFrozen(routes)).toBe(true);
   });
 
+  it("routes all 62 LIVE message types of the 0.2.3 protos", () => {
+    expect(Object.keys(ROUTES)).toHaveLength(62);
+  });
+
   it("decodes each message with the codec's schema of its name", () => {
     for (const [method, route] of Object.entries(ROUTES)) {
       expect(route.schema).toBe(getSchema(method));

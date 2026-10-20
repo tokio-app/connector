@@ -10,6 +10,7 @@ import { ChatMessageSchema } from "./codec/messages/chat/chat.js";
 import { GiftMessageSchema } from "./codec/messages/gift/gift.js";
 import { LikeMessageSchema } from "./codec/messages/chat/like.js";
 import { SocialMessageSchema } from "./codec/messages/chat/social.js";
+import { ControlMessageSchema } from "./codec/messages/room/control.js";
 import { TikTokLiveConnection } from "./connection.js";
 import type { ConnectorError } from "./errors.js";
 import { ControlAction, type WebcastEventMap } from "./events/index.js";
@@ -262,6 +263,73 @@ describe("a LIVE through the fakes", () => {
     await delay(50);
     expect(signer.calls).toHaveLength(1);
     expect(fake.connections).toHaveLength(1);
+  });
+
+  it("emits controlMessage before streamEnd and the disconnect", async () => {
+    const { connection, events } = create([
+      "controlMessage",
+      "streamEnd",
+      "disconnected",
+    ]);
+    await connection.connect();
+    const control = {
+      common: sampleCommon("WebcastControlMessage"),
+      action: ControlAction.STREAM_ENDED,
+      tips: "The LIVE has ended",
+    };
+    fake.push([
+      {
+        method: "WebcastControlMessage",
+        msgId: "1",
+        payload: encodeMessage(ControlMessageSchema, control),
+      },
+    ]);
+    await until(() => expect(connection.state).toBe("disconnected"));
+    expect(events).toEqual([
+      { event: "controlMessage", payload: control },
+      { event: "streamEnd", payload: { action: "ended" } },
+      {
+        event: "disconnected",
+        payload: { reason: "streamEnd", willReconnect: false },
+      },
+    ]);
+  });
+
+  it("emits controlMessage on a pause and a resume, and keeps the stream", async () => {
+    const { connection, events } = create([
+      "controlMessage",
+      "chat",
+      "streamEnd",
+      "disconnected",
+    ]);
+    await connection.connect();
+    fake.push([
+      {
+        method: "WebcastControlMessage",
+        msgId: "1",
+        payload: fields.varint(2, ControlAction.PAUSED),
+      },
+    ]);
+    fake.push([chatMessage("2", "still here")]);
+    fake.push([
+      {
+        method: "WebcastControlMessage",
+        msgId: "3",
+        payload: fields.varint(2, ControlAction.UNPAUSED),
+      },
+    ]);
+    await until(() => expect(events).toHaveLength(3));
+    expect(events.map(({ event }) => event)).toEqual([
+      "controlMessage",
+      "chat",
+      "controlMessage",
+    ]);
+    expect(events[0]?.payload).toEqual({ action: 1, tips: "" });
+    expect(events[2]?.payload).toEqual({ action: 2, tips: "" });
+    await delay(50);
+    expect(connection.state).toBe("connected");
+    expect(events).toHaveLength(3);
+    expect(signer.calls).toHaveLength(1);
   });
 
   it("gives a raw listener the messages no event covers", async () => {
