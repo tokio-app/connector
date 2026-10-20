@@ -6,6 +6,22 @@ describe("roomSchemas", () => {
     expect(Object.keys(roomSchemas)).toEqual([
       "WebcastControlMessage",
       "WebcastRoomUserSeqMessage",
+      "WebcastPerceptionMessage",
+      "WebcastRankUpdateMessage",
+      "WebcastRankTextMessage",
+      "WebcastGameRankNotifyMessage",
+      "WebcastPollMessage",
+      "WebcastOecLiveShoppingMessage",
+      "WebcastCapsuleMessage",
+      "WebcastMarqueeAnnouncementMessage",
+      "WebcastSpeakerMessage",
+      "WebcastInRoomBannerMessage",
+      "WebcastAccessControlMessage",
+      "WebcastAccessRecallMessage",
+      "WebcastPartnershipDropsUpdateMessage",
+      "WebcastPartnershipGameOfflineMessage",
+      "WebcastPartnershipPunishMessage",
+      "WebcastLiveGameIntroMessage",
     ]);
     for (const [name, schema] of Object.entries(roomSchemas)) {
       expect(schema.name).toBe(name);
