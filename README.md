@@ -73,27 +73,27 @@ A LIVE message is decoded only when one of the events it leads to has a listener
 
 ### Chat, reactions and moderation
 
-| Event                | Fires when                                    | Payload                     | Fields you'll use                           |
-| -------------------- | --------------------------------------------- | --------------------------- | ------------------------------------------- |
-| `chat`               | A comment                                     | `ChatMessage`               | `user`, `content`, `emotes`, `userIdentity` |
-| `emote`              | A comment made of emotes only                 | `EmoteChatMessage`          | pending                                     |
-| `like`               | Likes                                         | `LikeMessage`               | `user`, `count`, `total`                    |
-| `social`             | A follow or share, whatever its text key      | `SocialMessage`             | pending                                     |
-| `follow`             | A viewer followed the host                    | `SocialMessage`             | `user`                                      |
-| `share`              | A viewer shared the LIVE                      | `SocialMessage`             | `user`, `shareCount`                        |
-| `imDelete`           | A moderator deleted comments                  | `ImDeleteMessage`           | pending                                     |
-| `roomPin`            | A message was pinned to the chat, or unpinned | `RoomPinMessage`            | pending                                     |
-| `questionNew`        | A new question in the Q&A                     | `QuestionNewMessage`        | pending                                     |
-| `captionMessage`     | A live caption of what the host says          | `CaptionMessage`            | pending                                     |
-| `roomMessage`        | A message from the room, such as a welcome    | `RoomMessage`               | pending                                     |
-| `notice`             | A notice from TikTok, such as a warning       | `NoticeMessage`             | pending                                     |
-| `system`             | A system message                              | `SystemMessage`             | pending                                     |
-| `liveIntro`          | The LIVE's intro text                         | `LiveIntroMessage`          | pending                                     |
-| `unauthorizedMember` | A viewer joined without an account            | `UnauthorizedMemberMessage` | pending                                     |
-| `msgDetect`          | A detection probe TikTok sends to clients     | `MsgDetectMessage`          | pending                                     |
-| `toast`              | A toast TikTok shows                          | `ToastMessage`              | pending                                     |
-| `bottomMessage`      | A message shown at the bottom of the LIVE     | `BottomMessage`             | pending                                     |
-| `roomVerify`         | A verification request from TikTok            | `RoomVerifyMessage`         | pending                                     |
+| Event                | Fires when                                    | Payload                     | Fields you'll use                                       |
+| -------------------- | --------------------------------------------- | --------------------------- | ------------------------------------------------------- |
+| `chat`               | A comment                                     | `ChatMessage`               | `user`, `content`, `emotes`, `mentionUsers`             |
+| `emote`              | A comment made of emotes only                 | `EmoteChatMessage`          | `user`, `emoteList`, `userIdentity`                     |
+| `like`               | Likes                                         | `LikeMessage`               | `user`, `count`, `total`                                |
+| `social`             | A follow or share, whatever its text key      | `SocialMessage`             | `user`, `common.displayText`, `shareType`, `action`     |
+| `follow`             | A viewer followed the host                    | `SocialMessage`             | `user`, `followCount`, `targetUserId`                   |
+| `share`              | A viewer shared the LIVE                      | `SocialMessage`             | `user`, `shareCount`, `shareTarget`                     |
+| `imDelete`           | A moderator deleted comments                  | `ImDeleteMessage`           | `deleteMsgIds`, `deleteUserIds`                         |
+| `roomPin`            | A message was pinned to the chat, or unpinned | `RoomPinMessage`            | `action`, `chatMessage`, `operator`, `pinMsgId`         |
+| `questionNew`        | A new question in the Q&A                     | `QuestionNewMessage`        | `details.user`, `details.content`                       |
+| `captionMessage`     | A live caption of what the host says          | `CaptionMessage`            | `content`, `definite`, `timestampMs`, `durationMs`      |
+| `roomMessage`        | A message from the room, such as a welcome    | `RoomMessage`               | `content`, `scene`, `isWelcome`                         |
+| `notice`             | A notice from TikTok, such as a warning       | `NoticeMessage`             | `content`, `noticeType`, `noticeTitle`, `noticeContent` |
+| `system`             | A system message                              | `SystemMessage`             | `message`                                               |
+| `liveIntro`          | The LIVE's intro text                         | `LiveIntroMessage`          | `content`, `user`                                       |
+| `unauthorizedMember` | A viewer joined without an account            | `UnauthorizedMemberMessage` | `nickName`                                              |
+| `msgDetect`          | A detection probe TikTok sends to clients     | `MsgDetectMessage`          | `dType`, `triggerBy`                                    |
+| `toast`              | A toast TikTok shows                          | `ToastMessage`              | `displayDurationMillisecond`                            |
+| `bottomMessage`      | A message shown at the bottom of the LIVE     | `BottomMessage`             | `content`, `bizType`                                    |
+| `roomVerify`         | A verification request from TikTok            | `RoomVerifyMessage`         | `content`, `closeRoom`                                  |
 
 ### Gifts, money and membership
 
