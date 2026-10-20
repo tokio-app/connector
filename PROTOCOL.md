@@ -509,7 +509,7 @@ In `src/codec/messages/common.ts`.
 
 ### LIVE messages
 
-All in package `webcast.model.message` [proto: webcast/model/message/messages.proto] unless noted. Field 1 is always `common` (`CommonMessageData`, → `common`, message). The tables are in `src/codec/messages/<group>/`, one file per message (tail messages, with a few scalars each, share `tail.ts`), registered in the group's `index.ts`. A message marked _pending_ has its payload type in `src/events/<group>.ts` and no table yet: it reaches `raw` only.
+All in package `webcast.model.message` [proto: webcast/model/message/messages.proto] unless noted. Field 1 is always `common` (`CommonMessageData`, → `common`, message). The tables are in `src/codec/messages/<group>/`, one file per message (tail messages, with a few scalars each, share `tail.ts`), registered in the group's `index.ts`. Each of the 62 message types below has a table and a route ([Routing](#routing)); a message type without one (one TikTok adds later) reaches `raw` only.
 
 #### Chat, reactions and moderation (`messages/chat/`)
 
@@ -602,7 +602,7 @@ The pinned message is nested whole, decoded with its own table (the gift group's
 | --- | ----------- | ---------- | --------- | ------- |
 | 2   | `data`      | `Question` | `details` | message |
 
-The property keeps the name the plan gave field 2, `details`. `webcast.model.message.Question` [proto: webcast/model/message/messages.proto, line 736] (`QuestionSchema`): `question_id` (1, int64) → `questionId`, id; `content` (2, string) → `content`, string; `answer_status` (3, int32) → `answerStatus`, int32; `create_time` (4, int64) → `createTime`, id; `user` (5, `User`) → `user`, message. Not read: `create_from` (20), `answer_from` (21).
+The property is `details`, not the proto's `data`, which would read as the whole payload. `webcast.model.message.Question` [proto: webcast/model/message/messages.proto, line 736] (`QuestionSchema`): `question_id` (1, int64) → `questionId`, id; `content` (2, string) → `content`, string; `answer_status` (3, int32) → `answerStatus`, int32; `create_time` (4, int64) → `createTime`, id; `user` (5, `User`) → `user`, message. Not read: `create_from` (20), `answer_from` (21).
 
 `WebcastCaptionMessage` [proto: webcast/model/message/messages.proto, line 1142] (`chat/caption.ts`)
 
@@ -1258,7 +1258,7 @@ The tail (`room/tail.ts`), each with `common` (1) [proto: webcast/model/message/
 
 ## Routing
 
-Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table per group (`src/routes/<group>.ts`). A message is decoded only when one of its route's events has a listener; control messages are always decoded. When a message type leads to a base event and a derived one (`social` and `follow`, `barrage` and `superFan`, `controlMessage` and `streamEnd`), the base event is emitted first, then the derived one; a nested message (the comment inside a pin) is not emitted again as its own event. Routing never branches on enum values only traffic can confirm: text keys and business types only. The base events `social`, `barrage` and `controlMessage` are declared but not emitted yet (pending, like the new message types).
+Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table per group (`src/routes/<group>.ts`). A message is decoded only when one of its route's events has a listener; control messages are always decoded. When a message type leads to a base event and a derived one (`social` and `follow`, `barrage` and `superFan`, `controlMessage` and `streamEnd`), the base event is emitted first, then the derived one. The one exception is kept from 0.1.0: a super fan box is a `superFanBox` before it is an `envelope`, so listeners of 0.1.0 see the order they saw. A nested message (the comment inside a pin) is not emitted again as its own event. Routing never branches on enum values only traffic can confirm: text keys and business types only.
 
 `raw` comes first, for every message that survives the duplicate check, history included. Anything without a route reaches only `raw`.
 
@@ -1418,7 +1418,7 @@ Parsing: the gift array is the first non-empty one of `data.gifts`, `data.giftLi
 
 ## Open items
 
-What the references and docs can't settle. `yarn capture` on the user's own LIVE and `yarn smoke` (with `-v` for the `debug` logs) answer most of them. The numbers stay put (the code cites them); settled items say so.
+What the references and docs can't settle. `yarn capture` on the user's own LIVE and `yarn smoke` (with `-v` for the `debug` logs) answer most of them. The numbers stay put (the code cites them); settled items say so. Items 1–19 are about the connection; the four groups of LIVE messages have a list each, numbered from their own range: chat 20–29, gift 30–39, link 40–49, room 50–59.
 
 **The first smoke run** (2026-10-20, `yarn smoke tv_asahi_news --seconds 30 --drop-after 10 --gifts -v`, Euler Stream without an API key) connected in 4.8 s: api-live gave the room id, `room/info` said status 2 (LIVE), Euler Stream signed it, and the WebSocket handshake (both `version_code`s, the route params, our headers and cookies, `ws`'s permessage-deflate offer), the room entry and the gzipped batches all worked; chat, member and viewer count messages decoded. It settled items 1, 3 and 14, half of 4 and 13, most likely 17, and found two bugs: a reconnect's signed connect has no push server (see [Reconnects](#reconnects), "Resumed signed connects"), and full jitter let the reconnect attempts spend Euler Stream's anonymous limit (see [Reconnects](#reconnects), "Waits"). No reconnect succeeded, so item 5 waited for the next run.
 
@@ -1444,7 +1444,7 @@ What the references and docs can't settle. `yarn capture` on the user's own LIVE
 16. **Entering the room.** _Settled: TikTok confirms it._ The second smoke run logged `Entered room …: the server's im_enter_room_resp`, so entering doesn't wait for a batch, and a quiet room doesn't run into `connectTimeoutMs`.
 17. **Quiet rooms.** _Most likely settled (the server answered heartbeats in the second smoke run too)._ The server answered the first smoke run's heartbeat with an `hb` frame. If it answers every heartbeat (10 s apart by default), a healthy socket gets a frame well within `idleTimeoutMs` (30 s) even in a LIVE where nothing happens, so the idle check never fires on it. A longer run confirms it: the session logs the first reply at `debug`, and an idle drop shows as `disconnected` with reason `idle`.
 18. **Resuming.** _Settled: TikTok refuses it._ A socket opened from a resumed batch, on the old push server, gets an HTTP `200` instead of a WebSocket, even with the first connect's route params merged in (third smoke run, an empty body). Reconnects sign fresh for their socket, and sign with the cursor only for the gap ([Reconnects](#reconnects), "The gap").
-19. **`Text.pieces`.** A display text's `pieces` (4, repeated `TextPiece`: typed parts such as a user, a gift or a pattern reference) aren't read: `key` and `default_pattern` are enough for routing and for showing the text. Read them if an app needs the parts (the user a text names, say). Items 20–59 are reserved for the groups: chat 20–29, gift 30–39, link 40–49, room 50–59.
+19. **`Text.pieces`.** A display text's `pieces` (4, repeated `TextPiece`: typed parts such as a user, a gift or a pattern reference) aren't read: `key` and `default_pattern` are enough for routing and for showing the text. Read them if an app needs the parts (the user a text names, say).
 
 **Chat, reactions and moderation** (items 20–29):
 

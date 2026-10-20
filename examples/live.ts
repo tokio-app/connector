@@ -4,6 +4,7 @@ import {
   createConsoleLogger,
   EulerSigner,
   isStreakEnd,
+  PinAction,
   TikTokLiveConnection,
   WebcastEvent,
   type User,
@@ -72,6 +73,24 @@ connection.on(WebcastEvent.SUPER_FAN_BOX, () => log("superfan", "box"));
 connection.on(WebcastEvent.ENVELOPE, () => log("envelope", "treasure box"));
 connection.on(WebcastEvent.ROOM_USER, (room) =>
   log("viewers", `${room.total} watching, ${room.totalUser} so far`),
+);
+connection.on(WebcastEvent.SUB_NOTIFY, (sub) =>
+  log("subscribe", `${name(sub.user)}, month ${sub.subMonth}`),
+);
+connection.on(WebcastEvent.EMOTE, (emote) =>
+  log("emote", `${name(emote.user)}: ${emote.emoteList.length} emote(s)`),
+);
+connection.on(WebcastEvent.ROOM_PIN, (pin) =>
+  log("pin", pin.action === PinAction.PIN ? pin.method : "unpinned"),
+);
+connection.on(WebcastEvent.IM_DELETE, (deleted) =>
+  log("deleted", `${deleted.deleteMsgIds.length} comment(s)`),
+);
+connection.on(WebcastEvent.LINK_MIC_BATTLE, (battle) =>
+  log("battle", `${battle.battleId}, action ${battle.action}`),
+);
+connection.on(WebcastEvent.POLL_MESSAGE, (poll) =>
+  log("poll", poll.startContent?.title || `poll ${poll.pollId}`),
 );
 
 const stop = async () => {

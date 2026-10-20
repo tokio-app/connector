@@ -1,6 +1,6 @@
 # @tokioapp/connector
 
-Connect to a TikTok LIVE from Node and receive its events: chat, gifts, likes, follows, shares, viewers, treasure chests and super fans. It reconnects on its own, decodes only the messages you listen to, and gives you typed events and errors. It is written from scratch, MIT-licensed, and has one runtime dependency (`ws`). It is the connector behind [Tokio](https://tokio.ialfaro.com).
+Connect to a TikTok LIVE from Node and receive its events: every LIVE message type, from chat, gifts, likes, follows, viewers and super fans to battles, polls and goals. It reconnects on its own, decodes only the messages you listen to, and gives you typed events and errors. It is written from scratch, MIT-licensed, and has one runtime dependency (`ws`). It is the connector behind [Tokio](https://tokio.ialfaro.com).
 
 ## Install
 
@@ -58,7 +58,7 @@ import { WebcastEvent } from "@tokioapp/connector";
 connection.on(WebcastEvent.CHAT, (chat) => console.log(chat.content));
 ```
 
-A LIVE message is decoded only when one of the events it leads to has a listener, so listening to many events costs nothing until they fire. The events marked _pending_ are declared (their names and payload types are in the package) but not emitted yet: their messages reach `raw` only, until the next release decodes them.
+Every LIVE message type is an event: 67 of them, from 62 message types. A LIVE message is decoded only when one of the events it leads to has a listener, so listening to many events costs nothing until they fire.
 
 ### Connection
 
@@ -158,7 +158,15 @@ A LIVE message is decoded only when one of the events it leads to has a listener
 | `partnershipPunish`      | A partnership punishment                              | `PartnershipPunishMessage`      | `punishInfo`                                                       |
 | `liveGameIntro`          | The LIVE's game intro                                 | `LiveGameIntroMessage`          | `content`, `hasRankInfo`                                           |
 
-Numeric codes have named constants, so you needn't hard-code them: `MemberAction` (`UNKNOWN` 0, `JOINED` 1, `SUBSCRIBED` 3) for `member.actionId`, `EnvelopeBusinessType` (`UNKNOWN` 0, `SUPER_FAN_BOX` 19) for `envelopeInfo.businessType`, `ControlAction` (`UNKNOWN` 0, `PAUSED` 1, `UNPAUSED` 2, `STREAM_ENDED` 3, `STREAM_SUSPENDED` 4) for the control messages behind `streamEnd`, `BadgeSceneType` for a badge's `sceneType`, and one per enum field of the pending events (`PinAction`, `SubscribeType`, `BattleAction`, `PollKind`…), each documented on its field. The fields stay plain numbers: TikTok may send values the constants don't name.
+Numeric codes have named constants, so you needn't hard-code them: `MemberAction` (`UNKNOWN` 0, `JOINED` 1, `SUBSCRIBED` 3) for `member.actionId`, `EnvelopeBusinessType` (`SUPER_FAN_BOX` 19 among them) for `envelopeInfo.businessType`, `ControlAction` (`UNKNOWN` 0, `PAUSED` 1, `UNPAUSED` 2, `STREAM_ENDED` 3, `STREAM_SUSPENDED` 4) for `controlMessage.action` (3 and 4 are also a `streamEnd`), and one for every other enum field, documented on its field:
+
+- Users and emotes: `BadgeSceneType` (a badge's `sceneType`), `FansClubStatus` (`fansClub.data.status`), `PayStatus` (`subscribeInfo.status`), `PunishTypeId` (`punishInfo.punishTypeId`), `AuditStatus`, `EmoteType` and `EmoteScene` (an emote's `auditStatus`, `emoteType` and `emoteScene`).
+- Chat: `CommentTag` (`chat.commentTag`), `PinAction` (`roomPin.action`), `BottomBizType` (`bottomMessage.bizType`).
+- Gifts: `BarrageType`, `SubscribeType`, `OldSubscribeStatus`, `SubscribingStatus`, `SubNotifyMessageType`, `SubGiftSource`, `ExhibitionType`, `SubPinAction`, `PinCardType`, `PinCardTextType`, `GoalMessageSource`.
+- Link-mic and battles: `BattleAction`, `BattleStatus`, `BattleResult`, `BattleType`, `ArmiesTriggerReason`, `PunishFinishReason`, `BattleTaskMessageType`, `BattleTaskResult`, `BattleCardMsgType`, `LinkLayerMessageType`, `LinkScene`, `LinkerMode`, `LinkerUserType`, `KickoutReason`, `AgreeStatus`, `LinkListStatus`, `LinkRoleType`, `LinkType`, `MuteStatus`, `MediaState`, `LinkStateType`, `OnlineUserState`, `LinkmicReplyType`, `GuestMicCameraManageOp`.
+- Room: `ProfitRankType`, `RankOpType`, `ClassType`, `RankTextScene`, `GameRankMsgType`, `PollKind`, `PollEndType`, `PerceptionIconType`, `PartnershipChangeMode`, `OfflineType`.
+
+The fields stay plain numbers: TikTok may send values the constants don't name.
 
 ```ts
 import { MemberAction } from "@tokioapp/connector";
@@ -412,11 +420,11 @@ A source that fails or returns no gift hands over to the next, and without a roo
 
 ## Raw messages
 
-The `raw` event gets every message before decoding, including the types no other event covers:
+The `raw` event gets every message before decoding, including any type no other event covers (one TikTok added after this release, say):
 
 ```ts
 connection.on("raw", ({ method, msgId, payload }) => {
-  if (method === "WebcastPollMessage") savePoll(msgId, payload.slice());
+  if (method === "WebcastSomeNewMessage") save(msgId, payload.slice());
 });
 ```
 
@@ -432,7 +440,7 @@ To see the library in action, clone the repository and watch a LIVE from the ter
 yarn example <username> [seconds]
 ```
 
-It is [`examples/live.ts`](examples/live.ts): a listener per event, printed as one line each. Set `EULER_API_KEY` to sign with your own key.
+It is [`examples/live.ts`](examples/live.ts): a listener for each of the main events, printed as one line each. Set `EULER_API_KEY` to sign with your own key.
 
 Two more scripts in this repository (not in the package) check the library against real LIVEs. Both need the network and a user who is LIVE now, and take an Euler Stream API key from `EULER_API_KEY` (or `--api-key`). `--help` lists every flag.
 
@@ -455,7 +463,7 @@ This library will replace [tiktok-live-connector](https://github.com/zerodytrash
 | Node                 | 24 and later                                                                                         | 20 and later                                                                                      |
 | Reconnecting         | Built in: backoff with jitter, resumes from the cursor, drops duplicates, reconnects a silent stream | Call `connect()` again yourself                                                                   |
 | Decoding             | Lazy: only the messages you listen to                                                                | Every known message type, unless configured to skip it                                            |
-| Events               | 16, plus `raw` for the rest                                                                          | Over 60: polls, battles, questions, goals and more                                                |
+| Events               | 67 LIVE events from 62 message types, plus `raw`                                                     | Over 60: polls, battles, questions, goals and more                                                |
 | Errors               | One base class with `code` and `retryable`                                                           | Its own error classes                                                                             |
 | Signer API key       | Per signer, sent only in the `x-api-key` header                                                      | The `signApiKey` option, written to a global config, or `SIGN_API_KEY`                            |
 | Only there           |                                                                                                      | Sending chat messages, the mobile connection, proxy settings for its HTTP and WebSocket clients   |

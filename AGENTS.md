@@ -2,7 +2,7 @@
 
 ## Project
 
-`@tokioapp/connector` is a Node library that connects to a TikTok LIVE and emits its events (chat, gifts, likes, follows, shares, members, viewer counts, envelopes, super fans, stream end) with reconnects, typed events and errors, and lazy decoding. It is written from scratch, MIT-licensed, ESM only, and has one runtime dependency, `ws`. Published to npm as `@tokioapp/connector`; repository `tokio-app/connector`.
+`@tokioapp/connector` is a Node library that connects to a TikTok LIVE and emits every LIVE message type as a typed event (62 message types, 67 events: chat, gifts, likes, follows, members, viewer counts, battles, polls, goals and the rest), with reconnects, typed errors, and lazy decoding. It is written from scratch, MIT-licensed, ESM only, and has one runtime dependency, `ws`. Published to npm as `@tokioapp/connector`; repository `tokio-app/connector`.
 
 It will replace `tiktok-live-connector` (AGPL since 2.4.1) in Tokio, the Electron app at `../tokio`, once it has been proven against real LIVEs. That swap is a separate change in the Tokio repo, not here.
 
@@ -64,8 +64,13 @@ src/
   ws/                 frames.ts (enter room, heartbeat, ack), session.ts (one socket's lifetime)
   codec/              reader.ts, writer.ts, schema.ts, decode.ts, index.ts (SCHEMAS: every table by message name): the protobuf wire codec
   codec/messages/     common.ts (the shared building blocks), frame.ts, fetchResult.ts, and one folder per group,
-                      each with one table per message and an index.ts registry: chat/ (chat, like, social),
-                      gift/ (gift, member, envelope, barrage), link/ (empty), room/ (control, roomUser)
+                      each with one table per message, tail.ts (the messages with a few scalars) and an index.ts registry:
+                      chat/ (chat, emote, like, social, imDelete, roomPin, questionNew, caption, roomMessage, notice, tail),
+                      gift/ (gift, member, subNotify, subPinEvent, barrage, envelope, giftBroadcast, roomNotify, goalUpdate,
+                      viewerPicks, hourlyRank, tail), link/ (shared.ts with the nested tables of several messages,
+                      linkMicBattle, linkMicArmies, linkMicBattlePunishFinish, linkMicBattleTask, linkMicFanTicketMethod,
+                      linkMicMethod, linkMessage, linkLayer, linkState, tail), room/ (control, roomUser, perception,
+                      rankUpdate, rankText, poll, oecLiveShopping, tail)
   util/               backoff, random, gzip, cookies
 test/
   setup.ts            runs before every test file
@@ -98,9 +103,9 @@ The library is MIT and must stay clean-room. Treat this as part of every change.
 
 `PROTOCOL.md` is the spec: room id resolution, the is-live check, client params and headers, the signed connect request, the WebSocket URL and frames, heartbeat and ack, message routing, the gift list sources, and the field numbers of every decoded message. Each fact cites its source in `reference/` or Euler's docs, and its Open items list what still needs a capture or a smoke run. Change it together with the code, and check new facts against `reference/` or Euler's docs.
 
-A message table (`src/codec/messages/<group>/`) is a `defineSchema<T>()` call keyed by the payload's properties: the compiler checks that every property has a field of the matching kind, and that optional properties are nested messages. Fields a table doesn't list are skipped when decoding. A table can't be stubbed: a payload type without a table is fine (the event is pending), a table must cover every property of its type.
+A message table (`src/codec/messages/<group>/`) is a `defineSchema<T>()` call keyed by the payload's properties: the compiler checks that every property has a field of the matching kind, and that optional properties are nested messages. Fields a table doesn't list are skipped when decoding. A table can't be stubbed: it must cover every property of its type.
 
-**Adding a message type** (or filling in a pending one): declare or correct the payload type in `src/events/<group>.ts` (field numbers from the `.proto`, `common?: Common` first, a frozen constant per enum field); write the table in `src/codec/messages/<group>/<name>.ts` (or a `tail.ts` entry for a message with a few scalars) with its test next to it (the six steps of the existing tests: `fields.*` bytes with "not read" neighbours, empty → defaults, an encoder round trip, `unknownFields()` at every level, hand-assembled hex the encoder reproduces, out-of-order and 64-bit cases); add it to the group's `index.ts` registry; add its route to `src/routes/<group>.ts` (`forward` for a plain one) and its row to the group's route test; give it a sample line in `scripts/smoke/describe/<group>.ts` when the generic one won't do; replace its stub with a table in `PROTOCOL.md` ("LIVE messages" and "Routing"); fill its row of the README's events table.
+**Adding a message type**: add its event to `WebcastEventMap` and `WebcastEvent` (`src/events/index.ts`) and to its group in `src/routes/groups.ts`; declare the payload type in `src/events/<group>.ts` (field numbers from the `.proto`, `common?: Common` first, a frozen constant per enum field, added to the pinned export list in `src/index.test.ts` and the README's constants); write the table in `src/codec/messages/<group>/<name>.ts` (or a `tail.ts` entry for a message with a few scalars) with its test next to it (the six steps of the existing tests: `fields.*` bytes with "not read" neighbours, empty → defaults, an encoder round trip, `unknownFields()` at every level, hand-assembled hex the encoder reproduces, out-of-order and 64-bit cases); add it to the group's `index.ts` registry; add its route to `src/routes/<group>.ts` (`forward` for a plain one) and its row to the group's route test; give it a sample line in `scripts/smoke/describe/<group>.ts` when the generic one won't do; add it to `PROTOCOL.md` ("LIVE messages" and "Routing", and what traffic must confirm to its group's Open items); add its row to the README's events table.
 
 TikTok changes things without notice. The `clientParams` and `headers` options override the defaults in `src/http/params.ts`, so an app can work around a change before a release (the hotfix path); keep every param and header in that one file so they stay overridable.
 
