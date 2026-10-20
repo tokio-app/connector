@@ -690,7 +690,7 @@ export interface GiftPanelUpdateMessage {
   common?: Common;
   /** The room. */
   roomId: string;
-  /** When, as a decimal string (a timestamp). */
+  /** When, as a decimal string (seconds since the epoch, as traffic shows). */
   timestamp: string;
 }
 
