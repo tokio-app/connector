@@ -39,7 +39,7 @@ import type {
   GiftList,
   StreamEndAction,
   WebcastEventMap,
-} from "./events.js";
+} from "./events/index.js";
 import { HttpClient } from "./http/client.js";
 import {
   WEBSOCKET_URL_SUFFIX,

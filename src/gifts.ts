@@ -1,4 +1,4 @@
-import type { GiftMessage } from "./events.js";
+import type { GiftMessage } from "./events/index.js";
 
 /** The gift type of gifts that can be sent in streaks. */
 const STREAKABLE_GIFT_TYPE = 1;

@@ -1,4 +1,4 @@
-import type { Gift } from "../events.js";
+import type { Gift } from "../events/index.js";
 import type { Logger } from "../logger.js";
 
 /**

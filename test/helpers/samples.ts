@@ -2,7 +2,7 @@
 // with every field the tables read set, and fields of every wire type that
 // none of the tables reads.
 import { WireType } from "../../src/codec/reader.js";
-import type { Common, Image, User } from "../../src/events.js";
+import type { Common, Image, User } from "../../src/events/index.js";
 import {
   concat,
   fixed32,
@@ -26,10 +26,11 @@ export const SAMPLE_USER: User = {
   avatarThumb: SAMPLE_IMAGE,
   badgeList: [
     {
+      sceneType: 10,
       combine: { icon: { urlList: [], uri: "webcast/fans_badge_lv12" } },
       privilegeLogExtra: { level: "12" },
     },
-    { privilegeLogExtra: { level: "3" } },
+    { sceneType: 0, privilegeLogExtra: { level: "3" } },
   ],
 };
 

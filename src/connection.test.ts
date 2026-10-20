@@ -19,7 +19,7 @@ import {
   TimeoutError,
   WebSocketError,
 } from "./errors.js";
-import type { WebcastEventMap } from "./events.js";
+import type { WebcastEventMap } from "./events/index.js";
 import { HttpClient } from "./http/client.js";
 import { DEFAULT_USER_AGENT } from "./http/params.js";
 import type { ConnectOptions } from "./options.js";

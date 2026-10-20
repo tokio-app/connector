@@ -17,6 +17,8 @@ import {
   formatRows,
   formatSeconds,
   labeled,
+  nickname,
+  quote,
   shortError,
   stamp,
 } from "./format.js";
@@ -142,6 +144,21 @@ describe("numbers and times", () => {
     expect(formatBytes(512)).toBe("512 B");
     expect(formatBytes(1_536)).toBe("1.5 KB");
     expect(formatBytes(3 * 1024 * 1024)).toBe("3.0 MB");
+  });
+});
+
+describe("nickname and quote", () => {
+  it("prints a trimmed nickname, or says there is none", () => {
+    expect(nickname({ nickname: "  Ana " })).toBe("Ana");
+    expect(nickname({ nickname: "   " })).toBe("(no nickname)");
+    expect(nickname(undefined)).toBe("(no nickname)");
+  });
+
+  it("quotes a comment on one line, cut past the limit", () => {
+    expect(quote("hello\n  there")).toBe('"hello there"');
+    expect(quote("x".repeat(80))).toBe(`"${"x".repeat(59)}…"`);
+    expect(quote("abcdef", 4)).toBe('"abc…"');
+    expect(quote("abcd", 4)).toBe('"abcd"');
   });
 });
 

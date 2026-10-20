@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { decodeMessage } from "./codec/decode.js";
-import { GiftMessageSchema } from "./codec/messages/gift.js";
-import type { GiftDetails } from "./events.js";
+import { GiftMessageSchema } from "./codec/messages/gift/gift.js";
+import type { GiftDetails } from "./events/index.js";
 import { isStreakEnd, isStreakable } from "./gifts.js";
 import { concat, fields } from "../test/helpers/encoder.js";
 
@@ -10,6 +10,8 @@ const details = (type: number): GiftDetails => ({
   name: "Rose",
   diamondCount: 1,
   type,
+  describe: "",
+  combo: false,
 });
 
 describe("isStreakable", () => {

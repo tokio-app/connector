@@ -50,27 +50,115 @@ The username can be `name`, `@name` or a profile or LIVE URL. Attach listeners b
 
 ## Events
 
-| Event          | Fires when                                                                                                                       | Payload             | Fields you'll use                                                     |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------- | --------------------------------------------------------------------- |
-| `connected`    | The connection entered the room: after `connect()` and after each reconnect                                                      | `ConnectedEvent`    | `roomId`, `reconnected`, `attempt`                                    |
-| `disconnected` | An established connection ended. Not when the first `connect()` fails: it rejects instead                                        | `DisconnectedEvent` | `reason`, `willReconnect`, `error`                                    |
-| `reconnecting` | A reconnect attempt is about to run                                                                                              | `ReconnectingEvent` | `attempt`, `delayMs`, `reason`                                        |
-| `error`        | A failure no promise reports: a message that couldn't be decoded, a failed reconnect attempt. Logged instead when nobody listens | `ConnectorError`    | `code`, `message`, `retryable`                                        |
-| `streamEnd`    | The LIVE ended or was suspended. The connection then stops                                                                       | `StreamEndEvent`    | `action`: `ended` or `suspended`                                      |
-| `chat`         | A comment                                                                                                                        | `ChatMessage`       | `user`, `content`, `emotes`, `userIdentity`                           |
-| `gift`         | A gift, once per streak update ([Gift streaks](#gift-streaks))                                                                   | `GiftMessage`       | `user`, `gift.name`, `gift.diamondCount`, `repeatCount`, `repeatEnd`  |
-| `like`         | Likes                                                                                                                            | `LikeMessage`       | `user`, `count`, `total`                                              |
-| `follow`       | A viewer followed the host                                                                                                       | `SocialMessage`     | `user`                                                                |
-| `share`        | A viewer shared the LIVE                                                                                                         | `SocialMessage`     | `user`, `shareCount`                                                  |
-| `member`       | A viewer joined, or another membership change                                                                                    | `MemberMessage`     | `user`, `actionId` (`MemberAction`: `JOINED` 1, `SUBSCRIBED` 3)       |
-| `roomUser`     | Viewer counts and the top viewers                                                                                                | `RoomUserMessage`   | `total` (watching now), `totalUser` (so far), `ranks`                 |
-| `envelope`     | A treasure chest                                                                                                                 | `EnvelopeMessage`   | `envelopeInfo.businessType` (`EnvelopeBusinessType.SUPER_FAN_BOX` 19) |
-| `superFan`     | A super fan banner                                                                                                               | `BarrageMessage`    | `user`, `content.key`                                                 |
-| `superFanJoin` | A viewer became a super fan                                                                                                      | `BarrageMessage`    | `user`                                                                |
-| `superFanBox`  | A super fan box (also emitted as `envelope`)                                                                                     | `EnvelopeMessage`   | `envelopeInfo`                                                        |
-| `raw`          | Every message before decoding, history included ([Raw messages](#raw-messages))                                                  | `RawMessage`        | `method`, `payload`, `msgId`, `isHistory`                             |
+Every event has a name in `WebcastEvent`, so you needn't spell it as a string, and `WebcastEventMap` types its payload:
 
-Numeric codes have named constants, so you needn't hard-code them: `MemberAction` (`UNKNOWN` 0, `JOINED` 1, `SUBSCRIBED` 3) for `member.actionId`, `EnvelopeBusinessType` (`UNKNOWN` 0, `SUPER_FAN_BOX` 19) for `envelopeInfo.businessType`, and `ControlAction` (`UNKNOWN` 0, `PAUSED` 1, `UNPAUSED` 2, `STREAM_ENDED` 3, `STREAM_SUSPENDED` 4) for the control messages behind `streamEnd`. The fields stay plain numbers: TikTok may send values the constants don't name.
+```ts
+import { WebcastEvent } from "@tokioapp/connector";
+
+connection.on(WebcastEvent.CHAT, (chat) => console.log(chat.content));
+```
+
+A LIVE message is decoded only when one of the events it leads to has a listener, so listening to many events costs nothing until they fire. The events marked _pending_ are declared (their names and payload types are in the package) but not emitted yet: their messages reach `raw` only, until the next release decodes them.
+
+### Connection
+
+| Event          | Fires when                                                                                                                       | Payload             | Fields you'll use                         |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----------------------------------------- |
+| `connected`    | The connection entered the room: after `connect()` and after each reconnect                                                      | `ConnectedEvent`    | `roomId`, `reconnected`, `attempt`        |
+| `disconnected` | An established connection ended. Not when the first `connect()` fails: it rejects instead                                        | `DisconnectedEvent` | `reason`, `willReconnect`, `error`        |
+| `reconnecting` | A reconnect attempt is about to run                                                                                              | `ReconnectingEvent` | `attempt`, `delayMs`, `reason`            |
+| `error`        | A failure no promise reports: a message that couldn't be decoded, a failed reconnect attempt. Logged instead when nobody listens | `ConnectorError`    | `code`, `message`, `retryable`            |
+| `streamEnd`    | The LIVE ended or was suspended. The connection then stops                                                                       | `StreamEndEvent`    | `action`: `ended` or `suspended`          |
+| `raw`          | Every message before decoding, history included ([Raw messages](#raw-messages))                                                  | `RawMessage`        | `method`, `payload`, `msgId`, `isHistory` |
+
+### Chat, reactions and moderation
+
+| Event                | Fires when                                    | Payload                     | Fields you'll use                           |
+| -------------------- | --------------------------------------------- | --------------------------- | ------------------------------------------- |
+| `chat`               | A comment                                     | `ChatMessage`               | `user`, `content`, `emotes`, `userIdentity` |
+| `emote`              | A comment made of emotes only                 | `EmoteChatMessage`          | pending                                     |
+| `like`               | Likes                                         | `LikeMessage`               | `user`, `count`, `total`                    |
+| `social`             | A follow or share, whatever its text key      | `SocialMessage`             | pending                                     |
+| `follow`             | A viewer followed the host                    | `SocialMessage`             | `user`                                      |
+| `share`              | A viewer shared the LIVE                      | `SocialMessage`             | `user`, `shareCount`                        |
+| `imDelete`           | A moderator deleted comments                  | `ImDeleteMessage`           | pending                                     |
+| `roomPin`            | A message was pinned to the chat, or unpinned | `RoomPinMessage`            | pending                                     |
+| `questionNew`        | A new question in the Q&A                     | `QuestionNewMessage`        | pending                                     |
+| `captionMessage`     | A live caption of what the host says          | `CaptionMessage`            | pending                                     |
+| `roomMessage`        | A message from the room, such as a welcome    | `RoomMessage`               | pending                                     |
+| `notice`             | A notice from TikTok, such as a warning       | `NoticeMessage`             | pending                                     |
+| `system`             | A system message                              | `SystemMessage`             | pending                                     |
+| `liveIntro`          | The LIVE's intro text                         | `LiveIntroMessage`          | pending                                     |
+| `unauthorizedMember` | A viewer joined without an account            | `UnauthorizedMemberMessage` | pending                                     |
+| `msgDetect`          | A detection probe TikTok sends to clients     | `MsgDetectMessage`          | pending                                     |
+| `toast`              | A toast TikTok shows                          | `ToastMessage`              | pending                                     |
+| `bottomMessage`      | A message shown at the bottom of the LIVE     | `BottomMessage`             | pending                                     |
+| `roomVerify`         | A verification request from TikTok            | `RoomVerifyMessage`         | pending                                     |
+
+### Gifts, money and membership
+
+| Event                    | Fires when                                                     | Payload                         | Fields you'll use                                                     |
+| ------------------------ | -------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------- |
+| `gift`                   | A gift, once per streak update ([Gift streaks](#gift-streaks)) | `GiftMessage`                   | `user`, `gift.name`, `gift.diamondCount`, `repeatCount`, `repeatEnd`  |
+| `member`                 | A viewer joined, or another membership change                  | `MemberMessage`                 | `user`, `actionId` (`MemberAction`: `JOINED` 1, `SUBSCRIBED` 3)       |
+| `subNotify`              | A subscription, or a subscription notice                       | `SubNotifyMessage`              | pending                                                               |
+| `subPinEvent`            | A subscription card was pinned or unpinned                     | `SubPinEventMessage`            | pending                                                               |
+| `barrage`                | A banner, whatever its text key                                | `BarrageMessage`                | pending                                                               |
+| `superFan`               | A super fan banner                                             | `BarrageMessage`                | `user`, `content.key`                                                 |
+| `superFanJoin`           | A viewer became a super fan                                    | `BarrageMessage`                | `user`                                                                |
+| `envelope`               | A treasure chest                                               | `EnvelopeMessage`               | `envelopeInfo.businessType` (`EnvelopeBusinessType.SUPER_FAN_BOX` 19) |
+| `superFanBox`            | A super fan box (also emitted as `envelope`)                   | `EnvelopeMessage`               | `envelopeInfo`                                                        |
+| `giftBroadcast`          | A gift broadcast across rooms                                  | `GiftBroadcastMessage`          | pending                                                               |
+| `roomNotify`             | A notice shown in the room, such as a big gift elsewhere       | `RoomNotifyMessage`             | pending                                                               |
+| `goalUpdate`             | A LIVE goal was set or progressed                              | `GoalUpdateMessage`             | pending                                                               |
+| `viewerPicksUpdate`      | A viewer picks round changed                                   | `ViewerPicksUpdateMessage`      | pending                                                               |
+| `hourlyRank`             | The hourly rank's rewards                                      | `HourlyRankRewardMessage`       | pending                                                               |
+| `giftPrompt`             | A prompt about gifting, such as a spending block               | `GiftPromptMessage`             | pending                                                               |
+| `giftPanelUpdate`        | The gift panel changed                                         | `GiftPanelUpdateMessage`        | pending                                                               |
+| `giftDynamicRestriction` | A gift's restrictions changed                                  | `GiftDynamicRestrictionMessage` | pending                                                               |
+| `guide`                  | A guide TikTok shows, such as a gift suggestion                | `GuideMessage`                  | pending                                                               |
+| `boostCard`              | Boost cards                                                    | `BoostCardMessage`              | pending                                                               |
+
+### Link-mic and battles
+
+| Event                       | Fires when                                                      | Payload                     | Fields you'll use |
+| --------------------------- | --------------------------------------------------------------- | --------------------------- | ----------------- |
+| `linkMicBattle`             | A battle between hosts started, changed or ended                | `LinkMicBattle`             | pending           |
+| `linkMicArmies`             | The scores of a battle changed                                  | `LinkMicArmies`             | pending           |
+| `linkMicBattlePunishFinish` | A battle's punishment ended                                     | `LinkMicBattlePunishFinish` | pending           |
+| `linkMicBattleTask`         | A battle task started, progressed or settled                    | `LinkMicBattleTask`         | pending           |
+| `linkMicFanTicketMethod`    | The fan tickets of a link changed                               | `LinkMicFanTicketMethod`    | pending           |
+| `linkMicMethod`             | A link-mic signal of the older kind                             | `LinkMicMethod`             | pending           |
+| `linkMessage`               | A multi-guest link changed: invitations, replies, joins, leaves | `LinkMessage`               | pending           |
+| `linkLayer`                 | A link changed, in the newer link layer                         | `LinkLayerMessage`          | pending           |
+| `linkState`                 | The state of a link's users                                     | `LinkStateMessage`          | pending           |
+| `linkMicBattleItemCard`     | A battle card was used or awarded                               | `LinkMicBattleItemCard`     | pending           |
+| `linkMicLayoutState`        | A link's layout changed                                         | `LinkMicLayoutStateMessage` | pending           |
+
+### Room, ranks, polls, shopping and system
+
+| Event                    | Fires when                                            | Payload                         | Fields you'll use                                     |
+| ------------------------ | ----------------------------------------------------- | ------------------------------- | ----------------------------------------------------- |
+| `controlMessage`         | The LIVE's state changed: paused, resumed, ended      | `ControlMessage`                | pending                                               |
+| `roomUser`               | Viewer counts and the top viewers                     | `RoomUserMessage`               | `total` (watching now), `totalUser` (so far), `ranks` |
+| `perception`             | A violation notice to the host                        | `PerceptionMessage`             | pending                                               |
+| `rankUpdate`             | The host's ranks changed                              | `RankUpdateMessage`             | pending                                               |
+| `rankText`               | A rank notice shown in the chat                       | `RankTextMessage`               | pending                                               |
+| `gameRankNotify`         | A game rank notice                                    | `GameRankNotifyMessage`         | pending                                               |
+| `pollMessage`            | A poll started, changed or ended                      | `PollMessage`                   | pending                                               |
+| `oecLiveShopping`        | A shopping event: a product pinned, the product count | `OecLiveShoppingMessage`        | pending                                               |
+| `capsule`                | A capsule (a small prompt) TikTok shows               | `CapsuleMessage`                | pending                                               |
+| `marqueeAnnouncement`    | A marquee announcement                                | `MarqueeAnnouncementMessage`    | pending                                               |
+| `speaker`                | A speaker message                                     | `SpeakerMessage`                | pending                                               |
+| `inRoomBanner`           | An in-room banner                                     | `InRoomBannerMessage`           | pending                                               |
+| `accessControl`          | An access control, such as a captcha                  | `AccessControlMessage`          | pending                                               |
+| `accessRecall`           | Access was revoked or restored                        | `AccessRecallMessage`           | pending                                               |
+| `partnershipDropsUpdate` | A game partnership's drops changed                    | `PartnershipDropsUpdateMessage` | pending                                               |
+| `partnershipGameOffline` | Partnership games went offline                        | `PartnershipGameOfflineMessage` | pending                                               |
+| `partnershipPunish`      | A partnership punishment                              | `PartnershipPunishMessage`      | pending                                               |
+| `liveGameIntro`          | The LIVE's game intro                                 | `LiveGameIntroMessage`          | pending                                               |
+
+Numeric codes have named constants, so you needn't hard-code them: `MemberAction` (`UNKNOWN` 0, `JOINED` 1, `SUBSCRIBED` 3) for `member.actionId`, `EnvelopeBusinessType` (`UNKNOWN` 0, `SUPER_FAN_BOX` 19) for `envelopeInfo.businessType`, `ControlAction` (`UNKNOWN` 0, `PAUSED` 1, `UNPAUSED` 2, `STREAM_ENDED` 3, `STREAM_SUSPENDED` 4) for the control messages behind `streamEnd`, `BadgeSceneType` for a badge's `sceneType`, and one per enum field of the pending events (`PinAction`, `SubscribeType`, `BattleAction`, `PollKind`…), each documented on its field. The fields stay plain numbers: TikTok may send values the constants don't name.
 
 ```ts
 import { MemberAction } from "@tokioapp/connector";
@@ -86,7 +174,7 @@ LIVE payloads are plain objects you can `JSON.stringify`:
 
 - 64-bit ids (`userId`, `msgId`, `roomId`, `giftId`, `groupId`, `createTime`) are decimal strings, counters are numbers. No `bigint`.
 - Fields TikTok leaves out hold their defaults (`""`, `0`, `"0"`, `false`, `[]`). Nested objects it leaves out (`user`, `gift`, `common`) are `undefined`, hence the `?.`.
-- `user` is a `User`: `userId`, `nickname` (the display name), `displayId` (the handle, without `@`), `avatarThumb.urlList` and `badgeList`. `userIdentity` says whether they follow, subscribe to or moderate the host.
+- `user` is a `User`: `userId`, `nickname` (the display name), `displayId` (the handle, without `@`), `avatarThumb.urlList` and `badgeList` (each badge with its `sceneType`), plus `followInfo`, `payGrade`, `fansClub`, `userAttr`, `subscribeInfo` and `fansClubInfo` when TikTok sends them. `userIdentity` says whether they follow, subscribe to or moderate the host.
 - `common`, on every LIVE payload, holds the message's `msgId`, `createTime` and `displayText`.
 
 ### Gift streaks

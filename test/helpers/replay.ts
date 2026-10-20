@@ -3,13 +3,10 @@
 // them: the fixture tests (test/fixtures/fixtures.test.ts) and the offline
 // capture test use it.
 import { createUnsafeIntegerReporter } from "../../src/codec/decode.js";
-import {
-  RecentIds,
-  dispatch,
-  type DispatchContext,
-} from "../../src/dispatch.js";
+import { dispatch } from "../../src/dispatch.js";
+import { RecentIds, type DispatchContext } from "../../src/routes/route.js";
 import type { ConnectorError } from "../../src/errors.js";
-import type { RawMessage, StreamEndAction } from "../../src/events.js";
+import type { RawMessage, StreamEndAction } from "../../src/events/index.js";
 
 /** What a replay saw. */
 export interface Replay {

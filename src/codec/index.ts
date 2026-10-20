@@ -3,41 +3,36 @@
 // tables in messages/) directly; this registry is for code that looks a table
 // up by name, such as the tests that check every table at once.
 import type { MessageSchema } from "./schema.js";
-import { BarrageMessageSchema } from "./messages/barrage.js";
-import { ChatMessageSchema } from "./messages/chat.js";
-import { ControlMessageSchema } from "./messages/control.js";
-import { EnvelopeMessageSchema } from "./messages/envelope.js";
+import { chatSchemas } from "./messages/chat/index.js";
 import { FetchResultSchema } from "./messages/fetchResult.js";
 import {
   EnterRoomSchema,
   HeartbeatSchema,
   PushFrameSchema,
 } from "./messages/frame.js";
-import { GiftMessageSchema } from "./messages/gift.js";
-import { LikeMessageSchema } from "./messages/like.js";
-import { MemberMessageSchema } from "./messages/member.js";
-import { RoomUserMessageSchema } from "./messages/roomUser.js";
-import { SocialMessageSchema } from "./messages/social.js";
+import { giftSchemas } from "./messages/gift/index.js";
+import { linkSchemas } from "./messages/link/index.js";
+import { roomSchemas } from "./messages/room/index.js";
 
-/**
- * The top-level messages the library decodes, by protobuf message name: the
- * WebSocket's own messages, then the LIVE messages, keyed like a batch's
- * `method`.
- */
-export const SCHEMAS = Object.freeze({
+/** The WebSocket's own messages: frames, the heartbeat, the room entry and a batch. */
+export const FRAME_SCHEMAS = Object.freeze({
   WebcastPushFrame: PushFrameSchema,
   HeartBeatMessage: HeartbeatSchema,
   WebcastImEnterRoomMessage: EnterRoomSchema,
   ProtoMessageFetchResult: FetchResultSchema,
-  WebcastChatMessage: ChatMessageSchema,
-  WebcastGiftMessage: GiftMessageSchema,
-  WebcastLikeMessage: LikeMessageSchema,
-  WebcastSocialMessage: SocialMessageSchema,
-  WebcastMemberMessage: MemberMessageSchema,
-  WebcastRoomUserSeqMessage: RoomUserMessageSchema,
-  WebcastControlMessage: ControlMessageSchema,
-  WebcastEnvelopeMessage: EnvelopeMessageSchema,
-  WebcastBarrageMessage: BarrageMessageSchema,
+});
+
+/**
+ * The top-level messages the library decodes, by protobuf message name: the
+ * WebSocket's own messages, then the LIVE messages of each group
+ * (`messages/<group>/index.ts`), keyed like a batch's `method`.
+ */
+export const SCHEMAS = Object.freeze({
+  ...FRAME_SCHEMAS,
+  ...chatSchemas,
+  ...giftSchemas,
+  ...linkSchemas,
+  ...roomSchemas,
 });
 
 /** The name of a message in {@link SCHEMAS}. */

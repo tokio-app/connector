@@ -35,7 +35,14 @@ function gift(overrides: Partial<GiftMessage> = {}): GiftMessage {
     repeatEnd: false,
     comboCount: 3,
     groupId: "1",
-    gift: { id: "5655", name: "Rose", diamondCount: 1, type: 1 },
+    gift: {
+      id: "5655",
+      name: "Rose",
+      diamondCount: 1,
+      type: 1,
+      describe: "",
+      combo: false,
+    },
     ...overrides,
   };
 }
@@ -186,7 +193,16 @@ describe("SmokeRecorder", () => {
     expect(
       line(
         "gift",
-        gift({ gift: { id: "1", name: "", diamondCount: 99, type: 2 } }),
+        gift({
+          gift: {
+            id: "1",
+            name: "",
+            diamondCount: 99,
+            type: 2,
+            describe: "",
+            combo: false,
+          },
+        }),
       ),
     ).toContain("Ben sent gift 5655 x3");
     expect(line("member", { user: user("Ivy"), actionId: 3 })).toContain(
