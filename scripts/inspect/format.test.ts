@@ -5,6 +5,7 @@ import {
   formatInspection,
   formatMethod,
   inspectionJson,
+  showText,
   varintHint,
 } from "./format.js";
 import { inspectPayloads, MAX_DISTINCT, type VarintStats } from "./tree.js";
@@ -113,6 +114,15 @@ describe("formatInspection", () => {
       ].join("\n"),
     );
     expect(formatInspection([])).toBe("No messages to inspect.");
+  });
+});
+
+describe("showText", () => {
+  it("keeps whitespace and line breaks visible, and cuts long text", () => {
+    expect(showText(" ")).toBe('" "');
+    expect(showText("a\nb\t")).toBe(String.raw`"a\nb\t"`);
+    expect(showText("x".repeat(61))).toBe(`"${"x".repeat(59)}…"`);
+    expect(showText("x".repeat(60))).toBe(`"${"x".repeat(60)}"`);
   });
 });
 

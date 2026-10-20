@@ -1,6 +1,6 @@
 // What `yarn inspect` prints: the field trees of tree.ts as indented text, or
 // as JSON-safe values for --json. Pure; tested in format.test.ts.
-import { formatCount, quote } from "../lib/format.js";
+import { formatCount } from "../lib/format.js";
 import type {
   BytesStats,
   Distinct,
@@ -93,8 +93,22 @@ function lengths(stats: StringStats | BytesStats): string {
     : `lengths ${stats.minLength}..${stats.maxLength}`;
 }
 
+/** How many characters of a text value a line shows. */
+const MAX_TEXT = 60;
+
+/**
+ * A text value as JSON, cut to {@link MAX_TEXT} characters: whitespace and
+ * line breaks stay visible (a space as `" "`, a line feed as `"\n"`),
+ * unlike in a flattened quote.
+ */
+export function showText(value: string): string {
+  return JSON.stringify(
+    value.length > MAX_TEXT ? `${value.slice(0, MAX_TEXT - 1)}…` : value,
+  );
+}
+
 function describeStrings(stats: StringStats): string {
-  return `${lengths(stats)}; ${listValues(stats.distinct, (value) => quote(value))}`;
+  return `${lengths(stats)}; ${listValues(stats.distinct, showText)}`;
 }
 
 function describeBytes(stats: BytesStats): string {
