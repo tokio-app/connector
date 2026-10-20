@@ -13,7 +13,7 @@ description: "Run the checks a change needs before it's done: Prettier, lint, ty
 
 Run them from the repository root, the narrow ones first:
 
-1. Tests: `yarn test <path>` for what you touched, then `yarn test`. For the codec, `yarn test:coverage` too: it should stay fully covered.
+1. Tests: `yarn test <path>` for what you touched, then `yarn test`. Then `yarn test:coverage`, which fails below the thresholds in `vitest.config.ts` (the codec stays at 100%).
 2. `yarn typecheck` and `yarn lint`. Fix lint warnings in code you touched.
 3. Prettier: `yarn format:check` (CI runs it), and `yarn format` or `npx prettier --write <files>` to fix it.
 4. `yarn build`: it must emit `dist/index.js` and `dist/index.d.ts`. When the public API changed, read `dist/index.d.ts` to check it exports what it should.

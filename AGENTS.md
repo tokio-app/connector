@@ -99,7 +99,7 @@ Public payloads are JSON-safe: 64-bit ids are decimal strings, 64-bit counters a
 - `yarn smoke` and `yarn capture` are opt-in and need the network and a LIVE. Ask the user before running them. Fixtures from a capture come only from the user's own LIVE, anonymized (`--anonymize`) and kept small. Read one with `parseFixture` and replay its messages with `fromFixtureMessage` (`scripts/capture/fixture.ts`).
 - The scripts are tested next to them and run with `yarn test`: `scripts/lib/{cli,format}.test.ts` (flags, logger, clock, error and table formatting), `scripts/smoke/{args,summary}.test.ts` (the event bookkeeping, the reconnect check and the verdict), `scripts/capture/{args,fixture}.test.ts` (the fixture format and its validator), and `scripts/{smoke,capture}/run.test.ts`, which run each script's `run.ts` offline against `FakeTikTok`, `FakeSigner` and a stubbed `fetch` (the drop, the gift list, the summary; the capture's fixture replayed through dispatch). The `index.ts` files only wire `run.ts` to the console and a real connection; `summary.test.ts` fails to typecheck when `WebcastEventMap` gains an event the smoke run doesn't listen to.
 - `restoreMocks` and `unstubGlobals` are on: mocks and stubbed globals reset after each test.
-- The codec (`src/codec/`) is kept at 100% coverage (`yarn test:coverage`).
+- `yarn test:coverage` fails below the thresholds in `vitest.config.ts`: 100% of lines and branches in `src/codec/`, 90% of lines and 85% of branches in `src/connection.ts`, `src/dispatch.ts` and `src/ws/`, and 90% of statements overall. CI runs it on Linux.
 
 ## CI and releases
 

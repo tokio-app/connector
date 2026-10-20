@@ -12,6 +12,16 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       exclude: ["src/**/*.test.ts"],
       reporter: ["text", "lcov"],
+      // `yarn test:coverage` fails below these. The codec has no excuse for
+      // an untested line; the state machine, dispatch and the socket come
+      // close, with room for defensive branches.
+      thresholds: {
+        statements: 90,
+        "src/codec/**/*.ts": { lines: 100, branches: 100 },
+        "src/connection.ts": { lines: 90, branches: 85 },
+        "src/dispatch.ts": { lines: 90, branches: 85 },
+        "src/ws/**/*.ts": { lines: 90, branches: 85 },
+      },
     },
   },
 });
