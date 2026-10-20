@@ -1,6 +1,7 @@
 // One WebSocket's lifetime, from opening to closing (PROTOCOL.md, "WebSocket"
 // and "Frames"). Only connection.ts uses it: every connect and reconnect
 // opens a new session.
+import type { ClientRequest, IncomingMessage } from "node:http";
 import { WebSocket, type RawData } from "ws";
 import type { DecodeOptions } from "../codec/decode.js";
 import type { FetchResult } from "../codec/messages/fetchResult.js";
@@ -13,6 +14,7 @@ import {
   WebSocketError,
   isConnectorError,
 } from "../errors.js";
+import { previewBody } from "../http/client.js";
 import type { Logger } from "../logger.js";
 import {
   PROTOBUF_ENCODING,
@@ -29,6 +31,11 @@ import {
  * terminating the socket (2.4.0's `WS_DISCONNECT_TIMEOUT_MS`).
  */
 export const CLOSE_GRACE_MS = 2_000;
+
+// How long, and how much of, the body of a refused upgrade is read for the
+// debug log before the socket is terminated.
+const REFUSAL_READ_MS = 500;
+const REFUSAL_READ_CHARS = 1_000;
 
 /** What {@link WebcastSession.open} needs. */
 export interface SessionOptions {
@@ -206,6 +213,12 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
     socket.on(
       "ping",
       this.#guard(() => this.#onPing()),
+    );
+    socket.on(
+      "unexpected-response",
+      this.#guard((_request: ClientRequest, response: IncomingMessage) =>
+        this.#onRefused(response),
+      ),
     );
     socket.on(
       "error",
@@ -445,6 +458,51 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
       ),
     );
     this.#socket!.terminate();
+  }
+
+  // The server answered the upgrade request with an HTTP response instead of
+  // switching to a WebSocket (PROTOCOL.md, "WebSocket"). The session ends with
+  // a WebSocketError holding the status. The start of the body, read for
+  // REFUSAL_READ_MS at most, goes to the debug log; then the socket is
+  // terminated.
+  #onRefused(response: IncomingMessage): void {
+    // A client's response always has a status.
+    const status = response.statusCode!;
+    this.#end(
+      "error",
+      new WebSocketError(
+        `The WebSocket failed to open: the server answered ${status} instead of switching protocols`,
+        { status },
+      ),
+    );
+    let body = "";
+    let read = false;
+    const finish = () => {
+      if (read) return;
+      read = true;
+      clearTimeout(timer);
+      this.#options!.logger(
+        "debug",
+        `The server refused the WebSocket with ${status}`,
+        {
+          status,
+          contentType: response.headers["content-type"],
+          body: previewBody(body),
+        },
+      );
+      this.#socket!.terminate();
+    };
+    const timer = setTimeout(this.#guard(finish), REFUSAL_READ_MS);
+    response.setEncoding("utf8");
+    response.on(
+      "data",
+      this.#guard((chunk: string) => {
+        body += chunk;
+        if (body.length >= REFUSAL_READ_CHARS) finish();
+      }),
+    );
+    response.on("end", this.#guard(finish));
+    response.on("error", this.#guard(finish));
   }
 
   #onError(error: Error): void {

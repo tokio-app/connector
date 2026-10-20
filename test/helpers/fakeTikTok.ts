@@ -88,14 +88,23 @@ export function serverFrame(frame: EncodeInput<PushFrame>): Uint8Array {
  * A fake TikTok push server. It answers `im_enter_room` with
  * `im_enter_room_resp` (unless `answerEnter` is off or the connection is
  * silent) and records every frame clients send; the test pushes batches.
+ * `refuseUpgrade` makes it answer chosen upgrades with a plain HTTP response.
  */
 export class FakeTikTok {
   /** Every connection accepted so far, oldest first. */
   readonly connections: FakeConnection[] = [];
   /** Every frame clients sent, oldest first. */
   readonly receivedFrames: ReceivedFrame[] = [];
+  /** The URLs of the upgrades `refuseUpgrade` refused, oldest first. */
+  readonly refused: URL[] = [];
   /** Answer `im_enter_room` with `im_enter_room_resp`. Default `true`. */
   answerEnter = true;
+  /**
+   * Called with each upgrade request's URL. A status it returns (TikTok
+   * answered a resumed connect with 200) refuses the upgrade with that HTTP
+   * response; `undefined` accepts it.
+   */
+  refuseUpgrade: ((url: URL) => number | undefined) | undefined;
   /** Called with each new connection, before it sends anything. */
   onConnection: ((connection: FakeConnection) => void) | undefined;
   readonly #server: WebSocketServer;
@@ -125,12 +134,27 @@ export class FakeTikTok {
 
   /** Starts a server on a free port of 127.0.0.1. */
   static async start(): Promise<FakeTikTok> {
-    const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+    let fake: FakeTikTok | undefined;
+    const server = new WebSocketServer({
+      host: "127.0.0.1",
+      port: 0,
+      verifyClient: (info, accept) => {
+        const url = new URL(info.req.url ?? "/", "ws://127.0.0.1");
+        const status = fake?.refuseUpgrade?.(url);
+        if (status === undefined) {
+          accept(true);
+          return;
+        }
+        fake?.refused.push(url);
+        accept(false, status, "Refused by FakeTikTok");
+      },
+    });
     await new Promise<void>((resolve, reject) => {
       server.once("listening", resolve);
       server.once("error", reject);
     });
-    return new FakeTikTok(server);
+    fake = new FakeTikTok(server);
+    return fake;
   }
 
   /** The push server URL, as a signed connect names it. */

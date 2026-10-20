@@ -100,6 +100,7 @@ describe("subclasses", () => {
     expect(new HttpError("x", { status: 404 }).status).toBe(404);
     expect(new TimeoutError("x", { phase: "sign" }).phase).toBe("sign");
     expect(new WebSocketError("x", { closeCode: 1006 }).closeCode).toBe(1006);
+    expect(new WebSocketError("x", { status: 200 }).status).toBe(200);
     expect(new ReconnectGiveUpError("x", { attempts: 3 }).attempts).toBe(3);
     expect(new RateLimitError("x", { retryAfterMs: 5_000 }).retryAfterMs).toBe(
       5_000,

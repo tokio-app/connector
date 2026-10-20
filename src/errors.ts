@@ -303,12 +303,19 @@ export class TimeoutError extends ConnectorError {
 export interface WebSocketErrorOptions extends ConnectorErrorOptions {
   /** The close code, when the socket closed. */
   closeCode?: number;
+  /** The HTTP status the server answered the upgrade with, when it refused it. */
+  status?: number;
 }
 
 /** The WebSocket failed to open, errored or closed unexpectedly. Retryable by default. */
 export class WebSocketError extends ConnectorError {
   /** The close code, when the socket closed (1006 for an abnormal close). */
   readonly closeCode: number | undefined;
+  /**
+   * The HTTP status the server answered the upgrade request with, when it
+   * refused to switch to a WebSocket (anything but 101).
+   */
+  readonly status: number | undefined;
 
   constructor(message: string, options: WebSocketErrorOptions = {}) {
     super("WEBSOCKET", message, {
@@ -316,6 +323,7 @@ export class WebSocketError extends ConnectorError {
       cause: options.cause,
     });
     this.closeCode = options.closeCode;
+    this.status = options.status;
   }
 
   static {

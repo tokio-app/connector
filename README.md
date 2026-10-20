@@ -197,20 +197,20 @@ Everything the library throws, rejects with or emits is a `ConnectorError`:
 - `retryable`: whether trying again later can help.
 - `cause`: the underlying error, when there is one.
 
-| Class                                 | `code`              | When                                                                          | Retryable          | Also has                                      |
-| ------------------------------------- | ------------------- | ----------------------------------------------------------------------------- | ------------------ | --------------------------------------------- |
-| `InvalidUsernameError`                | `INVALID_USERNAME`  | The constructor got something that isn't a username                           | no                 |                                               |
-| `RoomNotFoundError`                   | `ROOM_NOT_FOUND`    | No lookup found the user's room: no such user, or TikTok blocked every lookup | no                 |                                               |
-| `OfflineError`                        | `OFFLINE`           | The user exists but isn't LIVE                                                | no                 | `roomId`                                      |
-| `HttpError`                           | `HTTP`              | TikTok answered with an unexpected status or body                             | for 429 and 5xx    | `status`                                      |
-| `SignError`                           | `SIGN_FAILED`       | The signer failed or couldn't be reached                                      | except 401 and 403 | `status`, `requestId`                         |
-| `RateLimitError` (a `SignError`)      | `RATE_LIMITED`      | The signer's rate limit                                                       | yes                | `retryAfterMs`                                |
-| `PremiumFeatureError` (a `SignError`) | `PREMIUM_REQUIRED`  | The signer needs a paid plan for this request                                 | no                 |                                               |
-| `TimeoutError`                        | `TIMEOUT`           | A request, the socket opening, or a silent stream took too long               | yes                | `phase`: `request`, `sign`, `connect`, `idle` |
-| `WebSocketError`                      | `WEBSOCKET`         | The socket failed to open, errored or closed                                  | yes                | `closeCode`                                   |
-| `ProtocolError`                       | `PROTOCOL`          | TikTok or the signer sent data the library can't read                         | yes                |                                               |
-| `AbortError`                          | `ABORTED`           | The `signal` aborted, or `disconnect()` interrupted the call                  | no                 |                                               |
-| `ReconnectGiveUpError`                | `RECONNECT_GAVE_UP` | Every reconnect attempt failed                                                | no                 | `attempts`                                    |
+| Class                                 | `code`              | When                                                                          | Retryable          | Also has                                              |
+| ------------------------------------- | ------------------- | ----------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------- |
+| `InvalidUsernameError`                | `INVALID_USERNAME`  | The constructor got something that isn't a username                           | no                 |                                                       |
+| `RoomNotFoundError`                   | `ROOM_NOT_FOUND`    | No lookup found the user's room: no such user, or TikTok blocked every lookup | no                 |                                                       |
+| `OfflineError`                        | `OFFLINE`           | The user exists but isn't LIVE                                                | no                 | `roomId`                                              |
+| `HttpError`                           | `HTTP`              | TikTok answered with an unexpected status or body                             | for 429 and 5xx    | `status`                                              |
+| `SignError`                           | `SIGN_FAILED`       | The signer failed or couldn't be reached                                      | except 401 and 403 | `status`, `requestId`                                 |
+| `RateLimitError` (a `SignError`)      | `RATE_LIMITED`      | The signer's rate limit                                                       | yes                | `retryAfterMs`                                        |
+| `PremiumFeatureError` (a `SignError`) | `PREMIUM_REQUIRED`  | The signer needs a paid plan for this request                                 | no                 |                                                       |
+| `TimeoutError`                        | `TIMEOUT`           | A request, the socket opening, or a silent stream took too long               | yes                | `phase`: `request`, `sign`, `connect`, `idle`         |
+| `WebSocketError`                      | `WEBSOCKET`         | The socket failed to open, errored or closed                                  | yes                | `closeCode`, `status` (an HTTP answer to the upgrade) |
+| `ProtocolError`                       | `PROTOCOL`          | TikTok or the signer sent data the library can't read                         | yes                |                                                       |
+| `AbortError`                          | `ABORTED`           | The `signal` aborted, or `disconnect()` interrupted the call                  | no                 |                                                       |
+| `ReconnectGiveUpError`                | `RECONNECT_GAVE_UP` | Every reconnect attempt failed                                                | no                 | `attempts`                                            |
 
 Plain `ConnectorError`s carry the other codes: `INVALID_STATE` (`connect()` while connecting or connected), `NETWORK` (a request failed before any response), `GIFTS_UNAVAILABLE` (`fetchGifts()`) and `INTERNAL` (a bug: please report it).
 

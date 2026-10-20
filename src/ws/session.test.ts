@@ -1,3 +1,6 @@
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import type { Duplex } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebSocket } from "ws";
 import type { ConnectorError } from "../errors.js";
@@ -159,6 +162,95 @@ describe("WebcastSession.open", () => {
       message: expect.stringMatching(/^The WebSocket failed to open: /),
     });
     expect(closed).toEqual([expect.objectContaining({ reason: "error" })]);
+  });
+
+  it("rejects with the status when the server answers the upgrade with HTTP", async () => {
+    fake.refuseUpgrade = () => 200;
+    const { session, closed } = track();
+    const options = sessionOptions();
+    await expect(session.open(options)).rejects.toMatchObject({
+      name: "WebSocketError",
+      code: "WEBSOCKET",
+      status: 200,
+      closeCode: undefined,
+      message:
+        "The WebSocket failed to open: the server answered 200 instead of switching protocols",
+    });
+    expect(closed).toEqual([
+      expect.objectContaining({
+        reason: "error",
+        error: expect.objectContaining({ status: 200 }),
+      }),
+    ]);
+    // What the server said goes to the debug log.
+    expect(vi.mocked(options.logger)).toHaveBeenCalledWith(
+      "debug",
+      "The server refused the WebSocket with 200",
+      { status: 200, contentType: "text/html", body: "Refused by FakeTikTok" },
+    );
+  });
+
+  describe("reading a refused upgrade's body", () => {
+    let server: Server | undefined;
+    // The server's ends of the upgraded connections, which it doesn't track.
+    const sockets: Duplex[] = [];
+
+    afterEach(async () => {
+      for (const socket of sockets.splice(0)) socket.destroy();
+      await new Promise((resolve) => server?.close(resolve));
+      server = undefined;
+    });
+
+    // An HTTP server that answers every upgrade with `response`, and leaves
+    // the connection open.
+    async function answering(response: string): Promise<string> {
+      server = createServer();
+      server.on("upgrade", (_request, socket: Duplex) => {
+        sockets.push(socket);
+        // The client hangs up on it: not a test failure.
+        socket.on("error", () => {});
+        socket.write(response);
+      });
+      await new Promise<void>((resolve) =>
+        server!.listen(0, "127.0.0.1", resolve),
+      );
+      return `ws://127.0.0.1:${(server.address() as AddressInfo).port}/`;
+    }
+
+    it("stops waiting for a body that doesn't end", async () => {
+      const url = await answering(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n",
+      );
+      const { session } = track();
+      const options = sessionOptions({ url });
+      const started = Date.now();
+      await expect(session.open(options)).rejects.toMatchObject({
+        status: 200,
+      });
+      expect(Date.now() - started).toBeGreaterThanOrEqual(400);
+      expect(vi.mocked(options.logger)).toHaveBeenCalledWith(
+        "debug",
+        "The server refused the WebSocket with 200",
+        { status: 200, contentType: "text/plain", body: "hello" },
+      );
+    });
+
+    it("reads only the start of a long body", async () => {
+      const body = "x".repeat(5_000);
+      const url = await answering(
+        `HTTP/1.1 403 Forbidden\r\nContent-Length: ${body.length}\r\n\r\n${body}`,
+      );
+      const { session } = track();
+      const options = sessionOptions({ url });
+      await expect(session.open(options)).rejects.toMatchObject({
+        status: 403,
+      });
+      expect(vi.mocked(options.logger)).toHaveBeenCalledWith(
+        "debug",
+        "The server refused the WebSocket with 403",
+        { status: 403, contentType: undefined, body: `${"x".repeat(200)}…` },
+      );
+    });
   });
 
   it("rejects when the server closes the socket before the entry", async () => {
