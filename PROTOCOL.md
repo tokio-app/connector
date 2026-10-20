@@ -513,20 +513,36 @@ All in package `webcast.model.message` [proto: webcast/model/message/messages.pr
 
 #### Chat, reactions and moderation (`messages/chat/`)
 
-`WebcastChatMessage` (`chat/chat.ts`)
+`WebcastChatMessage` [proto: webcast/model/message/messages.proto, line 1153] (`chat/chat.ts`)
 
 | No. | Proto field        | Type                      | Property          | Kind             |
 | --- | ------------------ | ------------------------- | ----------------- | ---------------- |
 | 2   | `user`             | `User`                    | `user`            | message          |
 | 3   | `content`          | string                    | `content`         | string           |
+| 12  | `at_user`          | `User`                    | `atUser`          | message          |
 | 13  | `emotes`           | repeated `EmoteWithIndex` | `emotes`          | repeated message |
 | 14  | `content_language` | string                    | `contentLanguage` | string           |
+| 15  | `msg_filter`       | `MsgFilter`               | `msgFilter`       | message          |
 | 18  | `user_identity`    | `UserIdentity`            | `userIdentity`    | message          |
+| 28  | `mention_users`    | repeated `User`           | `mentionUsers`    | repeated message |
 
-`webcast.model.base.emoji.EmoteWithIndex` [proto: webcast/model/base/emoji.proto]: `index` (1, int32) → `index`, int32; `emote` (2, `EmoteModel`) → `emote`, message.
-`webcast.model.base.emoji.EmoteModel` [proto: webcast/model/base/emoji.proto]: `emote_id` (1, string) → `emoteId`, string; `image` (2, `ImageModel`) → `image`, message.
+Not read: `visible_to_sender` (4), `background_image` (5), `full_screen_text_color` (6), `background_image_v2` (7), `public_area_common` (9), `gift_image` (10), `input_type` (11), `quick_chat_scene` (16), `community_flagged_status` (17), `comment_quality_scores` (19), `comment_tag` (20, repeated `webcast.im.CommentTag` [proto: webcast/synthetic_enums.proto, line 11]: `COMMENT_TAG_NORMAL` 0, `COMMENT_TAG_CANDIDATE` 1, `COMMENT_TAG_OVERAGE` 2, exported as `CommentTag` for a later release), `public_area_message_common` (21), `screen_time` (22), `signature` (23), `signature_version` (24), `ec_streamer_key` (25), `comment_label_scores` (26), `mention_user_list` (27, the ids of `mention_users`), `is_on_comment_tray` (29).
 
-`WebcastLikeMessage` (`chat/like.ts`)
+`webcast.model.base.emoji.EmoteWithIndex` [proto: webcast/model/base/emoji.proto, line 32] (`ChatEmoteSchema`): `index` (1, int32) → `index`, int32; `emote` (2, `EmoteModel`) → `emote`, message.
+`webcast.model.base.emoji.EmoteModel` [proto: webcast/model/base/emoji.proto, line 10] (`EmoteSchema`, exported for the emote comment table): `emote_id` (1, string) → `emoteId`, string; `image` (2, `ImageModel`) → `image`, message. Not read: `audit_status` (3, `webcast.model.data.AuditStatus` [proto: webcast/model/data/messages.proto, line 33]: `AUDIT_STATUS_UNKNOWN` 0, `PASS` 1, `FAILED` 2, `REVIEWING` 3, `FORBIDDEN` 4, exported as `AuditStatus`), `uuid` (4), `emote_type` (5, `webcast.model.data.EmoteType` [same file, line 285]: `EMOTE_TYPE_NORMAL` 0, `WITH_STICKER` 1, `EMOTE_TYPE_FANS` 2, exported as `EmoteType`), `content_source` (6), `emote_private_type` (7), `package_id` (8), `audit_info` (9), `reward_condition` (10), `emote_upload_info` (11), `create_time` (12), `emote_scene` (13, `webcast.model.data.EmoteScene` [same file, line 279]: `SUBSCRIPTION` 0, `GAME` 1, `FANS_CLUB` 2, exported as `EmoteScene`). The three constants wait for a field on `Emote` ([Open items](#open-items), 26).
+
+`WebcastEmoteChatMessage` [proto: webcast/model/message/messages.proto, line 1200] (`chat/emote.ts`)
+
+| No. | Proto field     | Type                  | Property       | Kind             |
+| --- | --------------- | --------------------- | -------------- | ---------------- |
+| 2   | `user`          | `User`                | `user`         | message          |
+| 3   | `emote_list`    | repeated `EmoteModel` | `emoteList`    | repeated message |
+| 4   | `msg_filter`    | `MsgFilter`           | `msgFilter`    | message          |
+| 5   | `user_identity` | `UserIdentity`        | `userIdentity` | message          |
+
+Every field is read.
+
+`WebcastLikeMessage` [proto: webcast/model/message/messages.proto, line 1347] (`chat/like.ts`)
 
 | No. | Proto field | Type   | Property | Kind    |
 | --- | ----------- | ------ | -------- | ------- |
@@ -534,32 +550,151 @@ All in package `webcast.model.message` [proto: webcast/model/message/messages.pr
 | 3   | `total`     | int64  | `total`  | count   |
 | 5   | `user`      | `User` | `user`   | message |
 
-`WebcastSocialMessage` (`chat/social.ts`)
+Not read: `color` (4), `icon` (6), `icons` (7), `specified_display_text` (8), `effect_cnt` (9), `like_effect` (10), `public_area_message_common` (11), `room_message_heat_level` (12).
 
-| No. | Proto field    | Type   | Property      | Kind    |
-| --- | -------------- | ------ | ------------- | ------- |
-| 2   | `user`         | `User` | `user`        | message |
-| 3   | `share_type`   | int64  | `shareType`   | count   |
-| 4   | `action`       | int64  | `action`      | count   |
-| 5   | `share_target` | string | `shareTarget` | string  |
-| 8   | `share_count`  | int32  | `shareCount`  | int32   |
+`WebcastSocialMessage` [proto: webcast/model/message/messages.proto, line 1846] (`chat/social.ts`)
 
-Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `target_user_id` (14), and the rest.
+| No. | Proto field      | Type   | Property       | Kind    |
+| --- | ---------------- | ------ | -------------- | ------- |
+| 2   | `user`           | `User` | `user`         | message |
+| 3   | `share_type`     | int64  | `shareType`    | count   |
+| 4   | `action`         | int64  | `action`       | count   |
+| 5   | `share_target`   | string | `shareTarget`  | string  |
+| 6   | `follow_count`   | int64  | `followCount`  | count   |
+| 8   | `share_count`    | int32  | `shareCount`   | int32   |
+| 13  | `follow_type`    | int32  | `followType`   | int32   |
+| 14  | `target_user_id` | int64  | `targetUserId` | id      |
 
-`WebcastEmoteChatMessage` (`chat/emote.ts`): pending.
-`WebcastImDeleteMessage` (`chat/imDelete.ts`): pending.
-`WebcastRoomPinMessage` (`chat/roomPin.ts`): pending.
-`WebcastQuestionNewMessage` (`chat/questionNew.ts`): pending.
-`WebcastCaptionMessage` (`chat/caption.ts`): pending.
-`WebcastRoomMessage` (`chat/roomMessage.ts`): pending.
-`WebcastNoticeMessage` (`chat/notice.ts`): pending.
-`WebcastSystemMessage` [proto: webcast/synthetic_proto.proto] (`chat/tail.ts`): pending.
-`WebcastLiveIntroMessage` (`chat/tail.ts`): pending.
-`WebcastUnauthorizedMemberMessage` (`chat/tail.ts`): pending.
-`WebcastMsgDetectMessage` (`chat/tail.ts`): pending.
-`WebcastToastMessage` (`chat/tail.ts`): pending.
-`WebcastBottomMessage` (`chat/tail.ts`): pending.
-`WebcastRoomVerifyMessage` (`chat/tail.ts`): pending.
+Not read: `share_display_style` (7), `public_area_message_common` (9), `signature` (10), `signature_version` (11), `show_duration_ms` (12), `scene` (15). `share_type`, `action` and `follow_type` have no enum in the protos ([Open items](#open-items), 20).
+
+`WebcastImDeleteMessage` [proto: webcast/model/message/messages.proto, line 1335] (`chat/imDelete.ts`)
+
+| No. | Proto field       | Type           | Property        | Kind        |
+| --- | ----------------- | -------------- | --------------- | ----------- |
+| 2   | `delete_msg_ids`  | repeated int64 | `deleteMsgIds`  | repeated id |
+| 3   | `delete_user_ids` | repeated int64 | `deleteUserIds` | repeated id |
+
+Both lists are read packed (proto3's default for repeated numbers) or one field per id. Every field is read.
+
+`WebcastRoomPinMessage` [proto: webcast/model/message/messages.proto, line 1805] (`chat/roomPin.ts`)
+
+| No. | Proto field      | Type                               | Property        | Kind    |
+| --- | ---------------- | ---------------------------------- | --------------- | ------- |
+| 2   | `chat_message`   | `WebcastChatMessage`               | `chatMessage`   | message |
+| 3   | `social_message` | `WebcastSocialMessage`             | `socialMessage` | message |
+| 4   | `gift_message`   | `WebcastGiftMessage`               | `giftMessage`   | message |
+| 5   | `member_message` | `WebcastMemberMessage`             | `memberMessage` | message |
+| 6   | `like_message`   | `WebcastLikeMessage`               | `likeMessage`   | message |
+| 30  | `method`         | string                             | `method`        | string  |
+| 31  | `pin_time`       | int64                              | `pinTime`       | id      |
+| 32  | `operator`       | `User`                             | `operator`      | message |
+| 33  | `action`         | `webcast.im.PinMessage_actionType` | `action`        | enum    |
+| 35  | `pin_msg_id`     | int64                              | `pinMsgId`      | id      |
+
+The pinned message is nested whole, decoded with its own table (the gift group's for gifts and members); `method` names its type. `PinMessage_actionType` [proto: webcast/im.proto, line 295]: `UN_KOWN` 0 (sic), `PIN` 1, `PIN_CANCEL` 2; exported as `PinAction` (`UNKNOWN`, `PIN`, `PIN_CANCEL`). Not read: `display_duration` (34), `ec_streamer_key` (36).
+
+`WebcastQuestionNewMessage` [proto: webcast/model/message/messages.proto, line 1730] (`chat/questionNew.ts`)
+
+| No. | Proto field | Type       | Property  | Kind    |
+| --- | ----------- | ---------- | --------- | ------- |
+| 2   | `data`      | `Question` | `details` | message |
+
+The property keeps the name the plan gave field 2, `details`. `webcast.model.message.Question` [proto: webcast/model/message/messages.proto, line 736] (`QuestionSchema`): `question_id` (1, int64) → `questionId`, id; `content` (2, string) → `content`, string; `answer_status` (3, int32) → `answerStatus`, int32; `create_time` (4, int64) → `createTime`, id; `user` (5, `User`) → `user`, message. Not read: `create_from` (20), `answer_from` (21).
+
+`WebcastCaptionMessage` [proto: webcast/model/message/messages.proto, line 1142] (`chat/caption.ts`)
+
+| No. | Proto field    | Type                      | Property      | Kind             |
+| --- | -------------- | ------------------------- | ------------- | ---------------- |
+| 2   | `timestamp_ms` | int64                     | `timestampMs` | id               |
+| 3   | `duration_ms`  | int64                     | `durationMs`  | count            |
+| 4   | `content`      | repeated `CaptionContent` | `content`     | repeated message |
+| 7   | `definite`     | bool                      | `definite`    | bool             |
+
+`webcast.model.message.CaptionContent` [proto: webcast/model/message/messages.proto, line 296] (`CaptionContentSchema`): `lang` (1, string) → `lang`; `content` (2, string) → `content`. Not read: `sentence_id` (5), `sequence_id` (6).
+
+`WebcastRoomMessage` [proto: webcast/model/message/messages.proto, line 1771] (`chat/roomMessage.ts`)
+
+| No. | Proto field  | Type   | Property    | Kind   |
+| --- | ------------ | ------ | ----------- | ------ |
+| 2   | `content`    | string | `content`   | string |
+| 6   | `scene`      | string | `scene`     | string |
+| 7   | `is_welcome` | bool   | `isWelcome` | bool   |
+
+Not read: `supprot_landscape` (3, sic), `source` (4), `icon` (5), `public_area_common` (8), `show_duration_ms` (9), `sub_scene` (10), `schema` (11), `signature` (12), `signature_version` (13).
+
+`WebcastNoticeMessage` [proto: webcast/model/message/messages.proto, line 1661] (`chat/notice.ts`)
+
+| No. | Proto field      | Type   | Property        | Kind    |
+| --- | ---------------- | ------ | --------------- | ------- |
+| 2   | `content`        | string | `content`       | string  |
+| 3   | `notice_type`    | int32  | `noticeType`    | int32   |
+| 5   | `title`          | `Text` | `title`         | message |
+| 10  | `notice_title`   | `Text` | `noticeTitle`   | message |
+| 11  | `notice_content` | `Text` | `noticeContent` | message |
+
+Not read: `style` (4), `violation_reason` (6), `display_text` (7), `tips_title` (8), `tips_url` (9), `scene` (12).
+
+The tail tables (`chat/tail.ts`, one schema each) read `common` (1) and a few scalars.
+
+`webcast.im.WebcastSystemMessage` [proto: webcast/synthetic_proto.proto, line 32] (`SystemMessageSchema`)
+
+| No. | Proto field | Type   | Property  | Kind   |
+| --- | ----------- | ------ | --------- | ------ |
+| 2   | `message`   | string | `message` | string |
+
+Every field is read. The message only exists in tiktok-live-proto's synthetic file; 2.4.0 mapped it to its `system` event ([Open items](#open-items), 27).
+
+`WebcastLiveIntroMessage` [proto: webcast/model/message/messages.proto, line 1588] (`LiveIntroMessageSchema`)
+
+| No. | Proto field | Type   | Property  | Kind    |
+| --- | ----------- | ------ | --------- | ------- |
+| 4   | `content`   | string | `content` | string  |
+| 5   | `user`      | `User` | `user`    | message |
+
+Not read: `id` (2), `audit_status` (3, an int32, not an `AuditStatus`), `intro_mode` (6), `badges` (7), `content_language` (8).
+
+`WebcastUnauthorizedMemberMessage` [proto: webcast/model/message/messages.proto, line 1913] (`UnauthorizedMemberMessageSchema`)
+
+| No. | Proto field | Type   | Property   | Kind   |
+| --- | ----------- | ------ | ---------- | ------ |
+| 4   | `nick_name` | string | `nickName` | string |
+
+Not read: `action` (2), `nick_name_prefix` (3), `enter_text` (5), `public_area_common` (6).
+
+`WebcastMsgDetectMessage` [proto: webcast/model/message/messages.proto, line 1651] (`MsgDetectMessageSchema`)
+
+| No. | Proto field  | Type  | Property    | Kind  |
+| --- | ------------ | ----- | ----------- | ----- |
+| 2   | `d_type`     | int32 | `dType`     | int32 |
+| 5   | `trigger_by` | int32 | `triggerBy` | int32 |
+
+Not read: `t_condition` (3), `t_info` (4), `from_region` (6).
+
+`WebcastToastMessage` [proto: webcast/model/message/messages.proto, line 1905] (`ToastMessageSchema`)
+
+| No. | Proto field                    | Type  | Property                     | Kind  |
+| --- | ------------------------------ | ----- | ---------------------------- | ----- |
+| 2   | `display_duration_millisecond` | int64 | `displayDurationMillisecond` | count |
+
+Not read: `delay_display_duration_millisecond` (3), `scene` (4).
+
+`WebcastBottomMessage` [proto: webcast/model/message/messages.proto, line 1105] (`BottomMessageSchema`)
+
+| No. | Proto field | Type                 | Property  | Kind   |
+| --- | ----------- | -------------------- | --------- | ------ |
+| 2   | `content`   | string               | `content` | string |
+| 6   | `biz_type`  | `webcast.im.BizType` | `bizType` | enum   |
+
+`BizType` [proto: webcast/im.proto, line 89]: `DEFAULT` 0, `RETHINK_CHAT` 1, `RETHINK_QA` 2, `WARNING_TAG_CURRENT_ROOM` 3, `WARNING_TAG_COHOST_ROOM` 4, `AGS_AT_RISK_OF_UNABLE_TO_COMMENT` 5, `PERCEPTION_CENTER` 6; exported as `BottomBizType`. Not read: `show_type` (3), `text_type` (4), `duration` (5), `violation_user_id` (7), `punish_info` (8, `PunishEventInfo`), `style` (9), `detail_url` (10), `float_style` (11), `float_icon_type` (12).
+
+`WebcastRoomVerifyMessage` [proto: webcast/model/message/messages.proto, line 1837] (`RoomVerifyMessageSchema`)
+
+| No. | Proto field  | Type   | Property    | Kind   |
+| --- | ------------ | ------ | ----------- | ------ |
+| 3   | `content`    | string | `content`   | string |
+| 5   | `close_room` | bool   | `closeRoom` | bool   |
+
+Not read: `action` (2), `notice_type` (4).
 
 #### Gifts, money and membership (`messages/gift/`)
 
@@ -1126,11 +1261,25 @@ Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table
 
 ### Chat, reactions and moderation
 
-| Message                | Events              | Rule                                                                                                                                     |
-| ---------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `WebcastChatMessage`   | `chat`              | always                                                                                                                                   |
-| `WebcastLikeMessage`   | `like`              | always                                                                                                                                   |
-| `WebcastSocialMessage` | `follow` or `share` | `common.displayText.key` contains `follow` → `follow`; else contains `share` → `share`; else nothing (`social`, before them, is pending) |
+| Message                            | Events                             | Rule                                                                                                                                                                                                             |
+| ---------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WebcastChatMessage`               | `chat`                             | always                                                                                                                                                                                                           |
+| `WebcastEmoteChatMessage`          | `emote`                            | always                                                                                                                                                                                                           |
+| `WebcastLikeMessage`               | `like`                             | always                                                                                                                                                                                                           |
+| `WebcastSocialMessage`             | `social`, then `follow` or `share` | `social` always, first; then `common.displayText.key` contains `follow` → `follow`; else contains `share` → `share`; else nothing more (as is, not lowercased). 2.4.0 emitted `social` only when neither matched |
+| `WebcastImDeleteMessage`           | `imDelete`                         | always                                                                                                                                                                                                           |
+| `WebcastRoomPinMessage`            | `roomPin`                          | always; the pinned message inside it (a comment, gift, like, join or follow) is not emitted again as its own event                                                                                               |
+| `WebcastQuestionNewMessage`        | `questionNew`                      | always                                                                                                                                                                                                           |
+| `WebcastCaptionMessage`            | `captionMessage`                   | always                                                                                                                                                                                                           |
+| `WebcastRoomMessage`               | `roomMessage`                      | always                                                                                                                                                                                                           |
+| `WebcastNoticeMessage`             | `notice`                           | always                                                                                                                                                                                                           |
+| `WebcastSystemMessage`             | `system`                           | always                                                                                                                                                                                                           |
+| `WebcastLiveIntroMessage`          | `liveIntro`                        | always                                                                                                                                                                                                           |
+| `WebcastUnauthorizedMemberMessage` | `unauthorizedMember`               | always                                                                                                                                                                                                           |
+| `WebcastMsgDetectMessage`          | `msgDetect`                        | always                                                                                                                                                                                                           |
+| `WebcastToastMessage`              | `toast`                            | always                                                                                                                                                                                                           |
+| `WebcastBottomMessage`             | `bottomMessage`                    | always                                                                                                                                                                                                           |
+| `WebcastRoomVerifyMessage`         | `roomVerify`                       | always                                                                                                                                                                                                           |
 
 ### Gifts, money and membership
 
@@ -1293,6 +1442,19 @@ What the references and docs can't settle. `yarn capture` on the user's own LIVE
 17. **Quiet rooms.** _Most likely settled (the server answered heartbeats in the second smoke run too)._ The server answered the first smoke run's heartbeat with an `hb` frame. If it answers every heartbeat (10 s apart by default), a healthy socket gets a frame well within `idleTimeoutMs` (30 s) even in a LIVE where nothing happens, so the idle check never fires on it. A longer run confirms it: the session logs the first reply at `debug`, and an idle drop shows as `disconnected` with reason `idle`.
 18. **Resuming.** _Settled: TikTok refuses it._ A socket opened from a resumed batch, on the old push server, gets an HTTP `200` instead of a WebSocket, even with the first connect's route params merged in (third smoke run, an empty body). Reconnects sign fresh for their socket, and sign with the cursor only for the gap ([Reconnects](#reconnects), "The gap").
 19. **`Text.pieces`.** A display text's `pieces` (4, repeated `TextPiece`: typed parts such as a user, a gift or a pattern reference) aren't read: `key` and `default_pattern` are enough for routing and for showing the text. Read them if an app needs the parts (the user a text names, say). Items 20–59 are reserved for the groups: chat 20–29, gift 30–39, link 40–49, room 50–59.
+
+**Chat, reactions and moderation** (items 20–29):
+
+20. **Social codes.** `WebcastSocialMessage.share_type` (3), `action` (4) and `follow_type` (13) have no enum in the protos, and `follow_count` (6) isn't explained: whether it counts the user's follows of this host, or something else. They are read as plain numbers; routing only reads the text key. A capture with follows and shares settles what they hold, and whether `target_user_id` (14) is always the host.
+21. **Pinned messages.** Which fields of `WebcastRoomPinMessage` TikTok fills: whether a pinned comment comes as `chat_message` (2) with `method` (30) `WebcastChatMessage`, whether gifts, likes, joins and follows get pinned at all, and whether an unpin (`action` 2) repeats the pinned message or only `pin_msg_id` (35). Needs a LIVE where the host pins a comment.
+22. **Deleted comments.** Whether `delete_msg_ids` (2) arrives packed (proto3's default; the table reads both) and whether `delete_user_ids` (3) is ever set, or deletions only name messages.
+23. **Captions.** Whether `timestamp_ms` (2) is a time since the epoch (as `common.create_time`) or an offset into the LIVE, how `definite` (7) is used (partial captions updated until a final one, assumed), and how many languages `content` (4) holds. The describer prints the first.
+24. **Questions.** The values of `Question.answer_status` (3) (0 unanswered, assumed), and whether answered questions come as a message type of their own (none in the protos).
+25. **Notices.** The values of `notice_type` (3), and which of `content` (2), `title` (5), `notice_title` (10) and `notice_content` (11) TikTok fills: the older pair and the newer pair are both read, and the describer prints the first non-empty.
+26. **Emote and comment constants without a field.** `EmoteType`, `EmoteScene` and `AuditStatus` describe `EmoteModel.emote_type` (5), `emote_scene` (13) and `audit_status` (3), and `CommentTag` describes `WebcastChatMessage.comment_tag` (20), none of which is decoded: `Emote` lives in `src/events/shared.ts`, shared by both comment tables. Either add the fields (a `feat`, changing the decoded shape of every emote) or drop the constants (a `feat!`) in a later release. `WebcastLiveIntroMessage.audit_status` (3) is an int32, not an `AuditStatus`.
+27. **`WebcastSystemMessage`.** It exists only in tiktok-live-proto's `synthetic_proto.proto` (a hand-written file), with `message` (2); 2.4.0 routed it to its `system` event. Whether TikTok's web client ever receives it, and with what, is unknown.
+28. **The tail messages.** No smoke run has seen `WebcastLiveIntroMessage`, `WebcastUnauthorizedMemberMessage`, `WebcastMsgDetectMessage`, `WebcastToastMessage`, `WebcastBottomMessage` or `WebcastRoomVerifyMessage`. Their fields are read as the protos name them; a capture shows which arrive on a viewer's socket and what the codes (`d_type`, `trigger_by`, `biz_type`) hold. `WebcastUnauthorizedMemberMessage.nick_name` (4) is assumed to be what TikTok shows for a viewer without an account.
+29. **Room messages.** The values of `WebcastRoomMessage.scene` (6) and when `is_welcome` (7) is set (the host's welcome message, assumed), and whether `content` (2) is already localized.
 
 **Gifts, money and membership** (items 30–39): what the gift group's `.proto` fields mean on the wire. None of it changes routing, which reads only text keys and business type 19.
 

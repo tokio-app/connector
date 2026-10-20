@@ -17,6 +17,10 @@ export interface ChatMessage {
   common?: Common;
   /** Who commented. */
   user?: User;
+  /** The user the comment replies to or mentions with `@`, when TikTok sends one. */
+  atUser?: User;
+  /** What the commenter is to the host, for filtering. */
+  msgFilter?: MsgFilter;
   /** How the commenter relates to the host. */
   userIdentity?: UserIdentity;
   /** The comment text. */
@@ -25,6 +29,8 @@ export interface ChatMessage {
   contentLanguage: string;
   /** The emotes in the comment. */
   emotes: ChatEmote[];
+  /** The users the comment mentions. */
+  mentionUsers: User[];
 }
 
 /** Likes (`like` event). */
@@ -51,8 +57,14 @@ export interface SocialMessage {
   action: number;
   /** Where the LIVE was shared to, when TikTok says. */
   shareTarget: string;
+  /** TikTok's follow counter, as sent (what it counts isn't known yet). */
+  followCount: number;
   /** How many times the user shared the LIVE. */
   shareCount: number;
+  /** TikTok's follow type code. */
+  followType: number;
+  /** The id of the user followed, when TikTok says (the host, presumably). */
+  targetUserId: string;
 }
 
 /**
@@ -60,7 +72,7 @@ export interface SocialMessage {
  * (`webcast.im.PinMessage_actionType`).
  */
 export const PinAction = Object.freeze({
-  /** TikTok didn't say. */
+  /** TikTok didn't say (the proto's `UN_KOWN`). */
   UNKNOWN: 0,
   /** A message was pinned. */
   PIN: 1,
@@ -213,7 +225,7 @@ export interface Question {
 export interface QuestionNewMessage {
   /** Data every message carries. */
   common?: Common;
-  /** The question. */
+  /** The question (the proto's `data`, field 2). */
   details?: Question;
 }
 
