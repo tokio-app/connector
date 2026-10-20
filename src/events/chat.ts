@@ -72,7 +72,7 @@ export interface SocialMessage {
  * (`webcast.im.PinMessage_actionType`).
  */
 export const PinAction = Object.freeze({
-  /** TikTok didn't say. */
+  /** TikTok didn't say (the proto's `UN_KOWN`). */
   UNKNOWN: 0,
   /** A message was pinned. */
   PIN: 1,
@@ -225,7 +225,7 @@ export interface Question {
 export interface QuestionNewMessage {
   /** Data every message carries. */
   common?: Common;
-  /** The question. */
+  /** The question (the proto's `data`, field 2). */
   details?: Question;
 }
 
