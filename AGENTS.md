@@ -19,11 +19,17 @@ yarn typecheck         # tsc --noEmit over src/, test/, scripts/ and vitest.conf
 yarn lint              # oxlint --type-aware
 yarn format            # prettier --write . (yarn format:check only checks)
 yarn reference         # download the MIT reference copies into reference/ (needs network)
-yarn capture           # record a LIVE's raw frames into a fixture (opt-in, needs network)
-yarn smoke <user>      # connect to a real LIVE and print what happens (opt-in, needs network)
+yarn smoke <user>      # connect to a real LIVE, print what happens, exit 0 when it works (opt-in, needs network)
+yarn capture <user>    # record a LIVE's raw messages into a fixture (opt-in, needs network)
 ```
 
 Verify changes with `yarn test`, `yarn typecheck`, `yarn lint` and `yarn format:check`, and `yarn build` when the public API changes. The `verify` skill says when `yarn smoke` is needed too.
+
+`yarn smoke <user>` listens to every event and prints the transitions, the first of each LIVE event, every event's count and the raw methods (marking those no event covers). Flags: `--seconds N` (default 30, counted from the connect), `--drop-after N` (N seconds after connecting, terminates the socket through the connection's internal `_terminateSocket()` and expects `reconnecting`, then `connected { reconnected: true }`, within 30 s), `--gifts` (calls `fetchGifts()` and prints the source that answered), `--json` (the summary as JSON on stdout, progress on stderr). Exit status 0 when it connected, no `error` event came, a LIVE event arrived and the requested checks passed; 1 otherwise, with the reasons; 2 for a usage mistake.
+
+`yarn capture <user>` writes the `raw` messages to a version 1 fixture (format and `parseFixture` in `scripts/capture/fixture.ts`): method, ids, flags and the payload in base64, never cookies, the session, the API key, `internalExt` or signer ids. Flags: `--seconds N` (default 60), `--out FILE` (default `captures/<user>-<time>.json`, gitignored), `--anonymize` (leaves out the username; the payloads are raw protobuf and keep viewers' names until anonymizing re-encodes them). Exit status 0 when it wrote the file.
+
+Both take `--room-id ID`, `--api-key KEY` (default `$EULER_API_KEY`: the scripts read it, the library reads no environment variable), `--host URL`, `-v`/`--verbose` (the library's debug and info logs, on stderr) and `--help`. Ctrl-C disconnects and still reports (smoke) or writes what was captured (capture). What both share lives in `scripts/lib/`.
 
 TypeScript 7's `tsc` emits the declarations. `@typescript/typescript6` stays installed as a fallback (`tsc6`) in case a TS 7 emit gap shows up; switch `build` to it only if `dist/index.d.ts` comes out wrong.
 
@@ -86,7 +92,8 @@ Public payloads are JSON-safe: 64-bit ids are decimal strings, 64-bit counters a
 - Vitest. Tests sit next to the code as `*.test.ts`; shared fakes live in `test/helpers`, recorded data in `test/fixtures`.
 - Build protobuf bytes with `test/helpers/encoder.ts`: `encodeMessage(schema, value)` for fixtures, and `fields.*` (explicit field numbers, independent of the schemas) to check a table's field numbers against the `.proto`.
 - Tests never touch the network, and neither does CI: use `FakeSigner`, the fake TikTok server (`ws` on `127.0.0.1:0`) and stubbed `fetch`. Keep real-timer tests short (50–200 ms values, `vi.waitFor`).
-- `yarn smoke` and `yarn capture` are opt-in and need the network and a LIVE. Ask the user before running them. Fixtures from a capture come only from the user's own LIVE, anonymized (`--anonymize`) and kept small.
+- `yarn smoke` and `yarn capture` are opt-in and need the network and a LIVE. Ask the user before running them. Fixtures from a capture come only from the user's own LIVE, anonymized (`--anonymize`) and kept small. Read one with `parseFixture` and replay its messages with `fromFixtureMessage` (`scripts/capture/fixture.ts`).
+- The scripts' pure parts are tested next to them and run with `yarn test`: `scripts/lib/{cli,format}.test.ts` (flags, logger, error and table formatting), `scripts/smoke/{args,summary}.test.ts` (the event bookkeeping, the reconnect check and the verdict) and `scripts/capture/{args,fixture}.test.ts` (the fixture format and its validator). The `index.ts` files only wire them to a real connection; `summary.test.ts` fails to typecheck when `WebcastEventMap` gains an event the smoke run doesn't listen to.
 - `restoreMocks` and `unstubGlobals` are on: mocks and stubbed globals reset after each test.
 - The codec (`src/codec/`) is kept at 100% coverage (`yarn test:coverage`).
 
