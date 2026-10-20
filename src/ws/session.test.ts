@@ -182,15 +182,18 @@ describe("WebcastSession.open", () => {
         error: expect.objectContaining({ status: 200 }),
       }),
     ]);
-    // What the server said goes to the debug log.
+    // The answer's status and type go to the debug log, never its body.
     expect(vi.mocked(options.logger)).toHaveBeenCalledWith(
       "debug",
       "The server refused the WebSocket with 200",
-      { status: 200, contentType: "text/html", body: "Refused by FakeTikTok" },
+      { status: 200, contentType: "text/html", contentLength: "21" },
+    );
+    expect(JSON.stringify(vi.mocked(options.logger).mock.calls)).not.toContain(
+      "Refused by FakeTikTok",
     );
   });
 
-  describe("reading a refused upgrade's body", () => {
+  describe("a refused upgrade's body", () => {
     let server: Server | undefined;
     // The server's ends of the upgraded connections, which it doesn't track.
     const sockets: Duplex[] = [];
@@ -217,39 +220,25 @@ describe("WebcastSession.open", () => {
       return `ws://127.0.0.1:${(server.address() as AddressInfo).port}/`;
     }
 
-    it("stops waiting for a body that doesn't end", async () => {
+    it("isn't waited for, nor logged", async () => {
       const url = await answering(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n",
+        "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n12\r\nCookie: sessionid=1\r\n",
       );
       const { session } = track();
       const options = sessionOptions({ url });
       const started = Date.now();
       await expect(session.open(options)).rejects.toMatchObject({
-        status: 200,
-      });
-      expect(Date.now() - started).toBeGreaterThanOrEqual(400);
-      expect(vi.mocked(options.logger)).toHaveBeenCalledWith(
-        "debug",
-        "The server refused the WebSocket with 200",
-        { status: 200, contentType: "text/plain", body: "hello" },
-      );
-    });
-
-    it("reads only the start of a long body", async () => {
-      const body = "x".repeat(5_000);
-      const url = await answering(
-        `HTTP/1.1 403 Forbidden\r\nContent-Length: ${body.length}\r\n\r\n${body}`,
-      );
-      const { session } = track();
-      const options = sessionOptions({ url });
-      await expect(session.open(options)).rejects.toMatchObject({
         status: 403,
       });
+      expect(Date.now() - started).toBeLessThan(1_000);
       expect(vi.mocked(options.logger)).toHaveBeenCalledWith(
         "debug",
         "The server refused the WebSocket with 403",
-        { status: 403, contentType: undefined, body: `${"x".repeat(200)}…` },
+        { status: 403, contentType: "text/plain", contentLength: undefined },
       );
+      expect(
+        JSON.stringify(vi.mocked(options.logger).mock.calls),
+      ).not.toContain("sessionid");
     });
   });
 

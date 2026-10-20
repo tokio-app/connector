@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { inspect } from "node:util";
 import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -259,6 +260,37 @@ describe("TikTokLiveConnection", () => {
         expect.objectContaining({ code: "TIMEOUT", phase: "request" }),
       ],
     });
+  });
+
+  it("never logs the session, the cookies or what they hold", async () => {
+    signer.cookies = ["ttwid=secret-ttwid", "msToken=secret-ms-token"];
+    const { connection, ofType, logger } = create({
+      session: { sessionId: "secret-session-id" },
+    });
+    await connection.connect();
+    fake.push([chat("1")], { cursor: "ws-cursor-a" });
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    // The socket got them; the logs, errors and their causes included, didn't.
+    expect(fake.last.headers.cookie).toContain("secret-ttwid");
+    const logged = inspect(logger.mock.calls, { depth: null });
+    for (const secret of [
+      "secret-session-id",
+      "secret-ttwid",
+      "secret-ms-token",
+    ]) {
+      expect(logged).not.toContain(secret);
+    }
+    expect(logger).toHaveBeenCalledWith(
+      "debug",
+      "Signed the connection",
+      expect.anything(),
+    );
+    expect(logger).toHaveBeenCalledWith(
+      "debug",
+      "Opening the WebSocket",
+      expect.anything(),
+    );
   });
 
   it("keeps going when the logger throws", async () => {

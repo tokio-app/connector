@@ -14,7 +14,6 @@ import {
   WebSocketError,
   isConnectorError,
 } from "../errors.js";
-import { previewBody } from "../http/client.js";
 import type { Logger } from "../logger.js";
 import {
   PROTOBUF_ENCODING,
@@ -31,11 +30,6 @@ import {
  * terminating the socket (2.4.0's `WS_DISCONNECT_TIMEOUT_MS`).
  */
 export const CLOSE_GRACE_MS = 2_000;
-
-// How long, and how much of, the body of a refused upgrade is read for the
-// debug log before the socket is terminated.
-const REFUSAL_READ_MS = 500;
-const REFUSAL_READ_CHARS = 1_000;
 
 /** What {@link WebcastSession.open} needs. */
 export interface SessionOptions {
@@ -462,9 +456,9 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
 
   // The server answered the upgrade request with an HTTP response instead of
   // switching to a WebSocket (PROTOCOL.md, "WebSocket"). The session ends with
-  // a WebSocketError holding the status. The start of the body, read for
-  // REFUSAL_READ_MS at most, goes to the debug log; then the socket is
-  // terminated.
+  // a WebSocketError holding the status, and the socket is terminated. The
+  // body isn't read: a server could echo the request's headers in it, the
+  // session's cookies among them, and nothing of that may reach the log.
   #onRefused(response: IncomingMessage): void {
     // A client's response always has a status.
     const status = response.statusCode!;
@@ -475,34 +469,16 @@ export class WebcastSession extends TypedEmitter<SessionEvents> {
         { status },
       ),
     );
-    let body = "";
-    let read = false;
-    const finish = () => {
-      if (read) return;
-      read = true;
-      clearTimeout(timer);
-      this.#options!.logger(
-        "debug",
-        `The server refused the WebSocket with ${status}`,
-        {
-          status,
-          contentType: response.headers["content-type"],
-          body: previewBody(body),
-        },
-      );
-      this.#socket!.terminate();
-    };
-    const timer = setTimeout(this.#guard(finish), REFUSAL_READ_MS);
-    response.setEncoding("utf8");
-    response.on(
-      "data",
-      this.#guard((chunk: string) => {
-        body += chunk;
-        if (body.length >= REFUSAL_READ_CHARS) finish();
-      }),
+    this.#options!.logger(
+      "debug",
+      `The server refused the WebSocket with ${status}`,
+      {
+        status,
+        contentType: response.headers["content-type"],
+        contentLength: response.headers["content-length"],
+      },
     );
-    response.on("end", this.#guard(finish));
-    response.on("error", this.#guard(finish));
+    this.#socket!.terminate();
   }
 
   #onError(error: Error): void {

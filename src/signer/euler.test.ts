@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   jsonResponse,
@@ -127,7 +128,10 @@ describe("EulerSigner.fetchConnect", () => {
       expect(headers.has("cookie")).toBe(false);
       expect([...headers.values()].join()).not.toContain("secret-session");
     }
-    expect(JSON.stringify(context.logger.mock.calls)).not.toContain(API_KEY);
+    // Nothing logged holds the key or the session, error causes included.
+    const logged = inspect(context.logger.mock.calls, { depth: null });
+    expect(logged).not.toContain(API_KEY);
+    expect(logged).not.toContain("secret-session");
   });
 
   it("sends no x-api-key without a key", async () => {
