@@ -112,7 +112,7 @@ function roomIdInState(state: unknown, username: string): string | null {
   return null;
 }
 
-// Step 1: the room id in the LIVE page's SIGI_STATE script, else in its
+// Step 2: the room id in the LIVE page's SIGI_STATE script, else in its
 // __UNIVERSAL_DATA_FOR_REHYDRATION__ script.
 async function roomIdFromLivePage(
   username: string,
@@ -149,7 +149,7 @@ async function roomIdFromLivePage(
   );
 }
 
-// Step 2: TikTok's api-live/user/room route.
+// Step 1: TikTok's api-live/user/room route.
 async function roomIdFromApi(
   username: string,
   { http, signContext }: RoomContext,
@@ -197,16 +197,19 @@ async function roomIdFromSigner(
   return roomId;
 }
 
+// api-live first: in the first smoke run, the LIVE page came without the
+// state the room id lies in, a 1.1 s request for nothing, while api-live
+// answered in half a second.
 const STEPS = [
-  ["the LIVE page", roomIdFromLivePage],
   ["api-live", roomIdFromApi],
+  ["the LIVE page", roomIdFromLivePage],
   ["the signer", roomIdFromSigner],
 ] as const;
 
 /**
- * Resolves a username to its room id: the LIVE page, then TikTok's
- * `api-live/user/room` route, then `signer.resolveRoomId`; the first that
- * answers wins, each within `requestTimeoutMs`. Throws `RoomNotFoundError`
+ * Resolves a username to its room id: TikTok's `api-live/user/room` route,
+ * then the LIVE page, then `signer.resolveRoomId`; the first that answers
+ * wins, each within `requestTimeoutMs`. Throws `RoomNotFoundError`
  * (with the steps' errors as `cause`, an array) when none does, and
  * `AbortError` when the signal aborts. The `RoomNotFoundError` is retryable
  * when a step failed for a reason that can pass (network, timeout, 5xx).

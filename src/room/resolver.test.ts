@@ -94,14 +94,40 @@ describe("valueAt", () => {
   });
 });
 
+const apiAnswer = () =>
+  jsonResponse({ statusCode: 0, data: { user: { roomId: ROOM_ID } } });
+
 describe("resolveRoomId", () => {
-  it("reads the room id from the LIVE page's SIGI_STATE", async () => {
-    const { context, requests, logger } = setup({ page: html(LIVE_PAGE) });
+  it("asks the api-live route first", async () => {
+    const { context, requests, logger } = setup({
+      api: apiAnswer,
+      page: html(LIVE_PAGE),
+    });
 
     await expect(resolveRoomId("someone", context)).resolves.toBe(ROOM_ID);
 
     expect(requests).toHaveLength(1);
     const { url } = requests[0]!;
+    expect(url.origin + url.pathname).toBe(
+      "https://www.tiktok.com/api-live/user/room/",
+    );
+    expect(url.searchParams.get("uniqueId")).toBe("someone");
+    expect(url.searchParams.get("sourceType")).toBe("54");
+    expect(url.searchParams.get("device_id")).toBe("1234567890123456789");
+    expect(logger).toHaveBeenCalledWith(
+      "debug",
+      "Room id of @someone from api-live",
+      { roomId: ROOM_ID },
+    );
+  });
+
+  it("reads the room id from the LIVE page's SIGI_STATE when api-live fails", async () => {
+    const { context, requests, logger } = setup({ page: html(LIVE_PAGE) });
+
+    await expect(resolveRoomId("someone", context)).resolves.toBe(ROOM_ID);
+
+    expect(requests).toHaveLength(2);
+    const { url } = requests[1]!;
     expect(url.origin + url.pathname).toBe(
       "https://www.tiktok.com/@someone/live",
     );
@@ -129,7 +155,7 @@ describe("resolveRoomId", () => {
 
     await resolveRoomId("ünïcode.name", context);
 
-    expect(requests[0]!.url.pathname).toBe("/@%C3%BCn%C3%AFcode.name/live");
+    expect(requests[1]!.url.pathname).toBe("/@%C3%BCn%C3%AFcode.name/live");
   });
 
   it("falls back to the page's __UNIVERSAL_DATA_FOR_REHYDRATION__", async () => {
@@ -175,8 +201,29 @@ describe("resolveRoomId", () => {
     await expect(resolveRoomId("someone", context)).resolves.toBe(ROOM_ID);
   });
 
-  it("falls over to the api-live route when the page has no room id", async () => {
-    const pages = [
+  it("falls back to the LIVE page when api-live has no room id", async () => {
+    for (const api of [
+      () => jsonResponse({ statusCode: 19881007, message: "user not exist" }),
+      () => jsonResponse({ statusCode: 0, data: { user: { roomId: "" } } }),
+      () => jsonResponse({ data: {} }),
+      () => new Response("", { status: 500 }),
+    ]) {
+      const { context, requests } = setup({ api, page: html(LIVE_PAGE) });
+
+      await expect(resolveRoomId("someone", context)).resolves.toBe(ROOM_ID);
+
+      expect(requests.map(({ url }) => url.pathname)).toEqual([
+        "/api-live/user/room/",
+        "/@someone/live",
+      ]);
+    }
+  });
+
+  it("falls over to the signer when the API and the page fail", async () => {
+    const resolve = vi.fn<NonNullable<Signer["resolveRoomId"]>>(() =>
+      Promise.resolve(ROOM_ID),
+    );
+    for (const page of [
       "<html>captcha</html>",
       pageWith("SIGI_STATE", "{not json"),
       pageWith(
@@ -184,38 +231,9 @@ describe("resolveRoomId", () => {
         '{"LiveRoom":{"liveRoomUserInfo":{"user":{"roomId":"0"}}}}',
       ),
       pageWith("__UNIVERSAL_DATA_FOR_REHYDRATION__", "{}"),
-    ];
-    for (const page of pages) {
-      const { context, requests } = setup({
-        page: html(page),
-        api: () =>
-          jsonResponse({ statusCode: 0, data: { user: { roomId: ROOM_ID } } }),
-      });
-
-      await expect(resolveRoomId("someone", context)).resolves.toBe(ROOM_ID);
-
-      const { url } = requests[1]!;
-      expect(url.origin + url.pathname).toBe(
-        "https://www.tiktok.com/api-live/user/room/",
-      );
-      expect(url.searchParams.get("uniqueId")).toBe("someone");
-      expect(url.searchParams.get("sourceType")).toBe("54");
-      expect(url.searchParams.get("device_id")).toBe("1234567890123456789");
-    }
-  });
-
-  it("falls over to the signer when the page and the API fail", async () => {
-    const resolve = vi.fn<NonNullable<Signer["resolveRoomId"]>>(() =>
-      Promise.resolve(ROOM_ID),
-    );
-    for (const api of [
-      () => jsonResponse({ statusCode: 19881007, message: "user not exist" }),
-      () => jsonResponse({ statusCode: 0, data: { user: { roomId: "" } } }),
-      () => jsonResponse({ data: {} }),
-      () => new Response("", { status: 500 }),
     ]) {
       const { context } = setup(
-        { page: notFound, api },
+        { page: html(page) },
         { fetchConnect: vi.fn(), resolveRoomId: resolve },
       );
       await expect(resolveRoomId("someone", context)).resolves.toBe(ROOM_ID);
@@ -240,12 +258,12 @@ describe("resolveRoomId", () => {
       code: "ROOM_NOT_FOUND",
       retryable: false,
       message:
-        "Couldn't find the room of @someone (the LIVE page: PROTOCOL, api-live: PROTOCOL, the signer: ROOM_NOT_FOUND)",
+        "Couldn't find the room of @someone (api-live: PROTOCOL, the LIVE page: PROTOCOL, the signer: ROOM_NOT_FOUND)",
     });
     const causes = (error as Error).cause as Error[];
     expect(causes.map((cause) => cause.message)).toEqual([
-      "The LIVE page of @someone has no SIGI_STATE script, no __UNIVERSAL_DATA_FOR_REHYDRATION__ script (blocked by TikTok?)",
       "api-live/user/room answered statusCode 19881007 (user not exist)",
+      "The LIVE page of @someone has no SIGI_STATE script, no __UNIVERSAL_DATA_FOR_REHYDRATION__ script (blocked by TikTok?)",
       "The signer has no room id for @someone",
     ]);
     expect(logger).toHaveBeenCalledWith(
@@ -279,7 +297,7 @@ describe("resolveRoomId", () => {
       code: "ROOM_NOT_FOUND",
       retryable: true,
       message:
-        "Couldn't find the room of @someone (the LIVE page: NETWORK, api-live: HTTP, the signer: ROOM_NOT_FOUND)",
+        "Couldn't find the room of @someone (api-live: HTTP, the LIVE page: NETWORK, the signer: ROOM_NOT_FOUND)",
     });
   });
 
@@ -329,7 +347,7 @@ describe("resolveRoomId", () => {
     const resolve = vi.fn<NonNullable<Signer["resolveRoomId"]>>();
     const { context, requests } = setup(
       {
-        page: (request) => {
+        api: (request) => {
           controller.abort();
           return never(request);
         },

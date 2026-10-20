@@ -38,11 +38,21 @@ const LIVE_PAGE = readFileSync(
   "utf8",
 );
 
-// TikTok as a stubbed fetch: the LIVE page and room/info (status 2: LIVE);
-// anything else is a 404.
-function tiktok(status = 2): StubHandler {
+// TikTok as a stubbed fetch: api-live (unless `api` is off), the LIVE page
+// and room/info (status 2: LIVE); anything else is a 404.
+function tiktok({ status = 2, api = true } = {}): StubHandler {
   return (request) => {
     const { hostname, pathname } = request.url;
+    if (
+      api &&
+      hostname === "www.tiktok.com" &&
+      pathname === "/api-live/user/room/"
+    ) {
+      return jsonResponse({
+        statusCode: 0,
+        data: { user: { roomId: ROOM_ID } },
+      });
+    }
     if (hostname === "www.tiktok.com" && pathname === "/@someone/live") {
       return new Response(LIVE_PAGE, {
         headers: { "content-type": "text/html" },
@@ -337,7 +347,7 @@ describe("a LIVE through the fakes", () => {
 });
 
 describe("connect() through the room lookup and the HTTP client", () => {
-  it("finds the room on the LIVE page, checks it is LIVE, signs and enters it", async () => {
+  it("finds the room through api-live, checks it is LIVE, signs and enters it", async () => {
     const { connection, events, requests } = create(["connected"]);
     await expect(connection.connect()).resolves.toEqual({ roomId: ROOM_ID });
     expect(events).toEqual([
@@ -347,12 +357,13 @@ describe("connect() through the room lookup and the HTTP client", () => {
       },
     ]);
     expect(requests.map(({ url }) => `${url.host}${url.pathname}`)).toEqual([
-      "www.tiktok.com/@someone/live",
+      "www.tiktok.com/api-live/user/room/",
       "webcast.tiktok.com/webcast/room/info/",
     ]);
-    const [page, info] = requests;
-    expect(page?.url.searchParams.get("aid")).toBe("1988");
-    expect(page?.headers.get("cookie")).toBe("tt-target-idc=useast1a");
+    const [api, info] = requests;
+    expect(api?.url.searchParams.get("uniqueId")).toBe("someone");
+    expect(api?.url.searchParams.get("aid")).toBe("1988");
+    expect(api?.headers.get("cookie")).toBe("tt-target-idc=useast1a");
     expect(info?.url.searchParams.get("room_id")).toBe(ROOM_ID);
     expect(signer.calls[0]?.request).toEqual({ roomId: ROOM_ID, cursor: "" });
     expect(fake.last.url.searchParams.get("room_id")).toBe(ROOM_ID);
@@ -360,8 +371,19 @@ describe("connect() through the room lookup and the HTTP client", () => {
     expect(connection.roomId).toBe(ROOM_ID);
   });
 
+  it("falls back to the LIVE page when api-live doesn't answer", async () => {
+    const http = stubFetch(tiktok({ api: false }));
+    const { connection } = create([], { fetch: http.fetch });
+    await expect(connection.connect()).resolves.toEqual({ roomId: ROOM_ID });
+    expect(http.requests.map(({ url }) => url.pathname)).toEqual([
+      "/api-live/user/room/",
+      "/@someone/live",
+      "/webcast/room/info/",
+    ]);
+  });
+
   it("rejects with OfflineError when room/info says the LIVE ended", async () => {
-    const http = stubFetch(tiktok(4));
+    const http = stubFetch(tiktok({ status: 4 }));
     const { connection } = create([], { fetch: http.fetch });
     await expect(connection.connect()).rejects.toMatchObject({
       code: "OFFLINE",
@@ -377,7 +399,7 @@ describe("connect() through the room lookup and the HTTP client", () => {
       .connect()
       .catch((failure: unknown) => failure as ConnectorError);
     expect(error).toMatchObject({ code: "ROOM_NOT_FOUND" });
-    // The LIVE page, api-live, then the signer (which can't look rooms up).
+    // api-live, the LIVE page, then the signer (which can't look rooms up).
     expect(http.requests).toHaveLength(2);
     expect(signer.calls).toEqual([]);
   });
