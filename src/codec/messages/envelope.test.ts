@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { EnvelopeMessage } from "../../events.js";
+import { EnvelopeBusinessType, type EnvelopeMessage } from "../../events.js";
 import { decodeMessage } from "../decode.js";
-import {
-  EnvelopeMessageSchema,
-  SUPER_FAN_BOX_BUSINESS_TYPE,
-} from "./envelope.js";
+import { EnvelopeMessageSchema } from "./envelope.js";
 import {
   concat,
   encodeMessage,
@@ -23,9 +20,10 @@ import { sampleCommon, unknownFields } from "../../../test/helpers/samples.js";
 const decode = (bytes: Uint8Array) =>
   decodeMessage(EnvelopeMessageSchema, bytes);
 
-describe("SUPER_FAN_BOX_BUSINESS_TYPE", () => {
-  it("is EnvelopeBusinessType.SUPER_FAN_BOX", () => {
-    expect(SUPER_FAN_BOX_BUSINESS_TYPE).toBe(19);
+describe("EnvelopeBusinessType", () => {
+  it("has the values of webcast.model.data.EnvelopeBusinessType the library uses", () => {
+    expect(EnvelopeBusinessType).toEqual({ UNKNOWN: 0, SUPER_FAN_BOX: 19 });
+    expect(Object.isFrozen(EnvelopeBusinessType)).toBe(true);
   });
 });
 
@@ -73,7 +71,7 @@ describe("EnvelopeMessageSchema", () => {
   it("round-trips every field through the encoder", () => {
     const envelope: EnvelopeMessage = {
       common: sampleCommon("WebcastEnvelopeMessage", "ttlive_superfanbox"),
-      envelopeInfo: { businessType: SUPER_FAN_BOX_BUSINESS_TYPE },
+      envelopeInfo: { businessType: EnvelopeBusinessType.SUPER_FAN_BOX },
     };
     expect(
       decode(encodeMessage(EnvelopeMessageSchema, envelope)),

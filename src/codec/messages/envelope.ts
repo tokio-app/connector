@@ -4,9 +4,6 @@ import type { EnvelopeInfo, EnvelopeMessage } from "../../events.js";
 import { defineSchema, f } from "../schema.js";
 import { CommonSchema } from "./common.js";
 
-/** `webcast.model.data.EnvelopeBusinessType.SUPER_FAN_BOX`. */
-export const SUPER_FAN_BOX_BUSINESS_TYPE = 19;
-
 /** `webcast.model.message.redenvelope.MessageRedEnvelopInfo`. */
 export const EnvelopeInfoSchema = defineSchema<EnvelopeInfo>(
   "MessageRedEnvelopInfo",

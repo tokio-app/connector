@@ -52,25 +52,37 @@ The username can be `name`, `@name` or a profile or LIVE URL. Attach listeners b
 
 ## Events
 
-| Event          | Fires when                                                                                                                       | Payload             | Fields you'll use                                                    |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------- | -------------------------------------------------------------------- |
-| `connected`    | The connection entered the room: after `connect()` and after each reconnect                                                      | `ConnectedEvent`    | `roomId`, `reconnected`, `attempt`                                   |
-| `disconnected` | An established connection ended. Not when the first `connect()` fails: it rejects instead                                        | `DisconnectedEvent` | `reason`, `willReconnect`, `error`                                   |
-| `reconnecting` | A reconnect attempt is about to run                                                                                              | `ReconnectingEvent` | `attempt`, `delayMs`, `reason`                                       |
-| `error`        | A failure no promise reports: a message that couldn't be decoded, a failed reconnect attempt. Logged instead when nobody listens | `ConnectorError`    | `code`, `message`, `retryable`                                       |
-| `streamEnd`    | The LIVE ended or was suspended. The connection then stops                                                                       | `StreamEndEvent`    | `action`: `ended` or `suspended`                                     |
-| `chat`         | A comment                                                                                                                        | `ChatMessage`       | `user`, `content`, `emotes`, `userIdentity`                          |
-| `gift`         | A gift, once per streak update ([Gift streaks](#gift-streaks))                                                                   | `GiftMessage`       | `user`, `gift.name`, `gift.diamondCount`, `repeatCount`, `repeatEnd` |
-| `like`         | Likes                                                                                                                            | `LikeMessage`       | `user`, `count`, `total`                                             |
-| `follow`       | A viewer followed the host                                                                                                       | `SocialMessage`     | `user`                                                               |
-| `share`        | A viewer shared the LIVE                                                                                                         | `SocialMessage`     | `user`, `shareCount`                                                 |
-| `member`       | A viewer joined, or another membership change                                                                                    | `MemberMessage`     | `user`, `actionId` (`1` joined, `3` subscribed)                      |
-| `roomUser`     | Viewer counts and the top viewers                                                                                                | `RoomUserMessage`   | `total` (watching now), `totalUser` (so far), `ranks`                |
-| `envelope`     | A treasure chest                                                                                                                 | `EnvelopeMessage`   | `envelopeInfo.businessType`                                          |
-| `superFan`     | A super fan banner                                                                                                               | `BarrageMessage`    | `user`, `content.key`                                                |
-| `superFanJoin` | A viewer became a super fan                                                                                                      | `BarrageMessage`    | `user`                                                               |
-| `superFanBox`  | A super fan box (also emitted as `envelope`)                                                                                     | `EnvelopeMessage`   | `envelopeInfo`                                                       |
-| `raw`          | Every message before decoding, history included ([Raw messages](#raw-messages))                                                  | `RawMessage`        | `method`, `payload`, `msgId`, `isHistory`                            |
+| Event          | Fires when                                                                                                                       | Payload             | Fields you'll use                                                     |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------- | --------------------------------------------------------------------- |
+| `connected`    | The connection entered the room: after `connect()` and after each reconnect                                                      | `ConnectedEvent`    | `roomId`, `reconnected`, `attempt`                                    |
+| `disconnected` | An established connection ended. Not when the first `connect()` fails: it rejects instead                                        | `DisconnectedEvent` | `reason`, `willReconnect`, `error`                                    |
+| `reconnecting` | A reconnect attempt is about to run                                                                                              | `ReconnectingEvent` | `attempt`, `delayMs`, `reason`                                        |
+| `error`        | A failure no promise reports: a message that couldn't be decoded, a failed reconnect attempt. Logged instead when nobody listens | `ConnectorError`    | `code`, `message`, `retryable`                                        |
+| `streamEnd`    | The LIVE ended or was suspended. The connection then stops                                                                       | `StreamEndEvent`    | `action`: `ended` or `suspended`                                      |
+| `chat`         | A comment                                                                                                                        | `ChatMessage`       | `user`, `content`, `emotes`, `userIdentity`                           |
+| `gift`         | A gift, once per streak update ([Gift streaks](#gift-streaks))                                                                   | `GiftMessage`       | `user`, `gift.name`, `gift.diamondCount`, `repeatCount`, `repeatEnd`  |
+| `like`         | Likes                                                                                                                            | `LikeMessage`       | `user`, `count`, `total`                                              |
+| `follow`       | A viewer followed the host                                                                                                       | `SocialMessage`     | `user`                                                                |
+| `share`        | A viewer shared the LIVE                                                                                                         | `SocialMessage`     | `user`, `shareCount`                                                  |
+| `member`       | A viewer joined, or another membership change                                                                                    | `MemberMessage`     | `user`, `actionId` (`MemberAction`: `JOINED` 1, `SUBSCRIBED` 3)       |
+| `roomUser`     | Viewer counts and the top viewers                                                                                                | `RoomUserMessage`   | `total` (watching now), `totalUser` (so far), `ranks`                 |
+| `envelope`     | A treasure chest                                                                                                                 | `EnvelopeMessage`   | `envelopeInfo.businessType` (`EnvelopeBusinessType.SUPER_FAN_BOX` 19) |
+| `superFan`     | A super fan banner                                                                                                               | `BarrageMessage`    | `user`, `content.key`                                                 |
+| `superFanJoin` | A viewer became a super fan                                                                                                      | `BarrageMessage`    | `user`                                                                |
+| `superFanBox`  | A super fan box (also emitted as `envelope`)                                                                                     | `EnvelopeMessage`   | `envelopeInfo`                                                        |
+| `raw`          | Every message before decoding, history included ([Raw messages](#raw-messages))                                                  | `RawMessage`        | `method`, `payload`, `msgId`, `isHistory`                             |
+
+Numeric codes have named constants, so you needn't hard-code them: `MemberAction` (`UNKNOWN` 0, `JOINED` 1, `SUBSCRIBED` 3) for `member.actionId`, `EnvelopeBusinessType` (`UNKNOWN` 0, `SUPER_FAN_BOX` 19) for `envelopeInfo.businessType`, and `ControlAction` (`UNKNOWN` 0, `PAUSED` 1, `UNPAUSED` 2, `STREAM_ENDED` 3, `STREAM_SUSPENDED` 4) for the control messages behind `streamEnd`. The fields stay plain numbers: TikTok may send values the constants don't name.
+
+```ts
+import { MemberAction } from "@tokioapp/connector";
+
+connection.on("member", (member) => {
+  if (member.actionId === MemberAction.JOINED) {
+    console.log(`${member.user?.nickname} joined`);
+  }
+});
+```
 
 LIVE payloads are plain objects you can `JSON.stringify`:
 

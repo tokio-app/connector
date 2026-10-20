@@ -7,14 +7,8 @@ import { decodeMessage, type DecodeOptions } from "./codec/decode.js";
 import { BarrageMessageSchema } from "./codec/messages/barrage.js";
 import { ChatMessageSchema } from "./codec/messages/chat.js";
 import { CommonOnlySchema } from "./codec/messages/common.js";
-import {
-  ControlAction,
-  ControlMessageSchema,
-} from "./codec/messages/control.js";
-import {
-  EnvelopeMessageSchema,
-  SUPER_FAN_BOX_BUSINESS_TYPE,
-} from "./codec/messages/envelope.js";
+import { ControlMessageSchema } from "./codec/messages/control.js";
+import { EnvelopeMessageSchema } from "./codec/messages/envelope.js";
 import type { FetchResultMessage } from "./codec/messages/fetchResult.js";
 import { GiftMessageSchema } from "./codec/messages/gift.js";
 import { LikeMessageSchema } from "./codec/messages/like.js";
@@ -24,12 +18,14 @@ import { SocialMessageSchema } from "./codec/messages/social.js";
 import type { AnyMessageSchema, MessageSchema } from "./codec/schema.js";
 import type { EventName } from "./emitter.js";
 import { ConnectorError, ProtocolError } from "./errors.js";
-import type {
-  BarrageMessage,
-  EnvelopeMessage,
-  RawMessage,
-  StreamEndAction,
-  WebcastEventMap,
+import {
+  ControlAction,
+  EnvelopeBusinessType,
+  type BarrageMessage,
+  type EnvelopeMessage,
+  type RawMessage,
+  type StreamEndAction,
+  type WebcastEventMap,
 } from "./events.js";
 
 /** A public event name. */
@@ -101,7 +97,7 @@ function isSuperFanBox(message: EnvelopeMessage): boolean {
   const key = message.common?.displayText?.key ?? "";
   return (
     key.toLowerCase().includes(SUPER_FAN_BOX_KEY) ||
-    message.envelopeInfo?.businessType === SUPER_FAN_BOX_BUSINESS_TYPE
+    message.envelopeInfo?.businessType === EnvelopeBusinessType.SUPER_FAN_BOX
   );
 }
 

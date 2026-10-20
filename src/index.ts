@@ -28,6 +28,7 @@ export {
   type TimeoutPhase,
   type WebSocketErrorOptions,
 } from "./errors.js";
+export { ControlAction, EnvelopeBusinessType, MemberAction } from "./events.js";
 export type {
   Badge,
   BarrageMessage,

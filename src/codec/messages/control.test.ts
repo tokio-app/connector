@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { ControlMessage } from "../../events.js";
+import { ControlAction, type ControlMessage } from "../../events.js";
 import { decodeMessage } from "../decode.js";
-import { ControlAction, ControlMessageSchema } from "./control.js";
+import { ControlMessageSchema } from "./control.js";
 import {
   concat,
   encodeMessage,
@@ -23,11 +23,13 @@ const decode = (bytes: Uint8Array) =>
 describe("ControlAction", () => {
   it("has the values of webcast.im.ControlAction", () => {
     expect(ControlAction).toEqual({
+      UNKNOWN: 0,
       PAUSED: 1,
       UNPAUSED: 2,
       STREAM_ENDED: 3,
       STREAM_SUSPENDED: 4,
     });
+    expect(Object.isFrozen(ControlAction)).toBe(true);
   });
 });
 

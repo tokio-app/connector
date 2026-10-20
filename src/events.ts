@@ -258,13 +258,35 @@ export interface SocialMessage {
   shareCount: number;
 }
 
+/**
+ * The values of {@link MemberMessage.actionId} TikTok defines
+ * (`webcast.im.MemberMessageAction`), so apps needn't hard-code the numbers:
+ *
+ * ```ts
+ * connection.on("member", (member) => {
+ *   if (member.actionId === MemberAction.JOINED) greet(member.user);
+ * });
+ * ```
+ */
+export const MemberAction = Object.freeze({
+  /** TikTok didn't say. */
+  UNKNOWN: 0,
+  /** The viewer joined the LIVE. */
+  JOINED: 1,
+  /** The viewer subscribed to the host. */
+  SUBSCRIBED: 3,
+} as const);
+
 /** A viewer joining, or another membership change (`member` event). */
 export interface MemberMessage {
   /** Data every message carries. */
   common?: Common;
   /** The member. */
   user?: User;
-  /** What happened: `1` joined, `3` subscribed, `0` unknown. */
+  /**
+   * What happened: `1` joined, `3` subscribed, `0` unknown ({@link MemberAction}).
+   * Other values may come: it stays a number.
+   */
   actionId: number;
 }
 
@@ -290,17 +312,47 @@ export interface RoomUserMessage {
   ranks: RoomUserRank[];
 }
 
+/**
+ * The values of {@link ControlMessage.action} TikTok defines
+ * (`webcast.im.ControlAction`). `STREAM_ENDED` and `STREAM_SUSPENDED` end the
+ * LIVE: the connection emits `streamEnd` (`ended` or `suspended`) and stops.
+ */
+export const ControlAction = Object.freeze({
+  /** TikTok didn't say. */
+  UNKNOWN: 0,
+  /** The host paused the LIVE. */
+  PAUSED: 1,
+  /** The host resumed the LIVE. */
+  UNPAUSED: 2,
+  /** The host ended the LIVE. */
+  STREAM_ENDED: 3,
+  /** TikTok ended the LIVE (a moderator or a ban). */
+  STREAM_SUSPENDED: 4,
+} as const);
+
 /** A change to the LIVE's state, such as the LIVE ending. Decoded for `streamEnd`; not an event of its own. */
 export interface ControlMessage {
   /** Data every message carries. */
   common?: Common;
-  /** What happened: `1` paused, `2` resumed, `3` ended, `4` suspended. */
+  /** What happened: `1` paused, `2` resumed, `3` ended, `4` suspended ({@link ControlAction}). */
   action: number;
 }
 
+/**
+ * Values of {@link EnvelopeInfo.businessType} (`webcast.model.data.EnvelopeBusinessType`)
+ * the library acts on. The other values TikTok uses are kinds of diamond,
+ * platform and campaign chests.
+ */
+export const EnvelopeBusinessType = Object.freeze({
+  /** TikTok didn't say. */
+  UNKNOWN: 0,
+  /** A super fan box: the envelope is also a `superFanBox` event. */
+  SUPER_FAN_BOX: 19,
+} as const);
+
 /** Details of a treasure chest. */
 export interface EnvelopeInfo {
-  /** What kind of chest: `19` is a super fan box. */
+  /** What kind of chest: `19` is a super fan box ({@link EnvelopeBusinessType}). */
   businessType: number;
 }
 

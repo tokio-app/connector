@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MemberMessage } from "../../events.js";
+import { MemberAction, type MemberMessage } from "../../events.js";
 import { decodeMessage } from "../decode.js";
 import { MemberMessageSchema } from "./member.js";
 import {
@@ -21,6 +21,13 @@ import {
 // schema, so a wrong number in the table fails here.
 
 const decode = (bytes: Uint8Array) => decodeMessage(MemberMessageSchema, bytes);
+
+describe("MemberAction", () => {
+  it("has the values of webcast.im.MemberMessageAction", () => {
+    expect(MemberAction).toEqual({ UNKNOWN: 0, JOINED: 1, SUBSCRIBED: 3 });
+    expect(Object.isFrozen(MemberAction)).toBe(true);
+  });
+});
 
 describe("MemberMessageSchema", () => {
   it("reads common (1), user (2) and action (10) as actionId", () => {

@@ -6,6 +6,7 @@
 // status.
 import {
   isStreakable,
+  MemberAction,
   type DisconnectReason,
   type GiftList,
   type GiftSource,
@@ -200,8 +201,8 @@ type Handlers = {
 };
 
 const MEMBER_ACTIONS: Readonly<Record<number, string>> = {
-  1: "joined",
-  3: "subscribed",
+  [MemberAction.JOINED]: "joined",
+  [MemberAction.SUBSCRIBED]: "subscribed",
 };
 
 function nickname(user: User | undefined): string {
