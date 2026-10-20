@@ -192,7 +192,7 @@ class SmokeRun {
     ) {
       return;
     }
-    this.#print("waiting for the reconnect");
+    this.#print(this.#recorder.waitingForReconnect());
     await within(
       Promise.race([this.#dropSettled.promise, this.#stopped.promise]),
       deadline - this.#now(),

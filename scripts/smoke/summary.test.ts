@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   ConnectorError,
+  RateLimitError,
   ReconnectGiveUpError,
   WebSocketError,
   type ChatMessage,
@@ -449,6 +450,35 @@ describe("SmokeRecorder", () => {
       ).toEqual([
         "reconnect check failed: reconnected 45.0 s after the drop, more than 30.0 s",
       ]);
+    });
+
+    it("says when a rate limit is why the reconnect is late", () => {
+      const recorder = droppedRun();
+      recorder.record(
+        "reconnecting",
+        { attempt: 1, delayMs: 1_000, reason: "wsClose" },
+        11_001,
+      );
+      expect(recorder.waitingForReconnect()).toBe("waiting for the reconnect");
+      recorder.record(
+        "error",
+        new RateLimitError("slow down", { retryAfterMs: 20_000 }),
+        12_000,
+      );
+      recorder.record(
+        "reconnecting",
+        { attempt: 2, delayMs: 20_000, reason: "signError" },
+        12_001,
+      );
+      expect(recorder.waitingForReconnect()).toBe(
+        "waiting for the reconnect (rate limited: the signer asked to wait 20.0 s)",
+      );
+      expect(recorder.reconnectTimedOut()).toBe(
+        labeled(
+          "reconnect check",
+          "failed: no reconnect within 30.0 s of the drop (rate limited: the signer asked to wait 20.0 s)",
+        ),
+      );
     });
 
     it("fails when the deadline passes", () => {

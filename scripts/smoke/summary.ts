@@ -313,12 +313,33 @@ export class SmokeRecorder {
     return labeled("reconnect check", `failed: ${reason}`);
   }
 
+  /**
+   * The progress line while the run waits past `--seconds` for the
+   * reconnect. It says when a rate limit is why: the last `error` was a
+   * `RateLimitError` that said how long to wait.
+   */
+  waitingForReconnect(): string {
+    const limit = this.#rateLimit();
+    return `waiting for the reconnect${limit ? ` (${limit})` : ""}`;
+  }
+
   /** The reconnect deadline passed: fails the check if it's still waiting. */
   reconnectTimedOut(): string | undefined {
     if (!this.awaitingReconnect) return undefined;
+    const limit = this.#rateLimit();
     return this.dropFailed(
-      `no reconnect within ${formatSeconds(RECONNECT_BOUND_MS)} of the drop`,
+      `no reconnect within ${formatSeconds(RECONNECT_BOUND_MS)} of the drop${limit ? ` (${limit})` : ""}`,
     );
+  }
+
+  // The rate limit the reconnect waits out, when the last error was one.
+  #rateLimit(): string | undefined {
+    const last = this.#errors.at(-1);
+    const wait = last?.details?.retryAfterMs;
+    if (last?.code !== "RATE_LIMITED" || typeof wait !== "number") {
+      return undefined;
+    }
+    return `rate limited: the signer asked to wait ${formatSeconds(wait)}`;
   }
 
   /** `fetchGifts()` answered. */
