@@ -38,6 +38,7 @@
     "capture": "tsx scripts/capture/index.ts",
     "smoke": "tsx scripts/smoke/index.ts",
     "inspect": "tsx scripts/inspect/index.ts",
+    "replay": "tsx scripts/replay/index.ts",
     "example": "tsx examples/live.ts",
     "prepublishOnly": "yarn build",
     "prepare": "husky"

@@ -10,7 +10,7 @@ import { encodeMessage, fields } from "../../test/helpers/encoder.js";
 import { FakeSigner } from "../../test/helpers/fakeSigner.js";
 import { FakeTikTok, type PushMessage } from "../../test/helpers/fakeTikTok.js";
 import { jsonResponse, stubFetch } from "../../test/helpers/fetchStub.js";
-import { replay } from "../../test/helpers/replay.js";
+import { replay } from "../lib/replay.js";
 import { SAMPLE_USER, sampleCommon } from "../../test/helpers/samples.js";
 import { startClock } from "../lib/cli.js";
 import type { CaptureArgs } from "./args.js";

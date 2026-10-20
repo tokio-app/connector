@@ -15,7 +15,7 @@ import {
   parseFixture,
   type Fixture,
 } from "../../scripts/capture/fixture.js";
-import { replay, type Replay } from "../helpers/replay.js";
+import { replay, type Replay } from "../../scripts/lib/replay.js";
 
 const FOLDER = new URL("./", import.meta.url);
 
@@ -39,7 +39,7 @@ describe("captured fixtures", () => {
     });
 
     it("decodes every message without a ProtocolError", () => {
-      expect(result.errors.map((error) => error.message)).toEqual([]);
+      expect(result.errors.map(({ error }) => error.message)).toEqual([]);
     });
 
     it("hands dispatch as many messages of each method as it holds", () => {

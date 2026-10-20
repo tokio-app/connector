@@ -8,7 +8,7 @@ TikTok doesn't document any of it. Everything here was learned by reading the MI
 - `[proto: …]`: `reference/src/TikTok-Webcast-Protobuf/src/slim/v3/…`, the `.proto` sources of tiktok-live-proto 0.2.3 at commit `9e34a85`.
 - `[Euler: …]`: <https://www.eulerstream.com/docs>, read on 2026-10-19 (the API reference pages and the OpenAPI data they embed).
 - `[types: …]`: `reference/src/TikTok-Webcast-Protobuf/targets/typescript/tiktok-live-proto-full-types/src/generated/v3/…`, the MIT types-only package `tiktok-live-proto-full-types` 0.1.0 in the same repository at commit `9e34a85`: the names and TypeScript types of the full schema's fields, sorted alphabetically, and its enums' values, with no field numbers. Read only for names, types and enum values.
-- `[traffic: …]`: what captures of real LIVEs held, read with `yarn inspect` (field numbers, wire types and values, without a table). A capture is named by what it recorded and when, never by user, and stays out of the repository.
+- `[traffic: …]`: what captures of real LIVEs held, read with `yarn inspect` (field numbers, wire types and values, without a table) and replayed with `yarn replay` (the events and decode errors). A capture is named by what it recorded and when, never by user, and stays out of the repository.
 
 The repository's `targets/typescript/tiktok-live-proto-full/` (Euler Stream's private package, `UNLICENSED`) isn't MIT and isn't used; `yarn reference` deletes it.
 

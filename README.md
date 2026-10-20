@@ -460,9 +460,11 @@ To look into a capture offline:
 
 ```sh
 yarn inspect <capture.json> [--method <name>] [--json]
+yarn replay <capture.json> [--samples]
 ```
 
 - `yarn inspect` reads the payloads without any table, straight from the protobuf wire format, and prints each method's fields merged over every sample: field number, wire type, how many samples hold it, whether it repeats, and what the values look like (range, distinct values, text, nested messages). It is how the fields of a message no reference describes are worked out. It prints to the terminal only.
+- `yarn replay` replays the capture through the library's dispatch with a listener on every event, and prints the messages per method, the events per event, the methods no event covers and every message that failed to decode (exit status 1 when one did). `--samples` adds the first payload of each event.
 
 ## Compared with tiktok-live-connector
 

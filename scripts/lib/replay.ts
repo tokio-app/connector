@@ -1,12 +1,23 @@
 // Replays captured LIVE messages through the real dispatch with a listener on
 // every event, the way a connection with every listener attached would see
-// them: the fixture tests (test/fixtures/fixtures.test.ts) and the offline
-// capture test use it.
+// them: `yarn replay`, the fixture tests (test/fixtures/fixtures.test.ts) and
+// the offline capture test use it. Pure; tested in replay.test.ts.
 import { createUnsafeIntegerReporter } from "../../src/codec/decode.js";
 import { dispatch } from "../../src/dispatch.js";
+import { ROUTES } from "../../src/routes/index.js";
 import { RecentIds, type DispatchContext } from "../../src/routes/route.js";
 import type { ConnectorError } from "../../src/errors.js";
 import type { RawMessage, StreamEndAction } from "../../src/events/index.js";
+
+/** A message dispatch couldn't handle, with the message it came from. */
+export interface ReplayError {
+  /** The message's type. */
+  method: string;
+  /** The message's id. */
+  msgId: string;
+  /** What dispatch reported: a `ProtocolError` for a payload it couldn't decode. */
+  error: ConnectorError;
+}
 
 /** What a replay saw. */
 export interface Replay {
@@ -17,7 +28,7 @@ export interface Replay {
   /** The first payload of each LIVE event that fired, by event name. */
   firsts: Record<string, unknown>;
   /** What dispatch reported: payloads it couldn't decode. */
-  errors: ConnectorError[];
+  errors: ReplayError[];
   /** The stream ends dispatch asked for (control messages). */
   streamEnds: StreamEndAction[];
   /** The counters past `Number.MAX_SAFE_INTEGER`, by `Message.property`. */
@@ -44,6 +55,7 @@ export function replay(messages: readonly CapturedMessage[]): Replay {
     streamEnds: [],
     unsafe: [],
   };
+  let current: CapturedMessage | undefined;
   const context: DispatchContext = {
     processInitialData: true,
     recentIds: new RecentIds(0),
@@ -55,7 +67,8 @@ export function replay(messages: readonly CapturedMessage[]): Replay {
     listenerCount: () => 1,
     emit(event, payload) {
       if (event === "raw") {
-        const { method } = payload as RawMessage;
+        // The raw event of the message being dispatched.
+        const method = current?.method ?? "";
         result.counts[method] = (result.counts[method] ?? 0) + 1;
         return;
       }
@@ -64,13 +77,18 @@ export function replay(messages: readonly CapturedMessage[]): Replay {
       if (!Object.hasOwn(result.firsts, name)) result.firsts[name] = payload;
     },
     reportError: (error) => {
-      result.errors.push(error);
+      result.errors.push({
+        method: current?.method ?? "",
+        msgId: current?.msgId ?? "",
+        error,
+      });
     },
     endStream: (action) => {
       result.streamEnds.push(action);
     },
   };
   for (const message of messages) {
+    current = message;
     dispatch(context, {
       method: message.method,
       payload: message.payload,
@@ -81,4 +99,11 @@ export function replay(messages: readonly CapturedMessage[]): Replay {
     });
   }
   return result;
+}
+
+/** The methods of `counts` no route covers (they reach `raw` only), in alphabetical order. */
+export function unroutedMethods(counts: Record<string, number>): string[] {
+  return Object.keys(counts)
+    .filter((method) => !Object.hasOwn(ROUTES, method))
+    .sort();
 }
