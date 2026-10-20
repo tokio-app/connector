@@ -26,6 +26,7 @@ describe("roomDescribers", () => {
       "rankText",
       "pollMessage",
       "oecLiveShopping",
+      "anchorToolModification",
     ]);
   });
 
@@ -184,5 +185,31 @@ describe("roomDescribers", () => {
     expect(
       roomDescribers.oecLiveShopping({ actionType: 3, liveProductNumber: 0 }),
     ).toBe("action 3, 0 products");
+  });
+
+  it("describes a host's tool change: started, or ended with how long it ran", () => {
+    const modification = {
+      roomId: "7",
+      userId: "11",
+      name: "A Filter",
+      startTime: "1760000000",
+      endTime: "0",
+      duration: 0,
+    };
+    expect(roomDescribers.anchorToolModification({ modification })).toBe(
+      'host 11 tool "A Filter" started',
+    );
+    expect(
+      roomDescribers.anchorToolModification({
+        modification: {
+          ...modification,
+          endTime: "1760001200",
+          duration: 1_200,
+        },
+      }),
+    ).toBe('host 11 tool "A Filter" ended after 1,200 s');
+    expect(roomDescribers.anchorToolModification({})).toBe(
+      "tool change (no modification)",
+    );
   });
 });

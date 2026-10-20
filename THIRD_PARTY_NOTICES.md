@@ -58,6 +58,8 @@ SOFTWARE.
 | **Source**  | <https://github.com/isaackogan/TikTok-Webcast-Protobuf>, commit `9e34a85c40ed75e4db73bafd47232f82c056c3b3` |
 | **Use**     | Reference for the message layout (the `.proto` field numbers and types). No code or schema copied.         |
 
+The same repository at the same commit holds `tiktok-live-proto-full-types` 0.1.0 (`targets/typescript/tiktok-live-proto-full-types/`, MIT, the license above): TypeScript types of the full schema, without field numbers. It was read for the names, types and enum values of four messages the `.proto` sources lack (`WebcastLinkMicOpponentGifts`, `WebcastLinkmicBattleNoticeMessage`, `WebcastBattleGameplayMessage`, `WebcastAnchorToolModificationMessage`). Their field numbers weren't taken from any reference: they were worked out from LIVE traffic the library received, field by field (see `PROTOCOL.md`, "Derived from traffic"). No code or type copied.
+
 ```text
 MIT License
 

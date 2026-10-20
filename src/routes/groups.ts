@@ -71,6 +71,9 @@ export const LINK_EVENTS = Object.freeze([
   "linkState",
   "linkMicBattleItemCard",
   "linkMicLayoutState",
+  "linkMicBattleNotice",
+  "linkMicOpponentGifts",
+  "battleGameplay",
 ] as const);
 
 /** The room group: the room's state, ranks, polls, shopping and system messages. */
@@ -94,6 +97,7 @@ export const ROOM_EVENTS = Object.freeze([
   "partnershipGameOffline",
   "partnershipPunish",
   "liveGameIntro",
+  "anchorToolModification",
 ] as const);
 
 /** The four LIVE groups, in order. */

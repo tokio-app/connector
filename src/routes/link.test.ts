@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { BattleGameplayMessageSchema } from "../codec/messages/link/battleGameplay.js";
 import { LinkLayerMessageSchema } from "../codec/messages/link/linkLayer.js";
 import { LinkMessageSchema } from "../codec/messages/link/linkMessage.js";
 import { LinkMicArmiesSchema } from "../codec/messages/link/linkMicArmies.js";
 import { LinkMicBattleSchema } from "../codec/messages/link/linkMicBattle.js";
+import { LinkMicBattleNoticeSchema } from "../codec/messages/link/linkMicBattleNotice.js";
 import { LinkMicBattlePunishFinishSchema } from "../codec/messages/link/linkMicBattlePunishFinish.js";
 import { LinkMicBattleTaskSchema } from "../codec/messages/link/linkMicBattleTask.js";
 import { LinkMicFanTicketMethodSchema } from "../codec/messages/link/linkMicFanTicketMethod.js";
 import { LinkMicMethodSchema } from "../codec/messages/link/linkMicMethod.js";
+import { LinkMicOpponentGiftsSchema } from "../codec/messages/link/linkMicOpponentGifts.js";
 import { LinkStateMessageSchema } from "../codec/messages/link/linkState.js";
 import {
   LinkMicBattleItemCardSchema,
@@ -150,6 +153,49 @@ const rows = [
     }),
     expected: { channelId: "7200000000000000001", version: 3 },
   },
+  {
+    method: "WebcastLinkmicBattleNoticeMessage",
+    event: "linkMicBattleNotice",
+    payload: encodeMessage(LinkMicBattleNoticeSchema, {
+      noticeType: 6,
+      commonGuide: { displayText: { key: "pm_mt_notice" }, exceptAnchor: true },
+    }),
+    expected: {
+      noticeType: 6,
+      commonGuide: {
+        displayText: { key: "pm_mt_notice", defaultPattern: "" },
+        exceptAnchor: true,
+      },
+    },
+  },
+  {
+    method: "WebcastLinkMicOpponentGifts",
+    event: "linkMicOpponentGifts",
+    payload: encodeMessage(LinkMicOpponentGiftsSchema, {
+      battleId: "7300000000000000001",
+      giftToUserId: "6900000000000000002",
+      giftId: "5655",
+      repeatCount: 3,
+    }),
+    expected: {
+      battleId: "7300000000000000001",
+      giftToUserId: "6900000000000000002",
+      giftId: "5655",
+      repeatCount: 3,
+    },
+  },
+  {
+    method: "WebcastBattleGameplayMessage",
+    event: "battleGameplay",
+    payload: encodeMessage(BattleGameplayMessageSchema, {
+      battleId: "7300000000000000001",
+      iceShowdownInfo: { settingType: 2 },
+    }),
+    expected: {
+      battleId: "7300000000000000001",
+      iceShowdownInfo: { settingType: 2, promptTimeMs: "0", startTimeMs: "0" },
+    },
+  },
 ] as const;
 
 describe("linkRoutes", () => {
@@ -173,6 +219,9 @@ describe("linkRoutes", () => {
       WebcastLinkStateMessage: ["linkState"],
       WebcastLinkMicBattleItemCard: ["linkMicBattleItemCard"],
       WebcastLinkMicLayoutStateMessage: ["linkMicLayoutState"],
+      WebcastLinkmicBattleNoticeMessage: ["linkMicBattleNotice"],
+      WebcastLinkMicOpponentGifts: ["linkMicOpponentGifts"],
+      WebcastBattleGameplayMessage: ["battleGameplay"],
     });
   });
 

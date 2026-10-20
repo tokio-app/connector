@@ -5,6 +5,7 @@ import {
   ControlAction,
   PollEndType,
   RankOpType,
+  type AnchorToolModificationMessage,
   type ControlMessage,
   type OecLiveShoppingMessage,
   type PerceptionMessage,
@@ -59,6 +60,16 @@ function describePoll(poll: PollMessage): string {
   return `poll ${poll.pollId} (message type ${poll.messageType})`;
 }
 
+function describeToolChange(change: AnchorToolModificationMessage): string {
+  const tool = change.modification;
+  if (tool === undefined) return "tool change (no modification)";
+  const what =
+    tool.endTime === "0"
+      ? "started"
+      : `ended after ${formatCount(tool.duration)} s`;
+  return `host ${tool.userId} tool ${quote(tool.name)} ${what}`;
+}
+
 /** The room group's describers: one per event with a sample line of its own. */
 export const roomDescribers = {
   controlMessage: (control: ControlMessage) =>
@@ -93,4 +104,5 @@ export const roomDescribers = {
           : `action ${shopping.actionType}`;
     return `${what}, ${formatCount(shopping.liveProductNumber)} products`;
   },
+  anchorToolModification: describeToolChange,
 } satisfies { [K in RoomEvent]?: (payload: WebcastEventMap[K]) => string };

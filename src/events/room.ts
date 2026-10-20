@@ -625,3 +625,30 @@ export interface LiveGameIntroMessage {
   /** Whether the intro has rank info. */
   hasRankInfo: boolean;
 }
+
+/** A tool a host changed, such as a camera filter. */
+export interface AnchorToolModification {
+  /** The host's room. */
+  roomId: string;
+  /** The host. */
+  userId: string;
+  /** The tool's name, such as a filter's. */
+  name: string;
+  /** When it started, as a decimal string (seconds). */
+  startTime: string;
+  /** When it ended, as a decimal string (seconds); `"0"` while it runs. */
+  endTime: string;
+  /** How long it ran, in seconds; `0` while it runs. */
+  duration: number;
+}
+
+/**
+ * A host changed a tool, such as a camera filter (`anchorToolModification`
+ * event). The table was derived from observed traffic.
+ */
+export interface AnchorToolModificationMessage {
+  /** Data every message carries. */
+  common?: Common;
+  /** The change. */
+  modification?: AnchorToolModification;
+}

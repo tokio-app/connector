@@ -15,6 +15,9 @@ describe("linkSchemas", () => {
       "WebcastLinkStateMessage",
       "WebcastLinkMicBattleItemCard",
       "WebcastLinkMicLayoutStateMessage",
+      "WebcastLinkmicBattleNoticeMessage",
+      "WebcastLinkMicOpponentGifts",
+      "WebcastBattleGameplayMessage",
     ]);
     for (const [name, schema] of Object.entries(linkSchemas)) {
       expect(schema.name).toBe(name);

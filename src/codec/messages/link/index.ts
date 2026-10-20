@@ -1,13 +1,16 @@
 // The tables of the link group (link-mic and battles), by protobuf message
 // name. A new table gets a line here, and its route in src/routes/link.ts.
+import { BattleGameplayMessageSchema } from "./battleGameplay.js";
 import { LinkLayerMessageSchema } from "./linkLayer.js";
 import { LinkMessageSchema } from "./linkMessage.js";
 import { LinkMicArmiesSchema } from "./linkMicArmies.js";
 import { LinkMicBattleSchema } from "./linkMicBattle.js";
+import { LinkMicBattleNoticeSchema } from "./linkMicBattleNotice.js";
 import { LinkMicBattlePunishFinishSchema } from "./linkMicBattlePunishFinish.js";
 import { LinkMicBattleTaskSchema } from "./linkMicBattleTask.js";
 import { LinkMicFanTicketMethodSchema } from "./linkMicFanTicketMethod.js";
 import { LinkMicMethodSchema } from "./linkMicMethod.js";
+import { LinkMicOpponentGiftsSchema } from "./linkMicOpponentGifts.js";
 import { LinkStateMessageSchema } from "./linkState.js";
 import {
   LinkMicBattleItemCardSchema,
@@ -27,4 +30,7 @@ export const linkSchemas = Object.freeze({
   WebcastLinkStateMessage: LinkStateMessageSchema,
   WebcastLinkMicBattleItemCard: LinkMicBattleItemCardSchema,
   WebcastLinkMicLayoutStateMessage: LinkMicLayoutStateMessageSchema,
+  WebcastLinkmicBattleNoticeMessage: LinkMicBattleNoticeSchema,
+  WebcastLinkMicOpponentGifts: LinkMicOpponentGiftsSchema,
+  WebcastBattleGameplayMessage: BattleGameplayMessageSchema,
 });

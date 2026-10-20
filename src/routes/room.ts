@@ -1,6 +1,7 @@
 // The routes of the room group: the room's state, ranks, polls, shopping and
 // system messages. The rules are PROTOCOL.md's "Routing". A new message type
 // gets its route here and its table in src/codec/messages/room/.
+import { AnchorToolModificationMessageSchema } from "../codec/messages/room/anchorToolModification.js";
 import { ControlMessageSchema } from "../codec/messages/room/control.js";
 import { OecLiveShoppingMessageSchema } from "../codec/messages/room/oecLiveShopping.js";
 import { PerceptionMessageSchema } from "../codec/messages/room/perception.js";
@@ -89,5 +90,9 @@ export const roomRoutes: Readonly<Record<string, AnyRoute>> = Object.freeze({
   WebcastLiveGameIntroMessage: forward(
     "liveGameIntro",
     LiveGameIntroMessageSchema,
+  ),
+  WebcastAnchorToolModificationMessage: forward(
+    "anchorToolModification",
+    AnchorToolModificationMessageSchema,
   ),
 });

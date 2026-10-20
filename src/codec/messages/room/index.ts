@@ -1,6 +1,7 @@
 // The tables of the room group (room state, ranks, polls, shopping, system),
 // by protobuf message name. A new table gets a line here, and its route in
 // src/routes/room.ts.
+import { AnchorToolModificationMessageSchema } from "./anchorToolModification.js";
 import { ControlMessageSchema } from "./control.js";
 import { OecLiveShoppingMessageSchema } from "./oecLiveShopping.js";
 import { PerceptionMessageSchema } from "./perception.js";
@@ -42,4 +43,5 @@ export const roomSchemas = Object.freeze({
   WebcastPartnershipGameOfflineMessage: PartnershipGameOfflineMessageSchema,
   WebcastPartnershipPunishMessage: PartnershipPunishMessageSchema,
   WebcastLiveGameIntroMessage: LiveGameIntroMessageSchema,
+  WebcastAnchorToolModificationMessage: AnchorToolModificationMessageSchema,
 });

@@ -48,21 +48,25 @@ import type {
   ViewerPicksUpdateMessage,
 } from "./gift.js";
 import type {
+  BattleGameplayMessage,
   LinkLayerMessage,
   LinkMessage,
   LinkMicArmies,
   LinkMicBattle,
   LinkMicBattleItemCard,
+  LinkMicBattleNotice,
   LinkMicBattlePunishFinish,
   LinkMicBattleTask,
   LinkMicFanTicketMethod,
   LinkMicLayoutStateMessage,
   LinkMicMethod,
+  LinkMicOpponentGifts,
   LinkStateMessage,
 } from "./link.js";
 import type {
   AccessControlMessage,
   AccessRecallMessage,
+  AnchorToolModificationMessage,
   CapsuleMessage,
   ControlMessage,
   GameRankNotifyMessage,
@@ -213,6 +217,12 @@ export interface WebcastEventMap {
   linkMicBattleItemCard: LinkMicBattleItemCard;
   /** A link's layout changed. */
   linkMicLayoutState: LinkMicLayoutStateMessage;
+  /** A notice TikTok shows during a battle. */
+  linkMicBattleNotice: LinkMicBattleNotice;
+  /** A gift sent to another host of the battle. */
+  linkMicOpponentGifts: LinkMicOpponentGifts;
+  /** A gameplay of a battle changed, such as an ice showdown. */
+  battleGameplay: BattleGameplayMessage;
   /**
    * The LIVE ended. The connection disconnects (reason `streamEnd`) and
    * doesn't reconnect.
@@ -254,6 +264,8 @@ export interface WebcastEventMap {
   partnershipPunish: PartnershipPunishMessage;
   /** The LIVE's game intro. */
   liveGameIntro: LiveGameIntroMessage;
+  /** A host changed a tool, such as a camera filter. */
+  anchorToolModification: AnchorToolModificationMessage;
   /**
    * Every LIVE message before decoding, including the ones no other event
    * covers and backlog messages (`isHistory`). Duplicates are dropped.
@@ -329,6 +341,9 @@ export const WebcastEvent = Object.freeze({
   LINK_STATE: "linkState",
   LINK_MIC_BATTLE_ITEM_CARD: "linkMicBattleItemCard",
   LINK_MIC_LAYOUT_STATE: "linkMicLayoutState",
+  LINK_MIC_BATTLE_NOTICE: "linkMicBattleNotice",
+  LINK_MIC_OPPONENT_GIFTS: "linkMicOpponentGifts",
+  BATTLE_GAMEPLAY: "battleGameplay",
   STREAM_END: "streamEnd",
   CONTROL_MESSAGE: "controlMessage",
   ROOM_USER: "roomUser",
@@ -348,5 +363,6 @@ export const WebcastEvent = Object.freeze({
   PARTNERSHIP_GAME_OFFLINE: "partnershipGameOffline",
   PARTNERSHIP_PUNISH: "partnershipPunish",
   LIVE_GAME_INTRO: "liveGameIntro",
+  ANCHOR_TOOL_MODIFICATION: "anchorToolModification",
   RAW: "raw",
 } as const satisfies Record<string, WebcastEventName>);

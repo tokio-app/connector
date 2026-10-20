@@ -2,14 +2,17 @@
 // PROTOCOL.md's "Routing": every message of the group is forwarded as one
 // event. A new message type gets its route here and its table in
 // src/codec/messages/link/.
+import { BattleGameplayMessageSchema } from "../codec/messages/link/battleGameplay.js";
 import { LinkLayerMessageSchema } from "../codec/messages/link/linkLayer.js";
 import { LinkMessageSchema } from "../codec/messages/link/linkMessage.js";
 import { LinkMicArmiesSchema } from "../codec/messages/link/linkMicArmies.js";
 import { LinkMicBattleSchema } from "../codec/messages/link/linkMicBattle.js";
+import { LinkMicBattleNoticeSchema } from "../codec/messages/link/linkMicBattleNotice.js";
 import { LinkMicBattlePunishFinishSchema } from "../codec/messages/link/linkMicBattlePunishFinish.js";
 import { LinkMicBattleTaskSchema } from "../codec/messages/link/linkMicBattleTask.js";
 import { LinkMicFanTicketMethodSchema } from "../codec/messages/link/linkMicFanTicketMethod.js";
 import { LinkMicMethodSchema } from "../codec/messages/link/linkMicMethod.js";
+import { LinkMicOpponentGiftsSchema } from "../codec/messages/link/linkMicOpponentGifts.js";
 import { LinkStateMessageSchema } from "../codec/messages/link/linkState.js";
 import {
   LinkMicBattleItemCardSchema,
@@ -44,5 +47,17 @@ export const linkRoutes: Readonly<Record<string, AnyRoute>> = Object.freeze({
   WebcastLinkMicLayoutStateMessage: forward(
     "linkMicLayoutState",
     LinkMicLayoutStateMessageSchema,
+  ),
+  WebcastLinkmicBattleNoticeMessage: forward(
+    "linkMicBattleNotice",
+    LinkMicBattleNoticeSchema,
+  ),
+  WebcastLinkMicOpponentGifts: forward(
+    "linkMicOpponentGifts",
+    LinkMicOpponentGiftsSchema,
+  ),
+  WebcastBattleGameplayMessage: forward(
+    "battleGameplay",
+    BattleGameplayMessageSchema,
   ),
 });

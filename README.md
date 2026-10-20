@@ -58,7 +58,7 @@ import { WebcastEvent } from "@tokioapp/connector";
 connection.on(WebcastEvent.CHAT, (chat) => console.log(chat.content));
 ```
 
-Every LIVE message type is an event: 67 of them, from 62 message types. A LIVE message is decoded only when one of the events it leads to has a listener, so listening to many events costs nothing until they fire.
+Every LIVE message type is an event: 71 of them, from 66 message types. A LIVE message is decoded only when one of the events it leads to has a listener, so listening to many events costs nothing until they fire. Four message types (`linkMicBattleNotice`, `linkMicOpponentGifts`, `battleGameplay`, `anchorToolModification`) have no field numbers in any MIT reference: their tables were worked out from observed traffic, and read only the fields the traffic proved ([`PROTOCOL.md`](PROTOCOL.md), "Derived from traffic").
 
 ### Connection
 
@@ -134,36 +134,40 @@ Every LIVE message type is an event: 67 of them, from 62 message types. A LIVE m
 | `linkState`                 | The state of a link's users                                     | `LinkStateMessage`          | `stateType` (`LinkStateType`), `channelId`, `userStates`                                  |
 | `linkMicBattleItemCard`     | A battle card was used or awarded                               | `LinkMicBattleItemCard`     | `battleId`, `msgType` (`BattleCardMsgType`)                                               |
 | `linkMicLayoutState`        | A link's layout changed                                         | `LinkMicLayoutStateMessage` | `channelId`, `scene`, `version`                                                           |
+| `linkMicBattleNotice`       | A notice TikTok shows during a battle                           | `LinkMicBattleNotice`       | `noticeType` (`BattleNoticeType`), `commonGuide.displayText`                              |
+| `linkMicOpponentGifts`      | A viewer sent a gift to another host of the battle              | `LinkMicOpponentGifts`      | `battleId`, `fromUserId`, `giftToUserId`, `giftId`, `giftPrice`, `repeatCount`            |
+| `battleGameplay`            | A gameplay of a battle changed, such as an ice showdown         | `BattleGameplayMessage`     | `battleId`, `iceShowdownInfo` (`settingType`, `promptTimeMs`, `startTimeMs`)              |
 
 ### Room, ranks, polls, shopping and system
 
-| Event                    | Fires when                                            | Payload                         | Fields you'll use                                                  |
-| ------------------------ | ----------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------ |
-| `controlMessage`         | The LIVE's state changed: paused, resumed, ended      | `ControlMessage`                | `action`, `tips`, `extra`, `punishInfo`                            |
-| `roomUser`               | Viewer counts and the top viewers                     | `RoomUserMessage`               | `total` (watching now), `totalUser` (so far), `ranks`              |
-| `perception`             | A violation notice to the host                        | `PerceptionMessage`             | `dialog`, `punishInfo`                                             |
-| `rankUpdate`             | The host's ranks changed                              | `RankUpdateMessage`             | `updates`, `opType`                                                |
-| `rankText`               | A rank notice shown in the chat                       | `RankTextMessage`               | `content`, `scene`, `rankType`, `curUserId`                        |
-| `gameRankNotify`         | A game rank notice                                    | `GameRankNotifyMessage`         | `msgType`, `notifyText`                                            |
-| `pollMessage`            | A poll started, changed or ended                      | `PollMessage`                   | `pollId`, `startContent`, `updateVotesContent`, `endContent`       |
-| `oecLiveShopping`        | A shopping event: a product pinned, the product count | `OecLiveShoppingMessage`        | `actionType`, `popProduct`, `productSnapShot`, `liveProductNumber` |
-| `capsule`                | A capsule (a small prompt) TikTok shows               | `CapsuleMessage`                | `desc`, `type`, `scene`, `subScene`                                |
-| `marqueeAnnouncement`    | A marquee announcement                                | `MarqueeAnnouncementMessage`    | `messageScene`                                                     |
-| `speaker`                | A speaker message                                     | `SpeakerMessage`                | `common` only                                                      |
-| `inRoomBanner`           | An in-room banner                                     | `InRoomBannerMessage`           | `common` only                                                      |
-| `accessControl`          | An access control, such as a captcha                  | `AccessControlMessage`          | `captcha`                                                          |
-| `accessRecall`           | Access was revoked or restored                        | `AccessRecallMessage`           | `status`, `duration`, `endTime`, `punishInfo`                      |
-| `partnershipDropsUpdate` | A game partnership's drops changed                    | `PartnershipDropsUpdateMessage` | `changeMode`, `dropsId`, `taskId`, `eventId`                       |
-| `partnershipGameOffline` | Partnership games went offline                        | `PartnershipGameOfflineMessage` | `offlineGameList`                                                  |
-| `partnershipPunish`      | A partnership punishment                              | `PartnershipPunishMessage`      | `punishInfo`                                                       |
-| `liveGameIntro`          | The LIVE's game intro                                 | `LiveGameIntroMessage`          | `content`, `hasRankInfo`                                           |
+| Event                    | Fires when                                            | Payload                         | Fields you'll use                                                     |
+| ------------------------ | ----------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------- |
+| `controlMessage`         | The LIVE's state changed: paused, resumed, ended      | `ControlMessage`                | `action`, `tips`, `extra`, `punishInfo`                               |
+| `roomUser`               | Viewer counts and the top viewers                     | `RoomUserMessage`               | `total` (watching now), `totalUser` (so far), `ranks`                 |
+| `perception`             | A violation notice to the host                        | `PerceptionMessage`             | `dialog`, `punishInfo`                                                |
+| `rankUpdate`             | The host's ranks changed                              | `RankUpdateMessage`             | `updates`, `opType`                                                   |
+| `rankText`               | A rank notice shown in the chat                       | `RankTextMessage`               | `content`, `scene`, `rankType`, `curUserId`                           |
+| `gameRankNotify`         | A game rank notice                                    | `GameRankNotifyMessage`         | `msgType`, `notifyText`                                               |
+| `pollMessage`            | A poll started, changed or ended                      | `PollMessage`                   | `pollId`, `startContent`, `updateVotesContent`, `endContent`          |
+| `oecLiveShopping`        | A shopping event: a product pinned, the product count | `OecLiveShoppingMessage`        | `actionType`, `popProduct`, `productSnapShot`, `liveProductNumber`    |
+| `capsule`                | A capsule (a small prompt) TikTok shows               | `CapsuleMessage`                | `desc`, `type`, `scene`, `subScene`                                   |
+| `marqueeAnnouncement`    | A marquee announcement                                | `MarqueeAnnouncementMessage`    | `messageScene`                                                        |
+| `speaker`                | A speaker message                                     | `SpeakerMessage`                | `common` only                                                         |
+| `inRoomBanner`           | An in-room banner                                     | `InRoomBannerMessage`           | `common` only                                                         |
+| `accessControl`          | An access control, such as a captcha                  | `AccessControlMessage`          | `captcha`                                                             |
+| `accessRecall`           | Access was revoked or restored                        | `AccessRecallMessage`           | `status`, `duration`, `endTime`, `punishInfo`                         |
+| `partnershipDropsUpdate` | A game partnership's drops changed                    | `PartnershipDropsUpdateMessage` | `changeMode`, `dropsId`, `taskId`, `eventId`                          |
+| `partnershipGameOffline` | Partnership games went offline                        | `PartnershipGameOfflineMessage` | `offlineGameList`                                                     |
+| `partnershipPunish`      | A partnership punishment                              | `PartnershipPunishMessage`      | `punishInfo`                                                          |
+| `liveGameIntro`          | The LIVE's game intro                                 | `LiveGameIntroMessage`          | `content`, `hasRankInfo`                                              |
+| `anchorToolModification` | A host changed a tool, such as a camera filter        | `AnchorToolModificationMessage` | `modification` (`userId`, `name`, `startTime`, `endTime`, `duration`) |
 
 Numeric codes have named constants, so you needn't hard-code them: `MemberAction` (`UNKNOWN` 0, `JOINED` 1, `SUBSCRIBED` 3) for `member.actionId`, `EnvelopeBusinessType` (`SUPER_FAN_BOX` 19 among them) for `envelopeInfo.businessType`, `ControlAction` (`UNKNOWN` 0, `PAUSED` 1, `UNPAUSED` 2, `STREAM_ENDED` 3, `STREAM_SUSPENDED` 4) for `controlMessage.action` (3 and 4 are also a `streamEnd`), and one for every other enum field, documented on its field:
 
 - Users and emotes: `BadgeSceneType` (a badge's `sceneType`), `FansClubStatus` (`fansClub.data.status`), `PayStatus` (`subscribeInfo.status`), `PunishTypeId` (`punishInfo.punishTypeId`), `AuditStatus`, `EmoteType` and `EmoteScene` (an emote's `auditStatus`, `emoteType` and `emoteScene`).
 - Chat: `CommentTag` (`chat.commentTag`), `PinAction` (`roomPin.action`), `BottomBizType` (`bottomMessage.bizType`).
 - Gifts: `BarrageType`, `SubscribeType`, `OldSubscribeStatus`, `SubscribingStatus`, `SubNotifyMessageType`, `SubGiftSource`, `ExhibitionType`, `SubPinAction`, `PinCardType`, `PinCardTextType`, `GoalMessageSource`.
-- Link-mic and battles: `BattleAction`, `BattleStatus`, `BattleResult`, `BattleType`, `ArmiesTriggerReason`, `PunishFinishReason`, `BattleTaskMessageType`, `BattleTaskResult`, `BattleCardMsgType`, `LinkLayerMessageType`, `LinkScene`, `LinkerMode`, `LinkerUserType`, `KickoutReason`, `AgreeStatus`, `LinkListStatus`, `LinkRoleType`, `LinkType`, `MuteStatus`, `MediaState`, `LinkStateType`, `OnlineUserState`, `LinkmicReplyType`, `GuestMicCameraManageOp`.
+- Link-mic and battles: `BattleAction`, `BattleStatus`, `BattleResult`, `BattleType`, `ArmiesTriggerReason`, `PunishFinishReason`, `BattleTaskMessageType`, `BattleTaskResult`, `BattleCardMsgType`, `BattleNoticeType`, `IceShowdownSetting`, `LinkLayerMessageType`, `LinkScene`, `LinkerMode`, `LinkerUserType`, `KickoutReason`, `AgreeStatus`, `LinkListStatus`, `LinkRoleType`, `LinkType`, `MuteStatus`, `MediaState`, `LinkStateType`, `OnlineUserState`, `LinkmicReplyType`, `GuestMicCameraManageOp`.
 - Room: `ProfitRankType`, `RankOpType`, `ClassType`, `RankTextScene`, `GameRankMsgType`, `PollKind`, `PollEndType`, `PerceptionIconType`, `PartnershipChangeMode`, `OfflineType`.
 
 The fields stay plain numbers: TikTok may send values the constants don't name.
@@ -471,7 +475,7 @@ This library will replace [tiktok-live-connector](https://github.com/zerodytrash
 | Node                 | 24 and later                                                                                         | 20 and later                                                                                      |
 | Reconnecting         | Built in: backoff with jitter, resumes from the cursor, drops duplicates, reconnects a silent stream | Call `connect()` again yourself                                                                   |
 | Decoding             | Lazy: only the messages you listen to                                                                | Every known message type, unless configured to skip it                                            |
-| Events               | 67 LIVE events from 62 message types, plus `raw`                                                     | Over 60: polls, battles, questions, goals and more                                                |
+| Events               | 71 LIVE events from 66 message types, plus `raw`                                                     | Over 60: polls, battles, questions, goals and more                                                |
 | Errors               | One base class with `code` and `retryable`                                                           | Its own error classes                                                                             |
 | Signer API key       | Per signer, sent only in the `x-api-key` header                                                      | The `signApiKey` option, written to a global config, or `SIGN_API_KEY`                            |
 | Only there           |                                                                                                      | Sending chat messages, the mobile connection, proxy settings for its HTTP and WebSocket clients   |

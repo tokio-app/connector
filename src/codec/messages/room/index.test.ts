@@ -22,6 +22,7 @@ describe("roomSchemas", () => {
       "WebcastPartnershipGameOfflineMessage",
       "WebcastPartnershipPunishMessage",
       "WebcastLiveGameIntroMessage",
+      "WebcastAnchorToolModificationMessage",
     ]);
     for (const [name, schema] of Object.entries(roomSchemas)) {
       expect(schema.name).toBe(name);

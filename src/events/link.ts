@@ -1,7 +1,9 @@
 // The link group: link-mic and battles. The tables are in
 // src/codec/messages/link/, the routes in src/routes/link.ts. Field numbers:
-// PROTOCOL.md, "LIVE messages", from reference/src/TikTok-Webcast-Protobuf.
-import type { Common, Image, User } from "./shared.js";
+// PROTOCOL.md, "LIVE messages", from reference/src/TikTok-Webcast-Protobuf,
+// except the battle notices, opponent gifts and battle gameplay, derived from
+// observed traffic.
+import type { Common, Image, Text, User } from "./shared.js";
 
 /**
  * The values of {@link LinkMicBattle.action} TikTok defines
@@ -452,6 +454,44 @@ export const GuestMicCameraManageOp = Object.freeze({
   CLOSE_CAMERA: 3,
   /** The mic was turned off as a punishment. */
   CLOSE_MIC_PUNISH: 4,
+} as const);
+
+/**
+ * The values of {@link LinkMicBattleNotice.noticeType} TikTok defines
+ * (`BattleNoticeType`, from the names of the MIT types-only package; traffic
+ * has only shown `6`).
+ */
+export const BattleNoticeType = Object.freeze({
+  /** A guide for the host. */
+  ANCHOR_GUIDE: 0,
+  /** A toast. */
+  TOAST: 1,
+  /** A bubble. */
+  BUBBLE_GUIDE: 2,
+  /** A gift guide for the host. */
+  ANCHOR_GIFT_GUIDE: 3,
+  /** The rules. */
+  RULE_GUIDE: 4,
+  /** A multi-match guide for the host. */
+  ANCHOR_MULTI_MATCH_GUIDE: 5,
+  /** A notice in the chat ({@link LinkMicBattleNotice.commonGuide}). */
+  COMMON_GUIDE: 6,
+  /** An extremely high score. */
+  EXTREME_HIGH_SCORE: 7,
+} as const);
+
+/**
+ * The values of {@link IceShowdownInfo.settingType} TikTok defines
+ * (`IceShowdownSetting`, from the names of the MIT types-only package; traffic
+ * has only shown `2`).
+ */
+export const IceShowdownSetting = Object.freeze({
+  /** Off. */
+  OFF: 0,
+  /** Started by a host. */
+  MANUAL: 1,
+  /** Started by TikTok. */
+  SYSTEM: 2,
 } as const);
 
 /** A participant of a link, by room and user id. */
@@ -1114,4 +1154,90 @@ export interface LinkMicLayoutStateMessage {
   scene: number;
   /** The layout's version. */
   version: number;
+}
+
+/** A battle notice shown in the chat. */
+export interface BattleNoticeCommonGuide {
+  /**
+   * The text: its key, such as `pm_mt_match_comment_toUpdateApp_hammer`, and
+   * its fallback pattern.
+   */
+  displayText?: Text;
+  /** Whether the hosts don't see it. */
+  exceptAnchor: boolean;
+}
+
+/**
+ * A notice TikTok shows during a battle, such as a hammer effect
+ * (`linkMicBattleNotice` event). The table was derived from observed traffic:
+ * only the notices in the chat (`noticeType` 6) are read.
+ */
+export interface LinkMicBattleNotice {
+  /** Data every message carries. */
+  common?: Common;
+  /**
+   * The kind of notice: `6` a notice in the chat ({@link BattleNoticeType}).
+   * Other values may come: it stays a number.
+   */
+  noticeType: number;
+  /** The notice in the chat, when `noticeType` is `6`. */
+  commonGuide?: BattleNoticeCommonGuide;
+}
+
+/**
+ * A gift a viewer sent to another host of the battle, not this room's
+ * (`linkMicOpponentGifts` event). The table was derived from observed
+ * traffic.
+ */
+export interface LinkMicOpponentGifts {
+  /** Data every message carries. */
+  common?: Common;
+  /** The battle id. */
+  battleId: string;
+  /** The link channel. */
+  channelId: string;
+  /** Who sent the gift. */
+  fromUserId: string;
+  /** The host the gift went to. */
+  giftToUserId: string;
+  /** The gift. */
+  giftId: string;
+  /** How many of the gift this message counts. */
+  giftCount: number;
+  /** What one gift costs, in coins. */
+  giftPrice: number;
+  /** The gift's icon. */
+  giftIconImage?: Image;
+  /** How many of the gift were sent so far in this streak. */
+  repeatCount: number;
+  /** When the gift was sent, as a decimal string (milliseconds). */
+  sendGiftSuccessTime: string;
+  /** When the battle score was updated, as a decimal string (milliseconds). */
+  updateBattleScoreTime: string;
+}
+
+/** An ice showdown in a battle: when it is announced and when it starts. */
+export interface IceShowdownInfo {
+  /**
+   * How it was set: `1` by a host, `2` by TikTok ({@link IceShowdownSetting}).
+   * Other values may come: it stays a number.
+   */
+  settingType: number;
+  /** When it is announced, as a decimal string (milliseconds). */
+  promptTimeMs: string;
+  /** When it starts, as a decimal string (milliseconds). */
+  startTimeMs: string;
+}
+
+/**
+ * A gameplay of a battle changed, such as an ice showdown (`battleGameplay`
+ * event). The table was derived from observed traffic.
+ */
+export interface BattleGameplayMessage {
+  /** Data every message carries. */
+  common?: Common;
+  /** The battle id. */
+  battleId: string;
+  /** The ice showdown, for one. */
+  iceShowdownInfo?: IceShowdownInfo;
 }

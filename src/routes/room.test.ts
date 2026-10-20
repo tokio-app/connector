@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FetchResultMessage } from "../codec/messages/fetchResult.js";
+import { AnchorToolModificationMessageSchema } from "../codec/messages/room/anchorToolModification.js";
 import { ControlMessageSchema } from "../codec/messages/room/control.js";
 import { OecLiveShoppingMessageSchema } from "../codec/messages/room/oecLiveShopping.js";
 import { PerceptionMessageSchema } from "../codec/messages/room/perception.js";
@@ -296,6 +297,23 @@ const FORWARDS = [
     }),
     expected: { content: { key: "k", defaultPattern: "" }, hasRankInfo: true },
   },
+  {
+    method: "WebcastAnchorToolModificationMessage",
+    event: "anchorToolModification",
+    payload: encodeMessage(AnchorToolModificationMessageSchema, {
+      modification: { userId: "6900000000000000001", name: "A Filter" },
+    }),
+    expected: {
+      modification: {
+        roomId: "0",
+        userId: "6900000000000000001",
+        name: "A Filter",
+        startTime: "0",
+        endTime: "0",
+        duration: 0,
+      },
+    },
+  },
 ] as const;
 
 describe("roomRoutes", () => {
@@ -326,6 +344,7 @@ describe("roomRoutes", () => {
       WebcastPartnershipGameOfflineMessage: ["partnershipGameOffline"],
       WebcastPartnershipPunishMessage: ["partnershipPunish"],
       WebcastLiveGameIntroMessage: ["liveGameIntro"],
+      WebcastAnchorToolModificationMessage: ["anchorToolModification"],
     });
     for (const [method, route] of Object.entries(roomRoutes)) {
       expect(route.always).toBe(

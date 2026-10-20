@@ -79,6 +79,9 @@ describe("linkDescribers", () => {
       "linkMessage",
       "linkLayer",
       "linkState",
+      "linkMicBattleNotice",
+      "linkMicOpponentGifts",
+      "battleGameplay",
     ]);
   });
 
@@ -357,5 +360,77 @@ describe("linkDescribers", () => {
     expect(
       linkDescribers.linkState({ ...state, stateType: 42, userStates: [] }),
     ).toBe("link state (type 42) in channel 72: no users");
+  });
+
+  it("describes a battle notice by its type and text", () => {
+    expect(
+      linkDescribers.linkMicBattleNotice({
+        noticeType: 6,
+        commonGuide: {
+          displayText: { key: "pm_mt_notice", defaultPattern: "A hammer hit" },
+          exceptAnchor: true,
+        },
+      }),
+    ).toBe('battle notice common guide: pm_mt_notice "A hammer hit"');
+    expect(linkDescribers.linkMicBattleNotice({ noticeType: 1 })).toBe(
+      "battle notice toast",
+    );
+    expect(linkDescribers.linkMicBattleNotice({ noticeType: 42 })).toBe(
+      "battle notice (type 42)",
+    );
+  });
+
+  it("describes a gift to another host: who, which gift, its price and the streak", () => {
+    const gifts = {
+      battleId: "73",
+      channelId: "72",
+      fromUserId: "101",
+      giftToUserId: "22",
+      giftId: "5655",
+      giftCount: 1,
+      giftPrice: 1,
+      repeatCount: 1,
+      sendGiftSuccessTime: "0",
+      updateBattleScoreTime: "0",
+    };
+    expect(linkDescribers.linkMicOpponentGifts(gifts)).toBe(
+      "battle 73: 101 sent gift 5655 x1 (1 coin each, streak 1) to 22",
+    );
+    expect(
+      linkDescribers.linkMicOpponentGifts({
+        ...gifts,
+        giftCount: 3,
+        giftPrice: 1_088,
+        repeatCount: 12,
+      }),
+    ).toBe(
+      "battle 73: 101 sent gift 5655 x3 (1,088 coins each, streak 12) to 22",
+    );
+  });
+
+  it("describes a battle gameplay: the ice showdown's setting and lead", () => {
+    expect(
+      linkDescribers.battleGameplay({
+        battleId: "73",
+        iceShowdownInfo: {
+          settingType: 2,
+          promptTimeMs: "1760000000000",
+          startTimeMs: "1760000005000",
+        },
+      }),
+    ).toBe("battle 73 ice showdown, system, starts 5,000 ms after its prompt");
+    expect(
+      linkDescribers.battleGameplay({
+        battleId: "73",
+        iceShowdownInfo: {
+          settingType: 9,
+          promptTimeMs: "0",
+          startTimeMs: "0",
+        },
+      }),
+    ).toBe("battle 73 ice showdown, (setting 9), starts 0 ms after its prompt");
+    expect(linkDescribers.battleGameplay({ battleId: "73" })).toBe(
+      "battle 73 gameplay",
+    );
   });
 });

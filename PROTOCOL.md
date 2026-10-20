@@ -7,6 +7,10 @@ TikTok doesn't document any of it. Everything here was learned by reading the MI
 - `[TLC: …]`: `reference/src/TikTok-Live-Connector/…`, tiktok-live-connector 2.4.0 at commit `54ff9a9` (the npm build is in `reference/tiktok-live-connector-2.4.0/package`). "2.4.0" below means this release.
 - `[proto: …]`: `reference/src/TikTok-Webcast-Protobuf/src/slim/v3/…`, the `.proto` sources of tiktok-live-proto 0.2.3 at commit `9e34a85`.
 - `[Euler: …]`: <https://www.eulerstream.com/docs>, read on 2026-10-19 (the API reference pages and the OpenAPI data they embed).
+- `[types: …]`: `reference/src/TikTok-Webcast-Protobuf/targets/typescript/tiktok-live-proto-full-types/src/generated/v3/…`, the MIT types-only package `tiktok-live-proto-full-types` 0.1.0 in the same repository at commit `9e34a85`: the names and TypeScript types of the full schema's fields, sorted alphabetically, and its enums' values, with no field numbers. Read only for names, types and enum values.
+- `[traffic: …]`: what captures of real LIVEs held, read with `yarn inspect` (field numbers, wire types and values, without a table). A capture is named by what it recorded and when, never by user, and stays out of the repository.
+
+The repository's `targets/typescript/tiktok-live-proto-full/` (Euler Stream's private package, `UNLICENSED`) isn't MIT and isn't used; `yarn reference` deletes it.
 
 ## Contents
 
@@ -509,7 +513,13 @@ In `src/codec/messages/common.ts`.
 
 ### LIVE messages
 
-All in package `webcast.model.message` [proto: webcast/model/message/messages.proto] unless noted. Field 1 is always `common` (`CommonMessageData`, → `common`, message). The tables are in `src/codec/messages/<group>/`, one file per message (tail messages, with a few scalars each, share `tail.ts`), registered in the group's `index.ts`. Each of the 62 message types below has a table and a route ([Routing](#routing)); a message type without one (one TikTok adds later) reaches `raw` only.
+All in package `webcast.model.message` [proto: webcast/model/message/messages.proto] unless noted. Field 1 is always `common` (`CommonMessageData`, → `common`, message). The tables are in `src/codec/messages/<group>/`, one file per message (tail messages, with a few scalars each, share `tail.ts`), registered in the group's `index.ts`. Each of the 66 message types below has a table and a route ([Routing](#routing)); a message type without one (one TikTok adds later) reaches `raw` only. 62 come from the 0.2.3 protos. The other 4 aren't in any `.proto` of the reference: their field numbers were derived from traffic.
+
+#### Derived from traffic
+
+`WebcastLinkMicOpponentGifts`, `WebcastLinkmicBattleNoticeMessage`, `WebcastBattleGameplayMessage` and `WebcastAnchorToolModificationMessage` have names and types in [types], but no MIT reference gives their field numbers. They were read from two captures of one LIVE during PK battles [traffic]: **capture A** (2026-10-20, 5 min, 327 messages, the end of a team battle) and **capture B** (2026-10-20, 20 min, 781 messages, starting 4 min into A: the end of A's battle, a team battle from start to end and the start of an individual one). Counts below are of distinct messages (by `msgId`) across both.
+
+A field is read only with evidence: a value that matches something the library already decodes in the same capture (a battle id, a channel id, a host's or a supporter's user id, a gift's id, price or image), or an unambiguous match between the wire shape and a name and type in [types] (the only field of its type, say). The other fields stay unread: lenient decoding skips them. Each field's confidence is **sure** (the value or shape leaves no other reading) or **likely** (the values fit, but another name of [types] could too). `common` (1) is the same `CommonMessageData` as in every message, decoded cleanly in every sample. The table tests use made-up bytes shaped like the observed ones, never bytes from a capture.
 
 #### Chat, reactions and moderation (`messages/chat/`)
 
@@ -1150,6 +1160,44 @@ The tail (`link/tail.ts`), each with `common` (1):
 - `WebcastLinkMicBattleItemCard` [proto: webcast/model/message/messages.proto, line 1458] (`LinkMicBattleItemCardSchema`): `battle_id` (2, int64) → `battleId`, id; `msg_type` (3, `webcast.im.BattleCardMsgType`) → `msgType`, enum; `award_reason` (16, int32) → `awardReason`, int32. Not read: the card contents (4–15, one message per kind of card). 2.4.0 has no route for it ([Open items](#open-items) 45). `BattleCardMsgType` [proto: webcast/im.proto, line 55]: `UNKNOWN_CARD_ACTION` 0, `CARD_OBTAIN_GUIDE` 1, `USE_CRITICAL_STRIKE_CARD` 2, `USE_SMOKE_CARD` 3, `AWARD_CARD_NOTICE` 4, `USE_EXTRA_TIME_CARD` 5, `USE_SPECIAL_EFFECT_CARD` 6, `USE_POTION_CARD` 7, `USE_WAVE_CARD` 8, `SPECIAL_EFFECT_NOTICE` 9, `USE_TOP_2_CARD` 10, `USE_TOP_3_CARD` 11, `USE_VAULT_GLOVE_CARD` 12; exported as `BattleCardMsgType` (`UNKNOWN` for 0).
 - `WebcastLinkMicLayoutStateMessage` [proto: webcast/im.proto, line 592, package `webcast.im`] (`LinkMicLayoutStateMessageSchema`): `channel_id` (2, int64) → `channelId`, id; `scene` (3, int32) → `scene`, int32 (an int32 here, not the `Scene` enum of the link-layer and link-state messages); `version` (4, int64) → `version`, count. Not read: `biz_layout_state` (5), `biz_spot_list` (6).
 
+Derived from traffic ([Derived from traffic](#derived-from-traffic)): "Name" is the field's name in [types], "Wire" what the bytes held.
+
+`WebcastLinkMicOpponentGifts` [types: webcast/model/message/messages.ts, line 2700] (`link/linkMicOpponentGifts.ts`): 55 messages, in all three battles. A gift a viewer sent to another host of the battle: `gift_to_user_id` was never this room's host, whose gifts come as `WebcastGiftMessage`.
+
+| No. | Wire   | Name                    | Property                | Kind    | Evidence                                                                                                                        | Confidence |
+| --- | ------ | ----------------------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 2   | varint | `battleId`              | `battleId`              | id      | the `battle_id` of the `WebcastLinkMicBattle` in progress, in all 55                                                            | sure       |
+| 3   | varint | `channelId`             | `channelId`             | id      | the battle's `BattleSetting.channel_id`, in all 55                                                                              | sure       |
+| 4   | varint | `fromUserId`            | `fromUserId`            | id      | 13 users, each the `from_user_id` of a `WebcastLinkMicArmies` (10 also among its supporters)                                    | sure       |
+| 5   | varint | `giftToUserId`          | `giftToUserId`          | id      | always a host of the battle (a key of `anchors_info`)                                                                           | sure       |
+| 6   | varint | `giftId`                | `giftId`                | id      | 15 gifts: 13 also in `WebcastLinkMicArmies.gift_id`, 4 in `WebcastGiftMessage`; one price and one icon per id                   | sure       |
+| 7   | varint | `giftCount`             | `giftCount`             | count   | 1 to 3; within a streak, field 10 grows by this field from one message to the next when none is missing                         | likely     |
+| 8   | varint | `giftPrice`             | `giftPrice`             | count   | the gift's `diamond_count` in `WebcastGiftMessage` for the 4 gifts seen in both (1, 1, 30 and 100 coins); one value per gift id | sure       |
+| 9   | LEN    | `giftIconImage`         | `giftIconImage`         | message | decodes as an `ImageModel` (`url_list` 1, `uri` 2); its `uri` is the gift image's in `WebcastGiftMessage` for 3 gifts           | sure       |
+| 10  | varint | `repeatCount`           | `repeatCount`           | count   | 1 to 10, counting up within a streak (one sender, one gift)                                                                     | likely     |
+| 11  | varint | `sendGiftSuccessTime`   | `sendGiftSuccessTime`   | id (ms) | a time in milliseconds, never after field 12 (all 55)                                                                           | likely     |
+| 12  | varint | `updateBattleScoreTime` | `updateBattleScoreTime` | id (ms) | a time in milliseconds, between field 11 and `common.create_time` (all 55)                                                      | likely     |
+
+Not read: 13 (a string of a date and hex digits: `logId` in [types]) and 14 (a message, empty in every sample: `enigmaBattleExtraInfo`, two bools in [types]). [types] names no other field.
+
+`WebcastLinkmicBattleNoticeMessage` [types: webcast/model/message/merged.ts, line 712] (`link/linkMicBattleNotice.ts`): 5 messages, all of type 6, with two text keys (`pm_mt_match_comment_toUpdateApp_hammer`, `ttlive_liveMatch_inviteFail_versionUpdateToast`).
+
+| No. | Wire   | Name          | Property      | Kind    | Evidence                                                                                                                                                                                                               | Confidence |
+| --- | ------ | ------------- | ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 2   | varint | `noticeType`  | `noticeType`  | enum    | the message's only scalar in [types]; always 6, `COMMON_GUIDE` in [types: webcast/im.ts, line 85], and the one message field set (8) has the common guide's shape                                                      | sure       |
+| 8   | LEN    | `commonGuide` | `commonGuide` | message | set in every sample; a `Text` and a bool, the shape of `BattleNoticeCommonGuide` (`displayText: Text`, `exceptAnchor: boolean`) [types: webcast/model/message/messages.ts, line 351] and of no other notice in [types] | sure       |
+
+`BattleNoticeCommonGuide` (`BattleNoticeCommonGuideSchema`): 1 (LEN) → `displayText`, message: decodes as a `Text` (`key` 1, `default_pattern` 2), sure; 2 (varint, always 1) → `exceptAnchor`, bool: the guide's only bool, likely. Not read: the other kinds of notice ([types] names `toast`, `anchorGuide`, `bubbleGuide`, `anchorGiftGuide`, `ruleGuide`, `anchorMatchSettingsNotice` and `extremeHighScoreNotice`), whose field numbers no capture has shown. `BattleNoticeType` [types: webcast/im.ts, line 85]: `ANCHOR_GUIDE` 0, `TOAST` 1, `BUBBLE_GUIDE` 2, `ANCHOR_GIFT_GUIDE` 3, `RULE_GUIDE` 4, `ANCHOR_MULTI_MATCH_GUIDE` 5, `COMMON_GUIDE` 6, `EXTREME_HIGH_SCORE` 7; exported as `BattleNoticeType`.
+
+`WebcastBattleGameplayMessage` [types: webcast/model/message/messages.ts, line 2062] (`link/battleGameplay.ts`): 1 message (capture B, in the second battle).
+
+| No. | Wire   | Name              | Property          | Kind    | Evidence                                                                                                             | Confidence |
+| --- | ------ | ----------------- | ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 2   | varint | `battleId`        | `battleId`        | id      | the `battle_id` of the `WebcastLinkMicBattle` in progress                                                            | sure       |
+| 5   | LEN    | `iceShowdownInfo` | `iceShowdownInfo` | message | the only message field besides `common` in [types] and on the wire; an enum and two times, `IceShowdownInfo`'s shape | sure       |
+
+`IceShowdownInfo` [types: webcast/model/live/match.ts, line 226] (`IceShowdownInfoSchema`): 1 (varint, 2) → `settingType`, enum: the only field that isn't a time, sure; 2 and 3 (varints, times in milliseconds 5 s apart, 14 and 19 s after `common.create_time`) → `promptTimeMs` and `startTimeMs`, ids: a prompt comes before the start, likely. Not read: the message's 3 and 4 (varints, 2 and 1): `gameplayType` and `updateType` in [types], which one sample can't tell apart. `IceShowdownSetting` [types: webcast/model/data/messages.ts, line 580]: `ICE_SHOWDOWN_OFF` 0, `ICE_SHOWDOWN_MANUAL` 1, `ICE_SHOWDOWN_SYSTEM` 2; exported as `IceShowdownSetting` without the prefix.
+
 #### Room, ranks, polls, shopping and system (`messages/room/`)
 
 `WebcastRoomUserSeqMessage` (`room/roomUser.ts`)
@@ -1256,6 +1304,23 @@ The tail (`room/tail.ts`), each with `common` (1) [proto: webcast/model/message/
 - `WebcastPartnershipPunishMessage` [line 1694] (`PartnershipPunishMessageSchema`): `punish_info` (2, `PunishEventInfo`) → `punishInfo`, message.
 - `WebcastLiveGameIntroMessage` [line 1581] (`LiveGameIntroMessageSchema`): `content` (2, `Text`) → `content`, message; `has_rank_info` (3, bool) → `hasRankInfo`, bool.
 
+Derived from traffic ([Derived from traffic](#derived-from-traffic)):
+
+`WebcastAnchorToolModificationMessage` [types: webcast/model/message/messages.ts, line 2006] (`room/anchorToolModification.ts`): 6 messages, all during battles, about two of the battle's hosts (this room's and another). `modification` (2, LEN) → `modification`, message: the only field besides `common` in [types] and on the wire, sure.
+
+`AnchorToolModification` [types: webcast/model/message/messages.ts, line 128] (`AnchorToolModificationSchema`):
+
+| No. | Wire   | Name        | Property    | Kind   | Evidence                                                                                                                | Confidence |
+| --- | ------ | ----------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | varint | `roomId`    | `roomId`    | id     | the capture's room id (`common.room_id`) whenever field 2 is this room's host; another, constant id with the other host | sure       |
+| 2   | varint | `userId`    | `userId`    | id     | always a host of the battle (a key of `anchors_info`)                                                                   | sure       |
+| 4   | LEN    | `name`      | `name`      | string | a camera filter's display name, one per tool; the only name in [types]                                                  | likely     |
+| 10  | varint | `startTime` | `startTime` | id (s) | a time in seconds, in every sample                                                                                      | likely     |
+| 11  | varint | `endTime`   | `endTime`   | id (s) | a time in seconds, only in the samples where the tool ended                                                             | likely     |
+| 12  | varint | `duration`  | `duration`  | count  | field 11 minus field 10, in all 3 samples that have both                                                                | sure       |
+
+Not read, for lack of evidence: 3 (a varint, one value per tool), 5 (a decimal id in a string, one per tool), 6 (always 1), 8 (1 when the tool started, 2 when it ended), 21 (a string, `trending` in every sample), 23 (1 or 2) and 26 (a string: `normal_video_live`, `video_anchor_pk`). [types] has more names than there are fields left (`effectId`, `resourceId`, `status`, `msgType`, `modificationType`, `tab`, `scene` and `mode` among them), and the values don't tell which is which.
+
 ## Routing
 
 Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table per group (`src/routes/<group>.ts`). A message is decoded only when one of its route's events has a listener; control messages are always decoded. When a message type leads to a base event and a derived one (`social` and `follow`, `barrage` and `superFan`, `controlMessage` and `streamEnd`), the base event is emitted first, then the derived one. The one exception is kept from 0.1.0: a super fan box is a `superFanBox` before it is an `envelope`, so listeners of 0.1.0 see the order they saw. A nested message (the comment inside a pin) is not emitted again as its own event. Routing never branches on enum values only traffic can confirm: text keys and business types only.
@@ -1307,19 +1372,22 @@ Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table
 
 ### Link-mic and battles
 
-| Message                            | Events                      | Rule                                                                       |
-| ---------------------------------- | --------------------------- | -------------------------------------------------------------------------- |
-| `WebcastLinkMicBattle`             | `linkMicBattle`             | always, whatever `action`                                                  |
-| `WebcastLinkMicArmies`             | `linkMicArmies`             | always                                                                     |
-| `WebcastLinkMicBattlePunishFinish` | `linkMicBattlePunishFinish` | always                                                                     |
-| `WebcastLinkmicBattleTaskMessage`  | `linkMicBattleTask`         | always                                                                     |
-| `WebcastLinkMicFanTicketMethod`    | `linkMicFanTicketMethod`    | always                                                                     |
-| `WebcastLinkMicMethod`             | `linkMicMethod`             | always, whatever `messageType`                                             |
-| `WebcastLinkMessage`               | `linkMessage`               | always, whatever `messageType`: the content that is set says what happened |
-| `WebcastLinkLayerMessage`          | `linkLayer`                 | always, whatever `messageType`                                             |
-| `WebcastLinkStateMessage`          | `linkState`                 | always, whatever `stateType`                                               |
-| `WebcastLinkMicBattleItemCard`     | `linkMicBattleItemCard`     | always (not routed by 2.4.0; the `method` is the message's name)           |
-| `WebcastLinkMicLayoutStateMessage` | `linkMicLayoutState`        | always                                                                     |
+| Message                             | Events                      | Rule                                                                       |
+| ----------------------------------- | --------------------------- | -------------------------------------------------------------------------- |
+| `WebcastLinkMicBattle`              | `linkMicBattle`             | always, whatever `action`                                                  |
+| `WebcastLinkMicArmies`              | `linkMicArmies`             | always                                                                     |
+| `WebcastLinkMicBattlePunishFinish`  | `linkMicBattlePunishFinish` | always                                                                     |
+| `WebcastLinkmicBattleTaskMessage`   | `linkMicBattleTask`         | always                                                                     |
+| `WebcastLinkMicFanTicketMethod`     | `linkMicFanTicketMethod`    | always                                                                     |
+| `WebcastLinkMicMethod`              | `linkMicMethod`             | always, whatever `messageType`                                             |
+| `WebcastLinkMessage`                | `linkMessage`               | always, whatever `messageType`: the content that is set says what happened |
+| `WebcastLinkLayerMessage`           | `linkLayer`                 | always, whatever `messageType`                                             |
+| `WebcastLinkStateMessage`           | `linkState`                 | always, whatever `stateType`                                               |
+| `WebcastLinkMicBattleItemCard`      | `linkMicBattleItemCard`     | always (not routed by 2.4.0; the `method` is the message's name)           |
+| `WebcastLinkMicLayoutStateMessage`  | `linkMicLayoutState`        | always                                                                     |
+| `WebcastLinkmicBattleNoticeMessage` | `linkMicBattleNotice`       | always (not routed by 2.4.0; the table is derived from traffic)            |
+| `WebcastLinkMicOpponentGifts`       | `linkMicOpponentGifts`      | always (not routed by 2.4.0; the table is derived from traffic)            |
+| `WebcastBattleGameplayMessage`      | `battleGameplay`            | always (not routed by 2.4.0; the table is derived from traffic)            |
 
 ### Room, ranks, polls, shopping and system
 
@@ -1343,6 +1411,7 @@ Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table
 | `WebcastPartnershipGameOfflineMessage` | `partnershipGameOffline`      | always                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `WebcastPartnershipPunishMessage`      | `partnershipPunish`           | always                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `WebcastLiveGameIntroMessage`          | `liveGameIntro`               | always                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `WebcastAnchorToolModificationMessage` | `anchorToolModification`      | always (not routed by 2.4.0; the table is derived from traffic)                                                                                                                                                                                                                                                                                                                                           |
 
 ## Reconnects
 
@@ -1480,6 +1549,8 @@ What the references and docs can't settle. `yarn capture` on the user's own LIVE
 43. **Enums whose 0 means something.** `BattleResult_Result` (`WIN` 0), `MuteStatus` (`MUTE` 0), `GuestMicCameraManageOp` (`OPEN_MIC` 0), `BattleTaskMessageType` (`START` 0), `BattleTaskSettle_Result` (`SUCCEED` 0) and `LinkMicBattlePunishFinish_Reason` (`TIME_UP` 0) give 0 a meaning. Proto3 never writes a field at 0, so these values always arrive as a missing field, and a field TikTok really left unset reads the same: a battle result without `result` is a win, a mute without `mute_status` a mute. A capture of a battle that ends (with a loss or a draw) and of a guest being muted and unmuted checks that the payloads read right.
 44. **Names in the link layer.** `WebcastLinkLayerMessage` and `WebcastLinkStateMessage` carry `Player`s (a room id and a user id), no names. The names are in `WebcastLinkLayerMessage.business_content` (200, `chatroom.model.multiguestv3.BusinessContent`), several levels deep and skipped. If apps need them, a later version reads the part that holds them; a capture shows how often it is set and how big it is.
 45. **`WebcastLinkMicBattleItemCard`.** The 0.2.3 protos have the message, but 2.4.0 has no route for it [TLC: src/types/events.ts], so its `method` (the message's name, as for every other message) and when it comes are unconfirmed. `award_reason` (16) has no enum, and the card contents (4–15) aren't read: `msg_type` says which card.
+46. **The tables derived from traffic.** `WebcastLinkMicOpponentGifts`, `WebcastLinkmicBattleNoticeMessage` and `WebcastBattleGameplayMessage` ([Derived from traffic](#derived-from-traffic)) were read from one LIVE's battles. Only likely: which of `giftCount` (7) and `repeatCount` (10) is which (every count above 1 came from one streak), the order of the two gift times (11, 12) and of the ice showdown's (2, 3), and `exceptAnchor`. Notices of types other than 6, and gameplays other than an ice showdown, haven't been seen: their fields aren't read until a capture shows them (`yarn inspect --method …`), and the gameplay's 3 and 4 wait for more samples.
+47. **`WebcastCohostLayoutUpdateMessage`.** _No event._ 4 messages in capture B, during battles. No reference names it, not even [types]. It holds one message (2) with the link channel id (2.4, the battle's `channel_id`), a number that differs in each (2.3), a layout (2.1: an id and a name, `cohost_normal_expand_4`) and four slots (2.2, positions 1 to 4, each with a string that starts with a room id, this room's in one of them). Without names for any of it, it stays on `raw`.
 
 **Room, ranks, polls, shopping and system** (items 50–59):
 
@@ -1490,3 +1561,4 @@ What the references and docs can't settle. `yarn capture` on the user's own LIVE
 54. **Host-side messages.** `WebcastPerceptionMessage` (violation notices), `WebcastAccessControlMessage` (captchas), `WebcastAccessRecallMessage`, `WebcastPartnershipPunishMessage` and the partnership messages look addressed to the host's own client. Whether an audience connection ever receives them is unknown; the events exist so an app that connects as the host (with a session) can see them.
 55. **`WebcastSpeakerMessage` and `WebcastInRoomBannerMessage`.** The 0.2.3 protos give them only `common`. If traffic holds more (a payload longer than its `common`, which `raw` shows), a later version of the reference may name the fields; until then they are skipped.
 56. **`GameRankNotifyMessage_MsgType` 255.** The proto's unknown value is 255 (`MSG_TYPE_UN_KNOW`), not 0 (`MSG_TYPE_RANK_IN_OUT`): a message that leaves `msg_type` out reads as 0, "entered or left the rank". Whether TikTok ever sends 255, or leaves the field out, is unchecked.
+57. **`WebcastAnchorToolModificationMessage`.** Derived from traffic ([Derived from traffic](#derived-from-traffic)), from 6 messages about two hosts' camera filters during battles. Open: what its unread fields hold (8 looks like a status, 1 started and 2 ended; 3 and 5 like the effect's ids; 26 like the scene, `video_anchor_pk` in a battle), whether it also comes outside battles and for tools other than filters, and whether `name` is always set.

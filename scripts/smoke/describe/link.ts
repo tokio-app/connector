@@ -5,29 +5,34 @@ import {
   AgreeStatus,
   ArmiesTriggerReason,
   BattleAction,
+  BattleNoticeType,
   BattleTaskMessageType,
   BattleTaskResult,
   GuestMicCameraManageOp,
+  IceShowdownSetting,
   LinkLayerMessageType,
   LinkStateType,
   MuteStatus,
   PunishFinishReason,
+  type BattleGameplayMessage,
   type BattleUserArmy,
   type LinkLayerMessage,
   type LinkListChangeContent,
   type LinkMessage,
   type LinkMicArmies,
   type LinkMicBattle,
+  type LinkMicBattleNotice,
   type LinkMicBattlePunishFinish,
   type LinkMicBattleTask,
   type LinkMicFanTicketMethod,
   type LinkMicMethod,
+  type LinkMicOpponentGifts,
   type LinkStateMessage,
   type Player,
   type WebcastEventMap,
 } from "../../../src/index.js";
 import type { LinkEvent } from "../../../src/routes/groups.js";
-import { formatCount, nickname } from "../../lib/format.js";
+import { formatCount, nickname, quote } from "../../lib/format.js";
 
 /** The names of an enum constant's values, in lowercase with spaces: `KICK_OUT` → `kick out`. */
 function namesOf(
@@ -66,6 +71,8 @@ const MEDIA_OPS: Readonly<Record<number, string>> = {
   [GuestMicCameraManageOp.CLOSE_CAMERA]: "camera off",
   [GuestMicCameraManageOp.CLOSE_MIC_PUNISH]: "mic off (punished)",
 };
+const NOTICE_TYPES = namesOf(BattleNoticeType);
+const ICE_SHOWDOWN_SETTINGS = namesOf(IceShowdownSetting);
 const LAYER_TYPES = namesOf(LinkLayerMessageType);
 const STATE_TYPES = namesOf(LinkStateType);
 
@@ -219,6 +226,25 @@ function describeState(state: LinkStateMessage): string {
   return `link state ${type} in channel ${state.channelId}: ${users}`;
 }
 
+function describeNotice(notice: LinkMicBattleNotice): string {
+  const type = named(NOTICE_TYPES, notice.noticeType, "type");
+  const text = notice.commonGuide?.displayText;
+  if (text === undefined) return `battle notice ${type}`;
+  return `battle notice ${type}: ${text.key} ${quote(text.defaultPattern)}`;
+}
+
+function describeOpponentGifts(gifts: LinkMicOpponentGifts): string {
+  const each = `${formatCount(gifts.giftPrice)} coin${gifts.giftPrice === 1 ? "" : "s"} each`;
+  return `battle ${gifts.battleId}: ${gifts.fromUserId} sent gift ${gifts.giftId} x${formatCount(gifts.giftCount)} (${each}, streak ${formatCount(gifts.repeatCount)}) to ${gifts.giftToUserId}`;
+}
+
+function describeGameplay(gameplay: BattleGameplayMessage): string {
+  const ice = gameplay.iceShowdownInfo;
+  if (ice === undefined) return `battle ${gameplay.battleId} gameplay`;
+  const lead = Number(ice.startTimeMs) - Number(ice.promptTimeMs);
+  return `battle ${gameplay.battleId} ice showdown, ${named(ICE_SHOWDOWN_SETTINGS, ice.settingType, "setting")}, starts ${formatCount(lead)} ms after its prompt`;
+}
+
 /** The link group's describers: one per event with a sample line of its own. */
 export const linkDescribers = {
   linkMicBattle: describeBattle,
@@ -242,4 +268,7 @@ export const linkDescribers = {
   linkMessage: describeLinkMessage,
   linkLayer: describeLayer,
   linkState: describeState,
+  linkMicBattleNotice: describeNotice,
+  linkMicOpponentGifts: describeOpponentGifts,
+  battleGameplay: describeGameplay,
 } satisfies { [K in LinkEvent]?: (payload: WebcastEventMap[K]) => string };
