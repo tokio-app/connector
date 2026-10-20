@@ -1,6 +1,6 @@
 // The link group: link-mic and battles. The tables are in
-// src/codec/messages/link/, the routes in src/routes/link.ts. Nothing is
-// decoded yet: these are the payloads the tables will fill.
+// src/codec/messages/link/, the routes in src/routes/link.ts. Field numbers:
+// PROTOCOL.md, "LIVE messages", from reference/src/TikTok-Webcast-Protobuf.
 import type { Common, Image, User } from "./shared.js";
 
 /**
@@ -888,7 +888,11 @@ export interface LinkLayerListUser {
   user?: Player;
   /** The user's link-mic id. */
   linkmicId: string;
-  /** TikTok's user type code (guest or host). */
+  /**
+   * What the user is in the link: `1` a guest, `2` the host
+   * (`webcast.linkmic.common.LinkerUserType`). Other values may come: it
+   * stays a number.
+   */
   userType: number;
 }
 
@@ -1031,7 +1035,7 @@ export interface MicPositionData {
 /** A user's state in a link. */
 export interface LinkUserState {
   /** The user. */
-  player?: Player;
+  user?: Player;
   /** The user's link-mic id. */
   linkmicId: string;
   /** Where the user is in the layout. */
