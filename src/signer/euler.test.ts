@@ -164,6 +164,13 @@ describe("EulerSigner.fetchConnect", () => {
       `Euler Stream GET /webcast/rooms/${ROOM_ID}/connect: 200`,
       expect.objectContaining({ status: 200, requestId: "req-1" }),
     );
+    // The cookies' names are logged, never their values.
+    expect(context.logger).toHaveBeenCalledWith(
+      "debug",
+      "The signed connect came with 2 cookies",
+      { names: ["ttwid", "msToken"] },
+    );
+    expect(JSON.stringify(context.logger.mock.calls)).not.toContain("abc");
   });
 
   it("leaves out the ids the answer doesn't have, and a room id of 0", async () => {

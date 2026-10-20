@@ -181,6 +181,11 @@ export class EulerSigner implements Signer {
             `${what} came without cookies (x-set-tt-cookie)${support}`,
           );
         }
+        // The names only: the values let whoever holds them act as this
+        // client. PROTOCOL.md, open item 3: how many cookies the header holds.
+        context.logger("debug", `${what} came with ${cookies.length} cookies`, {
+          names: cookies.map((pair) => pair.slice(0, pair.indexOf("="))),
+        });
         const body = new Uint8Array(await response.arrayBuffer());
         if (body.length === 0) {
           throw new ProtocolError(`${what} came with an empty body${support}`);
