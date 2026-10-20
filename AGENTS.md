@@ -15,7 +15,7 @@ yarn build             # tsc -p tsconfig.build.json: dist/ (JS and .d.ts, no map
 yarn clean             # delete dist/ and coverage/
 yarn test              # vitest run (yarn test:watch to watch)
 yarn test:coverage     # vitest with a coverage report in coverage/ (text + lcov)
-yarn typecheck         # tsc --noEmit over src/, test/, scripts/ and vitest.config.ts
+yarn typecheck         # tsc --noEmit over src/, test/, scripts/, examples/ and vitest.config.ts
 yarn lint              # oxlint --type-aware
 yarn format            # prettier --write . (yarn format:check only checks)
 yarn reference         # download the MIT reference copies into reference/ (needs network)
@@ -88,7 +88,7 @@ reference/            gitignored: the MIT reference copies `yarn reference` down
 
 The four groups (chat, gift, link, room) each own one file in `src/events/`, `src/codec/messages/`, `src/routes/` and `scripts/smoke/describe/`, so work on one group never touches another's files. `src/routes/groups.ts` says which events belong to which group; `groups.test.ts` checks that every event of `WebcastEventMap` but `raw` is in exactly one.
 
-`PROTOCOL.md` describes the protocol the code implements. `THIRD_PARTY_NOTICES.md` credits the references and lists the services. `tsconfig.json` covers `src/`, `test/`, `scripts/` and `vitest.config.ts` for the typecheck and type-aware lint; `tsconfig.build.json` extends it to emit `src/` only (it holds `rootDir`, and leaves out the tests). Generated, don't edit: `dist/`, `coverage/`, `reference/`. The package ships only `dist/`, `THIRD_PARTY_NOTICES.md`, `LICENSE`, `README.md` and `package.json` (`files` in `package.json`).
+`PROTOCOL.md` describes the protocol the code implements. `THIRD_PARTY_NOTICES.md` credits the references and lists the services. `tsconfig.json` covers `src/`, `test/`, `scripts/`, `examples/` and `vitest.config.ts` for the typecheck and type-aware lint; `tsconfig.build.json` extends it to emit `src/` only (it holds `rootDir`, and leaves out the tests). Generated, don't edit: `dist/`, `coverage/`, `reference/`. The package ships only `dist/`, `THIRD_PARTY_NOTICES.md`, `LICENSE`, `README.md` and `package.json` (`files` in `package.json`).
 
 ## Licensing
 
