@@ -5,15 +5,15 @@
 // prints (as text, or as JSON with --json) and the verdict behind its exit
 // status.
 import {
-  isStreakable,
-  MemberAction,
+  WebcastEvent,
   type DisconnectReason,
   type GiftList,
   type GiftSource,
   type StreamEndAction,
-  type User,
   type WebcastEventMap,
 } from "../../src/index.js";
+import { CONNECTION_EVENTS } from "../../src/routes/groups.js";
+import { ROUTES } from "../../src/routes/index.js";
 import {
   describeConnected,
   describeDisconnected,
@@ -28,61 +28,25 @@ import {
   shortError,
   type ErrorInfo,
 } from "../lib/format.js";
+import { describeLive } from "./describe/index.js";
 
 /**
- * Every event of `WebcastEventMap`, in its order: the smoke run listens to all
- * of them. summary.test.ts fails when one is missing.
+ * Every event of `WebcastEventMap`, in `WebcastEvent`'s order: the smoke run
+ * listens to all of them.
  */
-export const SMOKE_EVENTS = [
-  "connected",
-  "disconnected",
-  "reconnecting",
-  "error",
-  "streamEnd",
-  "chat",
-  "gift",
-  "like",
-  "follow",
-  "share",
-  "member",
-  "roomUser",
-  "envelope",
-  "superFan",
-  "superFanJoin",
-  "superFanBox",
-  "raw",
-] as const satisfies readonly (keyof WebcastEventMap)[];
+export const SMOKE_EVENTS: readonly SmokeEvent[] = Object.values(WebcastEvent);
 
-export type SmokeEvent = (typeof SMOKE_EVENTS)[number];
+export type SmokeEvent = (typeof WebcastEvent)[keyof typeof WebcastEvent];
+
+const CONNECTION: ReadonlySet<string> = new Set(CONNECTION_EVENTS);
 
 /** Events that come from the LIVE itself: a run passes only when one arrived. */
-const LIVE_EVENTS: ReadonlySet<SmokeEvent> = new Set<SmokeEvent>([
-  "streamEnd",
-  "chat",
-  "gift",
-  "like",
-  "follow",
-  "share",
-  "member",
-  "roomUser",
-  "envelope",
-  "superFan",
-  "superFanJoin",
-  "superFanBox",
-]);
+const LIVE_EVENTS: ReadonlySet<SmokeEvent> = new Set(
+  SMOKE_EVENTS.filter((event) => !CONNECTION.has(event) && event !== "raw"),
+);
 
 /** The methods the library routes to an event (PROTOCOL.md, Routing). Others only reach `raw`. */
-const ROUTED_METHODS: ReadonlySet<string> = new Set([
-  "WebcastChatMessage",
-  "WebcastGiftMessage",
-  "WebcastLikeMessage",
-  "WebcastSocialMessage",
-  "WebcastMemberMessage",
-  "WebcastRoomUserSeqMessage",
-  "WebcastControlMessage",
-  "WebcastEnvelopeMessage",
-  "WebcastBarrageMessage",
-]);
+const ROUTED_METHODS: ReadonlySet<string> = new Set(Object.keys(ROUTES));
 
 /** How long the reconnect may take after `--drop-after` drops the socket. */
 export const RECONNECT_BOUND_MS = 30_000;
@@ -193,28 +157,17 @@ export interface SmokeRecorderOptions {
   gifts?: boolean;
 }
 
+/** The events with a handler of their own: the connection's, the stream end and `raw`. */
+type SpecialEvent = (typeof CONNECTION_EVENTS)[number] | "streamEnd" | "raw";
+
 type Handlers = {
-  [K in SmokeEvent]: (
+  [K in SmokeEvent]?: (
     payload: WebcastEventMap[K],
     at: number,
   ) => string | undefined;
 };
 
-const MEMBER_ACTIONS: Readonly<Record<number, string>> = {
-  [MemberAction.JOINED]: "joined",
-  [MemberAction.SUBSCRIBED]: "subscribed",
-};
-
-function nickname(user: User | undefined): string {
-  return user?.nickname.trim() || "(no nickname)";
-}
-
-function quote(text: string, max = 60): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  return JSON.stringify(
-    flat.length > max ? `${flat.slice(0, max - 1)}…` : flat,
-  );
-}
+type SpecialHandlers = Pick<Required<Handlers>, SpecialEvent>;
 
 function plural(count: number, word: string): string {
   return `${formatCount(count)} ${word}${count === 1 ? "" : "s"}`;
@@ -279,7 +232,11 @@ export class SmokeRecorder {
     at: number,
   ): string | undefined {
     this.#counts.set(event, (this.#counts.get(event) ?? 0) + 1);
-    return this.#handlers[event](payload, at);
+    const handlers: Handlers = this.#handlers;
+    const handle = handlers[event];
+    if (handle !== undefined) return handle(payload, at);
+    // Every other event is a LIVE message: its first one is sampled.
+    return this.#sample(event, () => describeLive(event, payload));
   }
 
   /** `connect()` rejected. */
@@ -422,7 +379,7 @@ export class SmokeRecorder {
     return labeled(`first ${event}`, text);
   }
 
-  readonly #handlers: Handlers = {
+  readonly #handlers: SpecialHandlers = {
     connected: (event, at) => {
       this.#connected = true;
       this.#roomId = event.roomId;
@@ -487,66 +444,6 @@ export class SmokeRecorder {
       this.#transitions.push({ at, event: "streamEnd", action: event.action });
       return describeStreamEnd(event);
     },
-    chat: (chat) =>
-      this.#sample(
-        "chat",
-        () => `${nickname(chat.user)}: ${quote(chat.content)}`,
-      ),
-    gift: (gift) =>
-      this.#sample("gift", () => {
-        const name = gift.gift?.name || `gift ${gift.giftId}`;
-        const streak = isStreakable(gift)
-          ? gift.repeatEnd
-            ? ", streak end"
-            : ", streak"
-          : "";
-        return `${nickname(gift.user)} sent ${name} x${gift.repeatCount}${streak}`;
-      }),
-    like: (like) =>
-      this.#sample(
-        "like",
-        () =>
-          `${nickname(like.user)} liked x${like.count}, ${formatCount(like.total)} in total`,
-      ),
-    follow: (follow) =>
-      this.#sample("follow", () => `${nickname(follow.user)} followed`),
-    share: (share) =>
-      this.#sample("share", () => `${nickname(share.user)} shared`),
-    member: (member) =>
-      this.#sample(
-        "member",
-        () =>
-          `${nickname(member.user)} ${MEMBER_ACTIONS[member.actionId] ?? `(action ${member.actionId})`}`,
-      ),
-    roomUser: (roomUser) =>
-      this.#sample("roomUser", () => {
-        const top = roomUser.ranks[0];
-        return `${formatCount(roomUser.total)} watching, ${formatCount(roomUser.totalUser)} so far${top ? `, top viewer ${nickname(top.user)}` : ""}`;
-      }),
-    envelope: (envelope) =>
-      this.#sample(
-        "envelope",
-        () =>
-          `treasure chest, business type ${envelope.envelopeInfo?.businessType ?? "unknown"}`,
-      ),
-    superFan: (barrage) =>
-      this.#sample(
-        "superFan",
-        () =>
-          `${nickname(barrage.user)} (${barrage.content?.key || barrage.commonBarrageContent?.key || "no key"})`,
-      ),
-    superFanJoin: (barrage) =>
-      this.#sample(
-        "superFanJoin",
-        () =>
-          `${nickname(barrage.user)} (${barrage.content?.key || barrage.commonBarrageContent?.key || "no key"})`,
-      ),
-    superFanBox: (envelope) =>
-      this.#sample(
-        "superFanBox",
-        () =>
-          `super fan box, business type ${envelope.envelopeInfo?.businessType ?? "unknown"}`,
-      ),
     raw: (raw) => {
       this.#rawMethods.set(
         raw.method,

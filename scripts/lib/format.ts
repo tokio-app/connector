@@ -7,6 +7,7 @@ import {
   type DisconnectedEvent,
   type ReconnectingEvent,
   type StreamEndEvent,
+  type User,
 } from "../../src/index.js";
 
 /** An error as plain JSON, for `--json` and the summaries. */
@@ -94,19 +95,32 @@ export function describeError(error: unknown): string {
   return formatErrorInfo(errorInfo(error), "");
 }
 
-/** `1234` (ms) → `"1.2 s"`. */
+/** `1234` (ms) â†’ `"1.2 s"`. */
 export function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)} s`;
 }
 
-/** The time column of a progress line: `1234` (ms) → `"   1.2s"`. */
+/** The time column of a progress line: `1234` (ms) â†’ `"   1.2s"`. */
 export function stamp(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`.padStart(7);
 }
 
-/** A count with thousands separators: `1234` → `"1,234"`. */
+/** A count with thousands separators: `1234` â†’ `"1,234"`. */
 export function formatCount(count: number): string {
   return count.toLocaleString("en-US");
+}
+
+/** A user's nickname, trimmed, or `(no nickname)` without a user or a name. */
+export function nickname(user: Pick<User, "nickname"> | undefined): string {
+  return user?.nickname.trim() || "(no nickname)";
+}
+
+/** `text` on one line, cut to `max` characters with an ellipsis, in quotes. */
+export function quote(text: string, max = 60): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return JSON.stringify(
+    flat.length > max ? `${flat.slice(0, max - 1)}…` : flat,
+  );
 }
 
 /** A file size: `"512 B"`, `"1.5 KB"`, `"2.3 MB"`. */
