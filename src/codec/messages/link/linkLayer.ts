@@ -3,15 +3,25 @@
 // reference/src/TikTok-Webcast-Protobuf/src/slim/v3.
 import type {
   AllListUser,
+  GroupChannelAllUser,
+  GroupChannelUser,
+  GroupPlayer,
   LinkApplyContent,
+  LinkCancelJoinGroupContent,
   LinkFinishContent,
+  LinkGroupChangeContent,
+  LinkGroupUserContent,
   LinkInviteContent,
+  LinkJoinGroupContent,
+  LinkJoinRoomDirectContent,
   LinkKickOutContent,
   LinkLayerListUser,
   LinkLayerMessage,
   LinkLeaveContent,
+  LinkLeaveJoinGroupContent,
   LinkListChangeContent,
   LinkPermitApplyContent,
+  LinkPermitJoinGroupContent,
   LinkReplyInviteContent,
 } from "../../../events/index.js";
 import { defineSchema, f } from "../../schema.js";
@@ -102,6 +112,105 @@ const LinkFinishContentSchema = defineSchema<LinkFinishContent>(
   },
 );
 
+/** `webcast.linkmic.common.GroupPlayer` [proto: webcast/linkmic/common.proto, line 319]. */
+const GroupPlayerSchema = defineSchema<GroupPlayer>("GroupPlayer", {
+  channelId: f.id(1),
+  user: f.message(2, PlayerSchema),
+});
+
+/** `webcast.linkmic.common.GroupChannelUser` [proto: webcast/linkmic/common_group_channel_user.proto, line 8]. */
+const GroupChannelUserSchema = defineSchema<GroupChannelUser>(
+  "GroupChannelUser",
+  {
+    channelId: f.id(1),
+    status: f.enum(2),
+    type: f.enum(3),
+    allUser: f.message(4, AllListUserSchema),
+    joinTime: f.id(5),
+    linkedTime: f.id(6),
+    ownerUser: f.message(7, GroupPlayerSchema),
+    groupLinkmicId: f.string(8),
+  },
+);
+
+/** `webcast.linkmic.common.GroupChannelAllUser` [proto: webcast/linkmic/common_group_channel_all_user.proto, line 7]. */
+const GroupChannelAllUserSchema = defineSchema<GroupChannelAllUser>(
+  "GroupChannelAllUser",
+  {
+    groupChannelId: f.id(1),
+    user: f.repeated.message(2, GroupChannelUserSchema),
+    contentVersion: f.count(3),
+  },
+);
+
+/** `webcast.im.JoinGroupContent` [proto: webcast/im.proto, line 433]. */
+const LinkJoinGroupContentSchema = defineSchema<LinkJoinGroupContent>(
+  "JoinGroupContent",
+  {
+    groupUser: f.message(1, GroupChannelAllUserSchema),
+    joinUser: f.message(2, GroupPlayerSchema),
+    type: f.enum(3),
+  },
+);
+
+/** `webcast.im.PermitJoinGroupContent` [proto: webcast/im.proto, line 538]. */
+const LinkPermitJoinGroupContentSchema =
+  defineSchema<LinkPermitJoinGroupContent>("PermitJoinGroupContent", {
+    approver: f.message(1, GroupPlayerSchema),
+    agreeStatus: f.enum(2),
+    type: f.enum(3),
+    groupUser: f.message(5, GroupChannelAllUserSchema),
+    linkedUserUiPositions: f.repeated.string(7),
+  });
+
+/** `webcast.im.CancelJoinGroupContent` [proto: webcast/im.proto, line 385]. */
+const LinkCancelJoinGroupContentSchema =
+  defineSchema<LinkCancelJoinGroupContent>("CancelJoinGroupContent", {
+    leaver: f.repeated.message(1, GroupPlayerSchema),
+    operator: f.message(2, GroupPlayerSchema),
+    type: f.enum(3),
+    groupUser: f.message(4, GroupChannelAllUserSchema),
+  });
+
+/** `webcast.im.LeaveJoinGroupContent` [proto: webcast/im.proto, line 492]. */
+const LinkLeaveJoinGroupContentSchema = defineSchema<LinkLeaveJoinGroupContent>(
+  "LeaveJoinGroupContent",
+  {
+    operator: f.message(1, GroupPlayerSchema),
+    groupChannelId: f.id(2),
+    leaveSource: f.string(3),
+    linkedUserUiPositions: f.repeated.string(4),
+  },
+);
+
+/** `webcast.im.GroupChangeContent` [proto: webcast/im.proto, line 406]. */
+const LinkGroupChangeContentSchema = defineSchema<LinkGroupChangeContent>(
+  "GroupChangeContent",
+  {
+    groupUser: f.message(1, GroupChannelAllUserSchema),
+    linkedUserUiPositions: f.repeated.string(2),
+  },
+);
+
+/**
+ * `webcast.im.P2PGroupChangeContent` [proto: webcast/im.proto, line 522] and
+ * `webcast.im.JoinGroupDirectContent` [line 447]: both hold the group as
+ * `group_user` (2).
+ */
+const LinkGroupUserContentSchema = defineSchema<LinkGroupUserContent>(
+  "GroupUserContent",
+  { groupUser: f.message(2, GroupChannelAllUserSchema) },
+);
+
+/** `webcast.im.JoinRoomDirectContent` [proto: webcast/im.proto, line 469]. */
+const LinkJoinRoomDirectContentSchema = defineSchema<LinkJoinRoomDirectContent>(
+  "JoinRoomDirectContent",
+  {
+    joiner: f.message(1, PlayerSchema),
+    joinerLinkMicId: f.string(2),
+  },
+);
+
 /**
  * `WebcastLinkLayerMessage` [proto:
  * webcast/model/message/linkcore_webcast_link_layer_message.proto, line 11].
@@ -122,5 +231,13 @@ export const LinkLayerMessageSchema = defineSchema<LinkLayerMessage>(
     kickOutContent: f.message(107, LinkKickOutContentSchema),
     leaveContent: f.message(110, LinkLeaveContentSchema),
     finishContent: f.message(111, LinkFinishContentSchema),
+    joinGroupContent: f.message(113, LinkJoinGroupContentSchema),
+    permitGroupContent: f.message(114, LinkPermitJoinGroupContentSchema),
+    cancelGroupContent: f.message(115, LinkCancelJoinGroupContentSchema),
+    leaveGroupContent: f.message(116, LinkLeaveJoinGroupContentSchema),
+    p2pGroupChangeContent: f.message(117, LinkGroupUserContentSchema),
+    groupChangeContent: f.message(118, LinkGroupChangeContentSchema),
+    joinGroupDirectContent: f.message(119, LinkGroupUserContentSchema),
+    joinRoomDirectContent: f.message(120, LinkJoinRoomDirectContentSchema),
   },
 );

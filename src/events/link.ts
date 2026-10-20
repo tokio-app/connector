@@ -494,6 +494,42 @@ export const IceShowdownSetting = Object.freeze({
   SYSTEM: 2,
 } as const);
 
+/**
+ * The values of {@link GroupChannelUser.status} TikTok defines
+ * (`webcast.linkmic.common.GroupStatus`).
+ */
+export const GroupStatus = Object.freeze({
+  /** TikTok didn't say. */
+  UNKNOWN: 0,
+  /** Waiting to link. */
+  WAITING: 1,
+  /** Linked. */
+  LINKED: 3,
+} as const);
+
+/**
+ * The values of {@link GroupChannelUser.type} and the other group contents'
+ * `type` TikTok defines (`webcast.linkmic.common.JoinType`).
+ */
+export const GroupJoinType = Object.freeze({
+  /** TikTok didn't say. */
+  UNKNOWN: 0,
+  /** Applied to a channel. */
+  CHANNEL_APPLY: 1,
+  /** Invited to a channel. */
+  CHANNEL_INVITE: 2,
+  /** Applied to the group. */
+  GROUP_APPLY: 100,
+  /** Applied to the group, following someone. */
+  GROUP_APPLY_FOLLOW: 101,
+  /** Invited to the group. */
+  GROUP_INVITE: 102,
+  /** Invited to the group, following someone. */
+  GROUP_INVITE_FOLLOW: 103,
+  /** The group's owner. */
+  GROUP_OWNER_JOIN: 104,
+} as const);
+
 /** A participant of a link, by room and user id. */
 export interface Player {
   /** The participant's room. */
@@ -1033,6 +1069,123 @@ export interface LinkFinishContent {
   finishReason: number;
 }
 
+/** A participant of a group link: its own channel and who it is. */
+export interface GroupPlayer {
+  /** The participant's channel (traffic shows its room id). */
+  channelId: string;
+  /** The participant. */
+  user?: Player;
+}
+
+/** One participant's channel in a group link (a host's, in a co-host LIVE). */
+export interface GroupChannelUser {
+  /** The channel (traffic shows the host's room id). */
+  channelId: string;
+  /**
+   * Where it is: `1` waiting, `3` linked ({@link GroupStatus}). Other values
+   * may come: it stays a number.
+   */
+  status: number;
+  /**
+   * How it joined: `102` invited, `104` the group's owner
+   * ({@link GroupJoinType}). Other values may come: it stays a number.
+   */
+  type: number;
+  /** The channel's user lists. */
+  allUser?: AllListUser;
+  /** When it joined, as a decimal string (nanoseconds, as traffic shows). */
+  joinTime: string;
+  /** When it linked, as a decimal string (nanoseconds, as traffic shows). */
+  linkedTime: string;
+  /** Who owns the channel. */
+  ownerUser?: GroupPlayer;
+  /** The channel's link-mic id in the group. */
+  groupLinkmicId: string;
+}
+
+/** Every channel of a group link. */
+export interface GroupChannelAllUser {
+  /** The group's channel (the battle's `channelId` in a co-host battle). */
+  groupChannelId: string;
+  /** Each participant's channel. */
+  user: GroupChannelUser[];
+  /** The list's version. */
+  contentVersion: number;
+}
+
+/** Someone joined a group link. */
+export interface LinkJoinGroupContent {
+  /** The group now. */
+  groupUser?: GroupChannelAllUser;
+  /** Who joined. */
+  joinUser?: GroupPlayer;
+  /** How ({@link GroupJoinType}). Other values may come: it stays a number. */
+  type: number;
+}
+
+/** A request to join a group link was answered. */
+export interface LinkPermitJoinGroupContent {
+  /** Who answered. */
+  approver?: GroupPlayer;
+  /**
+   * The answer: `1` agreed, `2` rejected ({@link AgreeStatus}). Other values
+   * may come: it stays a number.
+   */
+  agreeStatus: number;
+  /** How the joiner came ({@link GroupJoinType}). Other values may come: it stays a number. */
+  type: number;
+  /** The group now. */
+  groupUser?: GroupChannelAllUser;
+  /** The linked users' positions in the layout. */
+  linkedUserUiPositions: string[];
+}
+
+/** A request to join a group link was canceled. */
+export interface LinkCancelJoinGroupContent {
+  /** Who left. */
+  leaver: GroupPlayer[];
+  /** Who canceled. */
+  operator?: GroupPlayer;
+  /** How they came ({@link GroupJoinType}). Other values may come: it stays a number. */
+  type: number;
+  /** The group now. */
+  groupUser?: GroupChannelAllUser;
+}
+
+/** Someone left a group link. */
+export interface LinkLeaveJoinGroupContent {
+  /** Who left. */
+  operator?: GroupPlayer;
+  /** The group's channel. */
+  groupChannelId: string;
+  /** TikTok's code for where the leave came from. */
+  leaveSource: string;
+  /** The linked users' positions in the layout. */
+  linkedUserUiPositions: string[];
+}
+
+/** A group link's participants changed (`GROUP_CHANGE`). */
+export interface LinkGroupChangeContent {
+  /** The group now. */
+  groupUser?: GroupChannelAllUser;
+  /** The linked users' positions in the layout. */
+  linkedUserUiPositions: string[];
+}
+
+/** A group's participants changed, peer to peer, or someone joined it directly. */
+export interface LinkGroupUserContent {
+  /** The group now. */
+  groupUser?: GroupChannelAllUser;
+}
+
+/** Someone joined the room's link directly. */
+export interface LinkJoinRoomDirectContent {
+  /** Who joined. */
+  joiner?: Player;
+  /** Their link-mic id. */
+  joinerLinkMicId: string;
+}
+
 /** A link changed, in the newer link layer (`linkLayer` event). */
 export interface LinkLayerMessage {
   /** Data every message carries. */
@@ -1070,6 +1223,22 @@ export interface LinkLayerMessage {
   leaveContent?: LinkLeaveContent;
   /** The end, when the channel finished. */
   finishContent?: LinkFinishContent;
+  /** Who joined, when someone joined a group. */
+  joinGroupContent?: LinkJoinGroupContent;
+  /** The answer, when a request to join a group was answered. */
+  permitGroupContent?: LinkPermitJoinGroupContent;
+  /** The cancel, when a request to join a group was canceled. */
+  cancelGroupContent?: LinkCancelJoinGroupContent;
+  /** Who left, when someone left a group. */
+  leaveGroupContent?: LinkLeaveJoinGroupContent;
+  /** The group, when it changed peer to peer. */
+  p2pGroupChangeContent?: LinkGroupUserContent;
+  /** The group, when its participants changed (`GROUP_CHANGE`, 18). */
+  groupChangeContent?: LinkGroupChangeContent;
+  /** The group, when someone joined it directly. */
+  joinGroupDirectContent?: LinkGroupUserContent;
+  /** Who joined, when someone joined the room's link directly. */
+  joinRoomDirectContent?: LinkJoinRoomDirectContent;
 }
 
 /** A position in a link's layout. */

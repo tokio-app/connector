@@ -38,6 +38,8 @@ describe("public API", () => {
         "FansClubStatus",
         "GameRankMsgType",
         "GoalMessageSource",
+        "GroupJoinType",
+        "GroupStatus",
         "GuestMicCameraManageOp",
         "HttpError",
         "IceShowdownSetting",

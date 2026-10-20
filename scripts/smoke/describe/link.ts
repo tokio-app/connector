@@ -8,6 +8,7 @@ import {
   BattleNoticeType,
   BattleTaskMessageType,
   BattleTaskResult,
+  GroupStatus,
   GuestMicCameraManageOp,
   IceShowdownSetting,
   LinkLayerMessageType,
@@ -16,6 +17,8 @@ import {
   PunishFinishReason,
   type BattleGameplayMessage,
   type BattleUserArmy,
+  type GroupChannelAllUser,
+  type GroupPlayer,
   type LinkLayerMessage,
   type LinkListChangeContent,
   type LinkMessage,
@@ -195,6 +198,24 @@ function describeLayerLists({ list }: LinkListChangeContent): string {
   return `linked ${ids.length > 0 ? ids.join(", ") : "none"}, ${list?.appliedList.length ?? 0} applied, ${list?.invitedList.length ?? 0} invited`;
 }
 
+// A group participant: its user id, else its channel.
+function groupPlayerId(player: GroupPlayer | undefined): string {
+  const id = player?.user?.userId;
+  return id !== undefined && id !== "0" ? id : (player?.channelId ?? "?");
+}
+
+// A group's channels: each one's linked user (else the channel), marked when
+// it is still waiting.
+function describeGroup(group: GroupChannelAllUser | undefined): string {
+  if (group === undefined) return "group ?";
+  const members = group.user.map((channel) => {
+    const id =
+      channel.allUser?.linkedList[0]?.user?.userId ?? channel.channelId;
+    return channel.status === GroupStatus.WAITING ? `${id} (waiting)` : id;
+  });
+  return `group ${group.groupChannelId}: ${members.length > 0 ? members.join(", ") : "nobody"}`;
+}
+
 const LAYER_PARTS: readonly Part<LinkLayerMessage>[] = [
   ({ listChangeContent: lists }) => lists && describeLayerLists(lists),
   ({ inviteContent: invite }) =>
@@ -210,6 +231,25 @@ const LAYER_PARTS: readonly Part<LinkLayerMessage>[] = [
     `${userId(kick.offliner)} kicked out (reason ${kick.kickoutReason})`,
   ({ leaveContent: leave }) => leave && `${userId(leave.leaver)} left`,
   ({ finishContent: finish }) => finish && `${userId(finish.owner)} finished`,
+  ({ joinGroupContent: join }) =>
+    join &&
+    `${groupPlayerId(join.joinUser)} joined ${describeGroup(join.groupUser)}`,
+  ({ permitGroupContent: permit }) =>
+    permit &&
+    `${groupPlayerId(permit.approver)} ${agreed(permit.agreeStatus)} joining ${describeGroup(permit.groupUser)}`,
+  ({ cancelGroupContent: cancel }) =>
+    cancel &&
+    `${cancel.leaver.map(groupPlayerId).join(", ") || "?"} canceled joining`,
+  ({ leaveGroupContent: leave }) =>
+    leave &&
+    `${groupPlayerId(leave.operator)} left group ${leave.groupChannelId}`,
+  ({ p2pGroupChangeContent: change }) =>
+    change && describeGroup(change.groupUser),
+  ({ groupChangeContent: change }) => change && describeGroup(change.groupUser),
+  ({ joinGroupDirectContent: join }) =>
+    join && `joined directly ${describeGroup(join.groupUser)}`,
+  ({ joinRoomDirectContent: join }) =>
+    join && `${userId(join.joiner)} joined the room directly`,
 ];
 
 function describeLayer(layer: LinkLayerMessage): string {

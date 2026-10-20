@@ -336,6 +336,95 @@ describe("linkDescribers", () => {
     ).toBe("link (type 99) in channel 72: ? invited ?; ? replied 0 ?");
   });
 
+  it("describes a link layer group change: who is in the group, who joined, answered, canceled or left", () => {
+    const lists = { appliedList: [], invitedList: [], readyList: [] };
+    const channel = (
+      room: string,
+      user: string | undefined,
+      status: number,
+    ) => ({
+      channelId: room,
+      status,
+      type: 102,
+      allUser: {
+        ...lists,
+        linkedList:
+          user === undefined
+            ? []
+            : [{ user: player(user), linkmicId: "", userType: 2 }],
+      },
+      joinTime: "0",
+      linkedTime: "0",
+      groupLinkmicId: "",
+    });
+    const group = {
+      groupChannelId: "9",
+      user: [
+        channel("71", "11", 3),
+        channel("72", "22", 1),
+        channel("73", undefined, 3),
+      ],
+      contentVersion: 1,
+    };
+    const groupPlayer = (user?: string) => ({
+      channelId: "70",
+      ...(user === undefined ? {} : { user: player(user) }),
+    });
+    expect(
+      linkDescribers.linkLayer(
+        layer({
+          messageType: 18,
+          groupChangeContent: { groupUser: group, linkedUserUiPositions: [] },
+        }),
+      ),
+    ).toBe("link group change in channel 72: group 9: 11, 22 (waiting), 73");
+    expect(
+      linkDescribers.linkLayer(
+        layer({
+          messageType: 13,
+          joinGroupContent: { joinUser: groupPlayer("33"), type: 102 },
+          permitGroupContent: {
+            approver: groupPlayer("11"),
+            agreeStatus: 1,
+            type: 102,
+            groupUser: { ...group, user: [] },
+            linkedUserUiPositions: [],
+          },
+          cancelGroupContent: {
+            leaver: [groupPlayer("44"), groupPlayer()],
+            type: 0,
+          },
+          leaveGroupContent: {
+            operator: groupPlayer(),
+            groupChannelId: "9",
+            leaveSource: "",
+            linkedUserUiPositions: [],
+          },
+          p2pGroupChangeContent: {},
+          joinGroupDirectContent: { groupUser: group },
+          joinRoomDirectContent: { joiner: player("55"), joinerLinkMicId: "" },
+        }),
+      ),
+    ).toBe(
+      "link join group in channel 72: 33 joined group ?; 11 agreed joining group 9: nobody; 44, 70 canceled joining; 70 left group 9; group ?; joined directly group 9: 11, 22 (waiting), 73; 55 joined the room directly",
+    );
+    expect(
+      linkDescribers.linkLayer(
+        layer({
+          messageType: 15,
+          cancelGroupContent: { leaver: [], type: 0 },
+          leaveGroupContent: {
+            groupChannelId: "9",
+            leaveSource: "",
+            linkedUserUiPositions: [],
+          },
+        }),
+      ),
+    ).toBe(
+      "link cancel group in channel 72: ? canceled joining; ? left group 9",
+    );
+  });
+
   it("describes a link state by its type and the users it holds", () => {
     const state = { channelId: "72", scene: 4, stateType: 3 };
     expect(linkDescribers.linkState({ ...state, userStates: [] })).toBe(
