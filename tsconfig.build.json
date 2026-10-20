@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Only the build emits, and only src/ goes in the package. The base config
+    // also covers test/, scripts/ and vitest.config.ts, so rootDir lives here.
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

@@ -1,0 +1,63 @@
+name: CI
+
+# The checks never touch the network: tests use fakes for TikTok and the signer.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    name: checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Install packages
+        run: yarn install --frozen-lockfile
+
+      - name: Format
+        if: runner.os == 'Linux'
+        run: yarn format:check
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Test
+        if: runner.os != 'Linux'
+        run: yarn test
+
+      # The same tests, with a coverage report.
+      - name: Test with coverage
+        if: runner.os == 'Linux'
+        run: yarn test:coverage
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux' && !cancelled()
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
+
+      - name: Build
+        run: yarn build

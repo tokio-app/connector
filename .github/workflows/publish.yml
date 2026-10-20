@@ -1,0 +1,76 @@
+name: Publish
+
+# Push a tag v<version> matching package.json to publish the package to npm and create its
+# GitHub release. npm trusts this workflow (trusted publishing, set up in the package's settings
+# on npmjs.com), so it needs no token. A rerun skips whatever was already published.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the GitHub release
+  id-token: write # npm trusted publishing and provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches package.json
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version $version."
+            exit 1
+          fi
+
+      # Trusted publishing needs npm 11.5.1 or later, which Node 24 ships.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+          registry-url: https://registry.npmjs.org
+
+      - name: Install packages
+        run: yarn install --frozen-lockfile
+
+      - name: Format
+        run: yarn format:check
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Test
+        run: yarn test
+
+      # npm publish builds first (prepublishOnly).
+      - name: Publish to npm
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if curl -fsS -o /dev/null "https://registry.npmjs.org/$name/$version"; then
+            echo "$name@$version is already on npm, skipping."
+            exit 0
+          fi
+          # Prereleases (0.2.0-beta.1) don't become the version npm installs by default.
+          if [[ "$version" == *-* ]]; then tag=next; else tag=latest; fi
+          npm publish --tag "$tag"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists, skipping."
+            exit 0
+          fi
+          name=$(node -p "require('./package.json').name")
+          flags=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+            --title "$name ${GITHUB_REF_NAME#v}" "${flags[@]}"

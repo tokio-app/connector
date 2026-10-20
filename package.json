@@ -1,0 +1,81 @@
+{
+  "name": "@tokioapp/connector",
+  "version": "0.0.0",
+  "description": "Connect to TikTok LIVE and receive its events. A small, typed, MIT connector for Node.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "yarn@1.22.22",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"for (const dir of ['dist', 'coverage']) fs.rmSync(dir, { recursive: true, force: true })\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "oxlint --type-aware",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "reference": "tsx scripts/reference/index.ts",
+    "capture": "tsx scripts/capture/index.ts",
+    "smoke": "tsx scripts/smoke/index.ts",
+    "prepublishOnly": "yarn build",
+    "prepare": "husky"
+  },
+  "author": "Akuqt",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokio-app/connector.git"
+  },
+  "keywords": [
+    "tiktok",
+    "live",
+    "webcast",
+    "connector",
+    "tokio"
+  ],
+  "bugs": {
+    "url": "https://github.com/tokio-app/connector/issues"
+  },
+  "homepage": "https://tokio.ialfaro.com",
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
+    "@typescript/typescript6": "^6.0.2",
+    "@vitest/coverage-v8": "^5.0.5",
+    "fallow": "^3.34.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "oxlint": "^1.89.0",
+    "oxlint-tsgolint": "^7.0.2004",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.7",
+    "vitest": "^5.0.5"
+  }
+}

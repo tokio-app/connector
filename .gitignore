@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+/reference/
+/captures/
+.fallow/
+*.log
+.DS_Store
