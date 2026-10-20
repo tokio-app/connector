@@ -2,8 +2,6 @@
 
 Connect to a TikTok LIVE from Node and receive its events: chat, gifts, likes, follows, shares, viewers, treasure chests and super fans. It reconnects on its own, decodes only the messages you listen to, and gives you typed events and errors. It is written from scratch, MIT-licensed, and has one runtime dependency (`ws`). It is the connector behind [Tokio](https://tokio.ialfaro.com).
 
-Pre-release: nothing is on npm yet. The first version will be `0.1.0`.
-
 ## Install
 
 ```sh
