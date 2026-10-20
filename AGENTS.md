@@ -45,12 +45,17 @@ TypeScript 7's `tsc` emits the declarations. `@typescript/typescript6` stays ins
 src/
   index.ts            public exports (the only entry point)
   options.ts          ConnectOptions, ReconnectOptions and their defaults
-  events.ts           WebcastEventMap and the event payload types
+  events/             index.ts (WebcastEventMap, WebcastEvent, WebcastEventName), connection.ts (the connection's events),
+                      shared.ts (Image, Text, Common, User, Badge, Gift…), and the payload types of each group:
+                      chat.ts, gift.ts, link.ts, room.ts (with the constants of their enum fields)
   errors.ts           ConnectorError and its subclasses
   emitter.ts          TypedEmitter
   logger.ts           the Logger type and the default console logger
   connection.ts       TikTokLiveConnection: connect, reconnect with backoff, disconnect
-  dispatch.ts         routes decoded messages to events: dedupe, history, lazy decoding
+  dispatch.ts         the pipeline that routes decoded messages to events: dedupe, history, lazy decoding
+  routes/             route.ts (Route, defineRoute, forward, DispatchContext, RecentIds), groups.ts (which events each
+                      group owns), index.ts (ROUTES: every group's routes), and the routes of each group:
+                      chat.ts, gift.ts, link.ts, room.ts
   gifts.ts            gift helpers (isStreakable, isStreakEnd)
   http/               client.ts (fetch with timeouts and cookies), params.ts (client params and headers, in one place)
   room/               resolver.ts (username → room id, is-live check), gifts.ts (room → signer → region gift list)
@@ -58,19 +63,25 @@ src/
                       call.ts (every signer call: its deadline, and what it throws turned into ConnectorErrors)
   ws/                 frames.ts (enter room, heartbeat, ack), session.ts (one socket's lifetime)
   codec/              reader.ts, writer.ts, schema.ts, decode.ts, index.ts (SCHEMAS: every table by message name): the protobuf wire codec
-  codec/messages/     one table per message: common, frame, fetchResult, chat, gift, like, social, member, roomUser, control, envelope, barrage
+  codec/messages/     common.ts (the shared building blocks), frame.ts, fetchResult.ts, and one folder per group,
+                      each with one table per message and an index.ts registry: chat/ (chat, like, social),
+                      gift/ (gift, member, envelope, barrage), link/ (empty), room/ (control, roomUser)
   util/               backoff, random, gzip, cookies
 test/
   setup.ts            runs before every test file
   helpers/            encoder.ts (builds fixture bytes from the schemas), samples.ts (sample LIVE message values, unknown fields),
+                      dispatchContext.ts (a fake DispatchContext and batch message builders for the dispatch and route tests),
                       fetchStub.ts (a stubbed fetch that records requests), fakeSigner.ts (a Signer without network),
                       fakeTikTok.ts (a local ws server standing in for TikTok's push server),
                       replay.ts (captured messages through dispatch, every listener attached)
   fixtures/           live-page.html (a LIVE page), *.capture.json (captures), fixtures.test.ts (replays the captures)
 scripts/              reference/, capture/, smoke/: each an index.ts run with tsx
   lib/                shared by capture and smoke: cli.ts (flags, connection options, logger, clock, entry point), format.ts (errors, tables)
+  smoke/describe/     the sample line of each LIVE event, per group (chat, gift, link, room), joined in index.ts with a generic line
 reference/            gitignored: the MIT reference copies `yarn reference` downloads (see Licensing)
 ```
+
+The four groups (chat, gift, link, room) each own one file in `src/events/`, `src/codec/messages/`, `src/routes/` and `scripts/smoke/describe/`, so work on one group never touches another's files. `src/routes/groups.ts` says which events belong to which group; `groups.test.ts` checks that every event of `WebcastEventMap` but `raw` is in exactly one.
 
 `PROTOCOL.md` describes the protocol the code implements. `THIRD_PARTY_NOTICES.md` credits the references and lists the services. `tsconfig.json` covers `src/`, `test/`, `scripts/` and `vitest.config.ts` for the typecheck and type-aware lint; `tsconfig.build.json` extends it to emit `src/` only (it holds `rootDir`, and leaves out the tests). Generated, don't edit: `dist/`, `coverage/`, `reference/`. The package ships only `dist/`, `THIRD_PARTY_NOTICES.md`, `LICENSE`, `README.md` and `package.json` (`files` in `package.json`).
 
@@ -87,7 +98,9 @@ The library is MIT and must stay clean-room. Treat this as part of every change.
 
 `PROTOCOL.md` is the spec: room id resolution, the is-live check, client params and headers, the signed connect request, the WebSocket URL and frames, heartbeat and ack, message routing, the gift list sources, and the field numbers of every decoded message. Each fact cites its source in `reference/` or Euler's docs, and its Open items list what still needs a capture or a smoke run. Change it together with the code, and check new facts against `reference/` or Euler's docs.
 
-A message table (`src/codec/messages/`) is a `defineSchema<T>()` call keyed by the payload's properties: the compiler checks that every property has a field of the matching kind, and that optional properties are nested messages. Fields a table doesn't list are skipped when decoding.
+A message table (`src/codec/messages/<group>/`) is a `defineSchema<T>()` call keyed by the payload's properties: the compiler checks that every property has a field of the matching kind, and that optional properties are nested messages. Fields a table doesn't list are skipped when decoding. A table can't be stubbed: a payload type without a table is fine (the event is pending), a table must cover every property of its type.
+
+**Adding a message type** (or filling in a pending one): declare or correct the payload type in `src/events/<group>.ts` (field numbers from the `.proto`, `common?: Common` first, a frozen constant per enum field); write the table in `src/codec/messages/<group>/<name>.ts` (or a `tail.ts` entry for a message with a few scalars) with its test next to it (the six steps of the existing tests: `fields.*` bytes with "not read" neighbours, empty → defaults, an encoder round trip, `unknownFields()` at every level, hand-assembled hex the encoder reproduces, out-of-order and 64-bit cases); add it to the group's `index.ts` registry; add its route to `src/routes/<group>.ts` (`forward` for a plain one) and its row to the group's route test; give it a sample line in `scripts/smoke/describe/<group>.ts` when the generic one won't do; replace its stub with a table in `PROTOCOL.md` ("LIVE messages" and "Routing"); fill its row of the README's events table.
 
 TikTok changes things without notice. The `clientParams` and `headers` options override the defaults in `src/http/params.ts`, so an app can work around a change before a release (the hotfix path); keep every param and header in that one file so they stay overridable.
 
@@ -100,9 +113,9 @@ Public payloads are JSON-safe: 64-bit ids are decimal strings, 64-bit counters a
 - Tests never touch the network, and neither does CI: use `FakeSigner`, the fake TikTok server (`ws` on `127.0.0.1:0`) and stubbed `fetch`. Keep real-timer tests short (50–200 ms values, `vi.waitFor`).
 - `yarn smoke` and `yarn capture` are opt-in and need the network and a LIVE. Ask the user before running them. Fixtures from a capture come only from the user's own LIVE, anonymized (`--anonymize`) and kept small. Read one with `parseFixture` and replay its messages with `fromFixtureMessage` (`scripts/capture/fixture.ts`).
 - To add a captured fixture, the user records their own LIVE: `yarn capture <own-username> --out test/fixtures/<name>.capture.json --anonymize --seconds 60`. `test/fixtures/fixtures.test.ts` replays every `*.capture.json` there through dispatch with every listener attached (`test/helpers/replay.ts`) and checks that no message fails to decode, that dispatch handles as many messages of each method as the fixture's `counts`, and that the first message of each event matches its snapshot. Run `yarn test test/fixtures` once to write the snapshot (`test/fixtures/__snapshots__/`; CI never writes one), read it, and commit it with the capture. `--anonymize` only leaves out the username: the payloads still hold viewers' names and comments, and so does the snapshot. Without a capture, the test is skipped.
-- The scripts are tested next to them and run with `yarn test`: `scripts/lib/{cli,format}.test.ts` (flags, logger, clock, error and table formatting), `scripts/smoke/{args,summary}.test.ts` (the event bookkeeping, the reconnect check and the verdict), `scripts/capture/{args,fixture}.test.ts` (the fixture format and its validator), and `scripts/{smoke,capture}/run.test.ts`, which run each script's `run.ts` offline against `FakeTikTok`, `FakeSigner` and a stubbed `fetch` (the drop, the gift list, the summary; the capture's fixture replayed through dispatch). The `index.ts` files only wire `run.ts` to the console and a real connection; `summary.test.ts` fails to typecheck when `WebcastEventMap` gains an event the smoke run doesn't listen to.
+- The scripts are tested next to them and run with `yarn test`: `scripts/lib/{cli,format}.test.ts` (flags, logger, clock, error and table formatting), `scripts/smoke/{args,summary}.test.ts` (the event bookkeeping, the reconnect check and the verdict), `scripts/capture/{args,fixture}.test.ts` (the fixture format and its validator), and `scripts/{smoke,capture}/run.test.ts`, which run each script's `run.ts` offline against `FakeTikTok`, `FakeSigner` and a stubbed `fetch` (the drop, the gift list, the summary; the capture's fixture replayed through dispatch). The `index.ts` files only wire `run.ts` to the console and a real connection; the smoke run listens to every value of `WebcastEvent`, and `src/events/index.test.ts` fails to typecheck when `WebcastEvent` and `WebcastEventMap` drift apart.
 - `restoreMocks` and `unstubGlobals` are on: mocks and stubbed globals reset after each test.
-- `yarn test:coverage` fails below the thresholds in `vitest.config.ts`: 100% of lines and branches in `src/codec/`, 90% of lines and 85% of branches in `src/connection.ts`, `src/dispatch.ts` and `src/ws/`, and 90% of statements overall. CI runs it on Linux.
+- `yarn test:coverage` fails below the thresholds in `vitest.config.ts`: 100% of lines and branches in `src/codec/`, 90% of lines and 85% of branches in `src/connection.ts`, `src/dispatch.ts`, `src/routes/` and `src/ws/`, and 90% of statements overall. CI runs it on Linux.
 
 ## CI and releases
 

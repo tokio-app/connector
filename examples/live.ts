@@ -5,6 +5,7 @@ import {
   EulerSigner,
   isStreakEnd,
   TikTokLiveConnection,
+  WebcastEvent,
   type User,
 } from "../src/index.js";
 
@@ -27,24 +28,26 @@ const connection = new TikTokLiveConnection(username, {
   logger: createConsoleLogger({ level: "warn" }),
 });
 
-connection.on("connected", ({ roomId, reconnected }) =>
+connection.on(WebcastEvent.CONNECTED, ({ roomId, reconnected }) =>
   log("connected", `room ${roomId}${reconnected ? " (reconnected)" : ""}`),
 );
-connection.on("reconnecting", ({ attempt, delayMs, reason }) =>
+connection.on(WebcastEvent.RECONNECTING, ({ attempt, delayMs, reason }) =>
   log("reconnect", `attempt ${attempt} in ${delayMs} ms (${reason})`),
 );
-connection.on("disconnected", ({ reason, willReconnect }) =>
+connection.on(WebcastEvent.DISCONNECTED, ({ reason, willReconnect }) =>
   log("stopped", `${reason}${willReconnect ? ", reconnecting" : ""}`),
 );
-connection.on("streamEnd", ({ action }) => log("LIVE", `stream ${action}`));
-connection.on("error", (error) =>
+connection.on(WebcastEvent.STREAM_END, ({ action }) =>
+  log("LIVE", `stream ${action}`),
+);
+connection.on(WebcastEvent.ERROR, (error) =>
   log("error", `${error.code}: ${error.message}`),
 );
 
-connection.on("chat", (chat) =>
+connection.on(WebcastEvent.CHAT, (chat) =>
   log("chat", `${name(chat.user)}: ${chat.content}`),
 );
-connection.on("gift", (gift) => {
+connection.on(WebcastEvent.GIFT, (gift) => {
   // A streakable gift repeats until repeatEnd; count it once, when the streak ends.
   if (!isStreakEnd(gift)) return;
   const coins = (gift.gift?.diamondCount ?? 0) * gift.repeatCount;
@@ -53,19 +56,21 @@ connection.on("gift", (gift) => {
     `${name(gift.user)} sent ${gift.repeatCount}x ${gift.gift?.name} (${coins} coins)`,
   );
 });
-connection.on("like", (like) =>
+connection.on(WebcastEvent.LIKE, (like) =>
   log("like", `${name(like.user)} x${like.count} (${like.total} total)`),
 );
-connection.on("follow", (social) => log("follow", name(social.user)));
-connection.on("share", (social) => log("share", name(social.user)));
-connection.on("member", (member) => log("join", name(member.user)));
-connection.on("superFan", (fan) => log("superfan", name(fan.user)));
-connection.on("superFanJoin", (fan) =>
+connection.on(WebcastEvent.FOLLOW, (social) =>
+  log("follow", name(social.user)),
+);
+connection.on(WebcastEvent.SHARE, (social) => log("share", name(social.user)));
+connection.on(WebcastEvent.MEMBER, (member) => log("join", name(member.user)));
+connection.on(WebcastEvent.SUPER_FAN, (fan) => log("superfan", name(fan.user)));
+connection.on(WebcastEvent.SUPER_FAN_JOIN, (fan) =>
   log("superfan", `${name(fan.user)} joined`),
 );
-connection.on("superFanBox", () => log("superfan", "box"));
-connection.on("envelope", () => log("envelope", "treasure box"));
-connection.on("roomUser", (room) =>
+connection.on(WebcastEvent.SUPER_FAN_BOX, () => log("superfan", "box"));
+connection.on(WebcastEvent.ENVELOPE, () => log("envelope", "treasure box"));
+connection.on(WebcastEvent.ROOM_USER, (room) =>
   log("viewers", `${room.total} watching, ${room.totalUser} so far`),
 );
 

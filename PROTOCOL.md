@@ -442,28 +442,59 @@ In `src/codec/messages/common.ts`.
 
 `webcast.model.base.user.User` [proto: webcast/model/base/user_2.proto] (`UserSchema`)
 
-| No. | Proto field    | Type                   | Property      | Kind             |
-| --- | -------------- | ---------------------- | ------------- | ---------------- |
-| 1   | `id`           | int64                  | `userId`      | id               |
-| 3   | `nickname`     | string                 | `nickname`    | string           |
-| 9   | `avatar_thumb` | `ImageModel`           | `avatarThumb` | message          |
-| 38  | `display_id`   | string                 | `displayId`   | string           |
-| 64  | `badge_list`   | repeated `BadgeStruct` | `badgeList`   | repeated message |
+| No. | Proto field      | Type                           | Property        | Kind             |
+| --- | ---------------- | ------------------------------ | --------------- | ---------------- |
+| 1   | `id`             | int64                          | `userId`        | id               |
+| 3   | `nickname`       | string                         | `nickname`      | string           |
+| 9   | `avatar_thumb`   | `ImageModel`                   | `avatarThumb`   | message          |
+| 22  | `follow_info`    | `FollowInfo`                   | `followInfo`    | message          |
+| 23  | `pay_grade`      | `webcast.model.UserHonor`      | `payGrade`      | message          |
+| 24  | `fans_club`      | `webcast.model.FansClubMember` | `fansClub`      | message          |
+| 32  | `user_attr`      | `webcast.model.UserAttr`       | `userAttr`      | message          |
+| 38  | `display_id`     | string                         | `displayId`     | string           |
+| 63  | `subscribe_info` | `SubscribeInfo`                | `subscribeInfo` | message          |
+| 64  | `badge_list`     | repeated `BadgeStruct`         | `badgeList`     | repeated message |
+| 66  | `fans_club_info` | `FansClubInfo`                 | `fansClubInfo`  | message          |
 
-`display_id` is the username (unique id); older protos called field 38 `uniqueId`. Not read, among others: `avatar_medium` (10), `avatar_large` (11), `follow_info` (22), `sec_uid` (46), `id_str` (1028).
+`display_id` is the username (unique id); older protos called field 38 `uniqueId`. Not read, among others: `avatar_medium` (10), `avatar_large` (11), `verified` (12), `sec_uid` (46), `id_str` (1028).
 
-`webcast.model.base.user.BadgeStruct` [proto: webcast/model/base/user.proto] (`BadgeSchema`)
+`webcast.model.base.user.FollowInfo` [proto: webcast/model/base/user.proto, line 110] (`FollowInfoSchema`): `following_count` (1, int64) → `followingCount`, count; `follower_count` (2, int64) → `followerCount`, count; `follow_status` (3, int64) → `followStatus`, count. Not read: `push_status` (4).
+`webcast.model.UserHonor` [proto: webcast/model/messages.proto, line 252] (`PayGradeSchema`): `name` (3, string) → `name`, string; `level` (6, int32) → `level`, int32. Not read: the icons and the rest.
+`webcast.model.FansClubMember` [proto: webcast/model/messages.proto, line 85] (`FansClubSchema`): `data` (1, `FansClubData`) → `data`, message. Not read: `prefer_data` (2).
+`webcast.model.FansClubData` [proto: webcast/model/messages.proto, line 75] (`FansClubDataSchema`): `club_name` (1, string) → `clubName`, string; `level` (2, int32) → `level`, int32; `user_fans_club_status` (3, `webcast.model.data.User_FansClub_FansClubData_UserFansClubStatus`: `NOT_JOINED` 0, `ACTIVE` 1, `INACTIVE` 2, exported as `FansClubStatus`) → `status`, enum. Not read: `badge` (4), `available_gift_ids` (5), `anchor_id` (6).
+`webcast.model.UserAttr` [proto: webcast/model/messages.proto, line 237] (`UserAttrSchema`): `is_muted` (1), `is_admin` (2), `is_super_admin` (3), bools → `isMuted`, `isAdmin`, `isSuperAdmin`. Not read: `mute_duration` (4), `admin_permissions` (5), 6, 7.
+`webcast.model.base.user.SubscribeInfo` [proto: webcast/model/base/user.proto, line 224] (`SubscribeInfoSchema`): `is_subscribe` (2, bool) → `isSubscribe`; `is_subscribed_to_anchor` (7, bool) → `isSubscribedToAnchor`. Not read: `status` (11, `User_SubscribeInfo_PayStatus`, exported as `PayStatus` for a later release), and the rest.
+`webcast.model.base.user.FansClubInfo` [proto: webcast/model/base/user.proto, line 101] (`FansClubInfoSchema`): `fans_level` (2, int64) → `fansLevel`, count; `fans_club_name` (6, string) → `fansClubName`, string. Not read: `is_sleeping` (1), `fans_score` (3), `badge` (4), `fans_count` (5).
 
-| No. | Proto field           | Type                 | Property            | Kind    |
-| --- | --------------------- | -------------------- | ------------------- | ------- |
-| 12  | `privilege_log_extra` | `PrivilegeLogExtra`  | `privilegeLogExtra` | message |
-| 23  | `combine`             | `CombineBadgeStruct` | `combine`           | message |
+`webcast.model.base.user.BadgeStruct` [proto: webcast/model/base/user.proto, line 13] (`BadgeSchema`)
 
-Not read: `display_type` (1), `priority_type` (2), `scene_type` (3, `BadgeSceneType`: 1 admin, 4 subscriber, 8 user grade, 10 fans…), `image` (20), `text` (21), `str` (22).
+| No. | Proto field           | Type                                | Property            | Kind    |
+| --- | --------------------- | ----------------------------------- | ------------------- | ------- |
+| 3   | `scene_type`          | `webcast.model.data.BadgeSceneType` | `sceneType`         | enum    |
+| 12  | `privilege_log_extra` | `PrivilegeLogExtra`                 | `privilegeLogExtra` | message |
+| 23  | `combine`             | `CombineBadgeStruct`                | `combine`           | message |
+
+`BadgeSceneType` [proto: webcast/model/data/messages.proto, line 68]: `BADGE_SCENE_TYPE_UNKNOWN` 0, `ADMIN` 1, `FIRST_RECHARGE` 2, `FRIENDS` 3, `SUBSCRIBER` 4, `BADGE_SCENE_TYPE_ACTIVITY` 5, `BADGE_SCENE_TYPE_RANK_LIST` 6, `NEW_SUBSCRIBER` 7, `USER_GRADE` 8, `STATE_CONTROLLED_MEDIA` 9, `FANS` 10, `LIVE_PRO` 11, `ANCHOR` 12, `CLASS_RANK` 13, `ENIGMA` 14; exported as `BadgeSceneType` without the prefixes. Not read: `display_type` (1), `priority_type` (2), `image` (20), `text` (21), `str` (22).
 
 `webcast.model.base.user.PrivilegeLogExtra` [proto: webcast/model/base/user.proto] (`PrivilegeLogExtraSchema`): `level` (5, string) → `level`, string. Not read: 1–4, 6, 7.
 
 `webcast.model.base.user.CombineBadgeStruct` [proto: webcast/model/base/user.proto] (`CombineBadgeSchema`): `icon` (2, `ImageModel`) → `icon`, message. Not read: the rest.
+
+`webcast.model.data.MsgFilter` [proto: webcast/model/data/messages.proto, line 989] (`MsgFilterSchema`, exported for the tables that carry it): `is_gifter` (1, bool) → `isGifter`; `is_subscribed_to_anchor` (2, bool) → `isSubscribedToAnchor`.
+
+`webcast.model.message.PunishEventInfo` [proto: webcast/model/message/invite_top_host_info.proto, line 40] (`PunishEventInfoSchema`, exported for the tables that carry it)
+
+| No. | Proto field      | Type                              | Property       | Kind   |
+| --- | ---------------- | --------------------------------- | -------------- | ------ |
+| 1   | `punish_type`    | string                            | `punishType`   | string |
+| 2   | `punish_reason`  | string                            | `punishReason` | string |
+| 3   | `punish_id`      | string                            | `punishId`     | string |
+| 5   | `punish_type_id` | `webcast.model.data.PunishTypeId` | `punishTypeId` | enum   |
+| 6   | `duration`       | int64                             | `duration`     | count  |
+| 8   | `end_time`       | int64                             | `endTime`      | id     |
+| 10  | `show_reason`    | string                            | `showReason`   | string |
+
+`PunishTypeId` [proto: webcast/model/data/messages.proto, line 657]: `PUNISH_TYPE_IDUN_KNOWN` 0, `BAN_LINKMIC` 9, `BAN_GAME_PARTNERSHIP` 25, `REMOVE_GAME_PARTNERSHIP` 26, `BAN_COHOST_LINKMIC` 55, `AUTHORITY_LIMIT_MATCH` 57, `BAN_VOICE_CHAT` 59, `BAN_LIVE_GOAL` 64, `VIEWER_LIMIT` 70, `LIVE_CONSOLE_BAN` 76; exported as `PunishTypeId` (`UNKNOWN` for 0). Not read: `violation_uid` (4), `punish_perception_code` (7), `violation_uid_str` (9).
 
 `webcast.model.data.UserIdentity` [proto: webcast/model/data/messages.proto] (`UserIdentitySchema`)
 
@@ -478,9 +509,11 @@ Not read: `display_type` (1), `priority_type` (2), `scene_type` (3, `BadgeSceneT
 
 ### LIVE messages
 
-All in package `webcast.model.message` [proto: webcast/model/message/messages.proto] unless noted. Field 1 is always `common` (`CommonMessageData`, → `common`, message). The tables are in `src/codec/messages/`, one file per message.
+All in package `webcast.model.message` [proto: webcast/model/message/messages.proto] unless noted. Field 1 is always `common` (`CommonMessageData`, → `common`, message). The tables are in `src/codec/messages/<group>/`, one file per message (tail messages, with a few scalars each, share `tail.ts`), registered in the group's `index.ts`. A message marked _pending_ has its payload type in `src/events/<group>.ts` and no table yet: it reaches `raw` only.
 
-`WebcastChatMessage` (`chat.ts`)
+#### Chat, reactions and moderation (`messages/chat/`)
+
+`WebcastChatMessage` (`chat/chat.ts`)
 
 | No. | Proto field        | Type                      | Property          | Kind             |
 | --- | ------------------ | ------------------------- | ----------------- | ---------------- |
@@ -493,7 +526,44 @@ All in package `webcast.model.message` [proto: webcast/model/message/messages.pr
 `webcast.model.base.emoji.EmoteWithIndex` [proto: webcast/model/base/emoji.proto]: `index` (1, int32) → `index`, int32; `emote` (2, `EmoteModel`) → `emote`, message.
 `webcast.model.base.emoji.EmoteModel` [proto: webcast/model/base/emoji.proto]: `emote_id` (1, string) → `emoteId`, string; `image` (2, `ImageModel`) → `image`, message.
 
-`WebcastGiftMessage` (`gift.ts`)
+`WebcastLikeMessage` (`chat/like.ts`)
+
+| No. | Proto field | Type   | Property | Kind    |
+| --- | ----------- | ------ | -------- | ------- |
+| 2   | `count`     | int32  | `count`  | int32   |
+| 3   | `total`     | int64  | `total`  | count   |
+| 5   | `user`      | `User` | `user`   | message |
+
+`WebcastSocialMessage` (`chat/social.ts`)
+
+| No. | Proto field    | Type   | Property      | Kind    |
+| --- | -------------- | ------ | ------------- | ------- |
+| 2   | `user`         | `User` | `user`        | message |
+| 3   | `share_type`   | int64  | `shareType`   | count   |
+| 4   | `action`       | int64  | `action`      | count   |
+| 5   | `share_target` | string | `shareTarget` | string  |
+| 8   | `share_count`  | int32  | `shareCount`  | int32   |
+
+Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `target_user_id` (14), and the rest.
+
+`WebcastEmoteChatMessage` (`chat/emote.ts`): pending.
+`WebcastImDeleteMessage` (`chat/imDelete.ts`): pending.
+`WebcastRoomPinMessage` (`chat/roomPin.ts`): pending.
+`WebcastQuestionNewMessage` (`chat/questionNew.ts`): pending.
+`WebcastCaptionMessage` (`chat/caption.ts`): pending.
+`WebcastRoomMessage` (`chat/roomMessage.ts`): pending.
+`WebcastNoticeMessage` (`chat/notice.ts`): pending.
+`WebcastSystemMessage` [proto: webcast/synthetic_proto.proto] (`chat/tail.ts`): pending.
+`WebcastLiveIntroMessage` (`chat/tail.ts`): pending.
+`WebcastUnauthorizedMemberMessage` (`chat/tail.ts`): pending.
+`WebcastMsgDetectMessage` (`chat/tail.ts`): pending.
+`WebcastToastMessage` (`chat/tail.ts`): pending.
+`WebcastBottomMessage` (`chat/tail.ts`): pending.
+`WebcastRoomVerifyMessage` (`chat/tail.ts`): pending.
+
+#### Gifts, money and membership (`messages/gift/`)
+
+`WebcastGiftMessage` (`gift/gift.ts`)
 
 | No. | Proto field    | Type                 | Property      | Kind    |
 | --- | -------------- | -------------------- | ------------- | ------- |
@@ -507,39 +577,22 @@ All in package `webcast.model.message` [proto: webcast/model/message/messages.pr
 
 `repeat_end` is an int32 on the wire; non-zero is `true`. Not read: `fan_ticket_count` (3), `group_count` (4), `to_user` (8), `user_identity` (32), and the rest.
 
-`webcast.model.Gift` [proto: webcast/model/gift.proto] (`GiftDetailsSchema`)
+`webcast.model.Gift` [proto: webcast/model/gift.proto, line 10] (`GiftDetailsSchema`)
 
 | No. | Proto field     | Type         | Property       | Kind    |
 | --- | --------------- | ------------ | -------------- | ------- |
 | 1   | `image`         | `ImageModel` | `image`        | message |
+| 2   | `describe`      | string       | `describe`     | string  |
 | 5   | `id`            | int64        | `id`           | id      |
+| 10  | `combo`         | bool         | `combo`        | bool    |
 | 11  | `type`          | int32        | `type`         | int32   |
 | 12  | `diamond_count` | int32        | `diamondCount` | int32   |
 | 16  | `name`          | string       | `name`         | string  |
+| 21  | `icon`          | `ImageModel` | `icon`         | message |
 
 `type` 1 marks a gift sent in streaks: `isStreakable()`. During a streak each update arrives as its own gift message with a growing `repeat_count`, and the streak ends with one more message with `repeat_end` set, even for a single gift; a gift of another type arrives once [TLC: README.md, the gift event's notes].
 
-`WebcastLikeMessage` (`like.ts`)
-
-| No. | Proto field | Type   | Property | Kind    |
-| --- | ----------- | ------ | -------- | ------- |
-| 2   | `count`     | int32  | `count`  | int32   |
-| 3   | `total`     | int64  | `total`  | count   |
-| 5   | `user`      | `User` | `user`   | message |
-
-`WebcastSocialMessage` (`social.ts`)
-
-| No. | Proto field    | Type   | Property      | Kind    |
-| --- | -------------- | ------ | ------------- | ------- |
-| 2   | `user`         | `User` | `user`        | message |
-| 3   | `share_type`   | int64  | `shareType`   | count   |
-| 4   | `action`       | int64  | `action`      | count   |
-| 5   | `share_target` | string | `shareTarget` | string  |
-| 8   | `share_count`  | int32  | `shareCount`  | int32   |
-
-Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `target_user_id` (14), and the rest.
-
-`WebcastMemberMessage` (`member.ts`)
+`WebcastMemberMessage` (`gift/member.ts`)
 
 | No. | Proto field | Type                                  | Property   | Kind    |
 | --- | ----------- | ------------------------------------- | ---------- | ------- |
@@ -548,7 +601,57 @@ Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `ta
 
 `MemberMessageAction` [proto: webcast/synthetic_enums.proto]: `MEMBER_MESSAGE_ACTION_UNKNOWN` 0, `MEMBER_MESSAGE_ACTION_JOINED` 1, `MEMBER_MESSAGE_ACTION_SUBSCRIBED` 3; exported as `MemberAction` (`UNKNOWN`, `JOINED`, `SUBSCRIBED`). The property keeps the name older protos gave field 10, `actionId` [reference/src/TikTok-Webcast-Protobuf/src/slim/v1/webcast.proto]. Not read: `member_count` (3), `operator` (4), `enter_type` (9), `user_id` (12), and the rest.
 
-`WebcastRoomUserSeqMessage` (`roomUser.ts`)
+`WebcastEnvelopeMessage` [proto: webcast/model/message/redenvelope.proto, package `webcast.model.message.redenvelope`] (`gift/envelope.ts`)
+
+| No. | Proto field     | Type                    | Property       | Kind    |
+| --- | --------------- | ----------------------- | -------------- | ------- |
+| 2   | `envelope_info` | `MessageRedEnvelopInfo` | `envelopeInfo` | message |
+
+`MessageRedEnvelopInfo` (same file): `business_type` (2, `webcast.model.data.EnvelopeBusinessType` enum) → `businessType`, enum. Not read: `envelope_id` (1), `send_user_name` (4), `diamond_count` (5), `people_count` (6), `unpack_at` (7), and the rest.
+`EnvelopeBusinessType` [proto: webcast/model/data/messages.proto]: 0 unknown, 1 user diamond, 2 platform diamond, 3 platform shell, 4 portal, 5 platform merch, 6, 7 and 9–14 event and campaign types, **`SUPER_FAN_BOX` 19**. Exported as `EnvelopeBusinessType` with the values the library uses: `UNKNOWN` 0 and `SUPER_FAN_BOX` 19.
+
+`WebcastBarrageMessage` (`gift/barrage.ts`)
+
+| No. | Proto field              | Type                                | Property               | Kind    |
+| --- | ------------------------ | ----------------------------------- | ---------------------- | ------- |
+| 5   | `content`                | `webcast.model.message.common.Text` | `content`              | message |
+| 24  | `common_barrage_content` | `webcast.model.message.common.Text` | `commonBarrageContent` | message |
+| 50  | `user`                   | `User`                              | `user`                 | message |
+
+Not read: `msg_type` (3, `BarrageMessage_BarrageType`), `icon` (4), and the rest.
+
+`WebcastSubNotifyMessage` (`gift/subNotify.ts`): pending.
+`WebcastSubPinEventMessage` (`gift/subPinEvent.ts`): pending.
+`WebcastGiftBroadcastMessage` (`gift/giftBroadcast.ts`): pending.
+`WebcastRoomNotifyMessage` (`gift/roomNotify.ts`): pending.
+`WebcastGoalUpdateMessage` [proto: webcast/model/gift/model_webcast_goal_update_message.proto] (`gift/goalUpdate.ts`): pending.
+`WebcastViewerPicksUpdateMessage` (`gift/viewerPicks.ts`): pending.
+`WebcastHourlyRankRewardMessage` (`gift/hourlyRank.ts`): pending.
+`WebcastGiftPromptMessage` (`gift/tail.ts`): pending.
+`WebcastGiftPanelUpdateMessage` (`gift/tail.ts`): pending.
+`WebcastGiftDynamicRestrictionMessage` (`gift/tail.ts`): pending.
+`WebcastGuideMessage` (`gift/tail.ts`): pending.
+`WebcastBoostCardMessage` (`gift/tail.ts`): pending.
+
+#### Link-mic and battles (`messages/link/`)
+
+Nothing is decoded yet. The nested types the messages share (`Player`, `LinkUser`, `BattleSetting`) will live in `link/shared.ts`.
+
+`WebcastLinkMicBattle` (`link/linkMicBattle.ts`): pending.
+`WebcastLinkMicArmies` (`link/linkMicArmies.ts`): pending.
+`WebcastLinkMicBattlePunishFinish` (`link/linkMicBattlePunishFinish.ts`): pending.
+`WebcastLinkmicBattleTaskMessage` (`link/linkMicBattleTask.ts`): pending.
+`WebcastLinkMicFanTicketMethod` (`link/linkMicFanTicketMethod.ts`): pending.
+`WebcastLinkMicMethod` (`link/linkMicMethod.ts`): pending.
+`WebcastLinkMessage` (`link/linkMessage.ts`): pending.
+`WebcastLinkLayerMessage` [proto: webcast/model/message/linkcore_webcast_link_layer_message.proto] (`link/linkLayer.ts`): pending.
+`WebcastLinkStateMessage` [proto: webcast/im.proto] (`link/linkState.ts`): pending.
+`WebcastLinkMicBattleItemCard` (`link/tail.ts`): pending.
+`WebcastLinkMicLayoutStateMessage` [proto: webcast/im.proto] (`link/tail.ts`): pending.
+
+#### Room, ranks, polls, shopping and system (`messages/room/`)
+
+`WebcastRoomUserSeqMessage` (`room/roomUser.ts`)
 
 | No. | Proto field  | Type                   | Property    | Kind             |
 | --- | ------------ | ---------------------- | ----------- | ---------------- |
@@ -559,7 +662,7 @@ Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `ta
 `total` is the viewers watching now, `total_user` the viewers so far (how Tokio reads them). Not read: `pop_str` (4), `seats` (5), `popularity` (6), `anonymous` (8).
 `webcast.model.message.Contributor`: `score` (1, int64) → `score`, count; `user` (2, `User`) → `user`, message; `rank` (3, int64) → `rank`, count. Not read: `delta` (4).
 
-`WebcastControlMessage` (`control.ts`)
+`WebcastControlMessage` (`room/control.ts`)
 
 | No. | Proto field | Type                            | Property | Kind |
 | --- | ----------- | ------------------------------- | -------- | ---- |
@@ -567,43 +670,56 @@ Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `ta
 
 `ControlAction` [proto: webcast/synthetic_enums.proto]: `CONTROL_ACTION_FALLBACK_UNKNOWN` 0, `CONTROL_ACTION_STREAM_PAUSED` 1, `CONTROL_ACTION_STREAM_UNPAUSED` 2, **`CONTROL_ACTION_STREAM_ENDED` 3**, **`CONTROL_ACTION_STREAM_SUSPENDED` 4**; exported as `ControlAction` (`UNKNOWN`, `PAUSED`, `UNPAUSED`, `STREAM_ENDED`, `STREAM_SUSPENDED`). 2.4.0's legacy client spells out 3 as ended by the host and 4 as ended by a moderator (a ban) [TLC: src/lib/client/legacy/index.ts].
 
-`WebcastEnvelopeMessage` [proto: webcast/model/message/redenvelope.proto, package `webcast.model.message.redenvelope`] (`envelope.ts`)
-
-| No. | Proto field     | Type                    | Property       | Kind    |
-| --- | --------------- | ----------------------- | -------------- | ------- |
-| 2   | `envelope_info` | `MessageRedEnvelopInfo` | `envelopeInfo` | message |
-
-`MessageRedEnvelopInfo` (same file): `business_type` (2, `webcast.model.data.EnvelopeBusinessType` enum) → `businessType`, enum. Not read: `envelope_id` (1), `send_user_name` (4), `diamond_count` (5), `people_count` (6), `unpack_at` (7), and the rest.
-`EnvelopeBusinessType` [proto: webcast/model/data/messages.proto]: 0 unknown, 1 user diamond, 2 platform diamond, 3 platform shell, 4 portal, 5 platform merch, 6, 7 and 9–14 event and campaign types, **`SUPER_FAN_BOX` 19**. Exported as `EnvelopeBusinessType` with the values the library uses: `UNKNOWN` 0 and `SUPER_FAN_BOX` 19.
-
-`WebcastBarrageMessage` (`barrage.ts`)
-
-| No. | Proto field              | Type                                | Property               | Kind    |
-| --- | ------------------------ | ----------------------------------- | ---------------------- | ------- |
-| 5   | `content`                | `webcast.model.message.common.Text` | `content`              | message |
-| 24  | `common_barrage_content` | `webcast.model.message.common.Text` | `commonBarrageContent` | message |
-| 50  | `user`                   | `User`                              | `user`                 | message |
-
-Not read: `msg_type` (3, `BarrageMessage_BarrageType`), `icon` (4), and the rest.
+`WebcastPerceptionMessage` (`room/perception.ts`): pending.
+`WebcastRankUpdateMessage` (`room/rankUpdate.ts`): pending.
+`WebcastRankTextMessage` (`room/rankText.ts`): pending.
+`WebcastGameRankNotifyMessage` (`room/tail.ts`): pending.
+`WebcastPollMessage` (`room/poll.ts`): pending.
+`WebcastOecLiveShoppingMessage` [proto: webcast/model/message/ext.proto] (`room/oecLiveShopping.ts`): pending.
+`WebcastCapsuleMessage` (`room/tail.ts`): pending.
+`WebcastMarqueeAnnouncementMessage` (`room/tail.ts`): pending.
+`WebcastSpeakerMessage` (`room/tail.ts`): pending.
+`WebcastInRoomBannerMessage` (`room/tail.ts`): pending.
+`WebcastAccessControlMessage` (`room/tail.ts`): pending.
+`WebcastAccessRecallMessage` [proto: webcast/model/game.proto] (`room/tail.ts`): pending.
+`WebcastPartnershipDropsUpdateMessage` (`room/tail.ts`): pending.
+`WebcastPartnershipGameOfflineMessage` (`room/tail.ts`): pending.
+`WebcastPartnershipPunishMessage` (`room/tail.ts`): pending.
+`WebcastLiveGameIntroMessage` (`room/tail.ts`): pending.
 
 ## Routing
 
-Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`]. A message is decoded only when one of its route's events has a listener; control messages are always decoded.
+Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table per group (`src/routes/<group>.ts`). A message is decoded only when one of its route's events has a listener; control messages are always decoded. When a message type leads to a base event and a derived one (`social` and `follow`, `barrage` and `superFan`, `controlMessage` and `streamEnd`), the base event is emitted first, then the derived one; a nested message (the comment inside a pin) is not emitted again as its own event. Routing never branches on enum values only traffic can confirm: text keys and business types only. The base events `social`, `barrage` and `controlMessage` are declared but not emitted yet (pending, like the new message types).
 
-| Message                     | Events                       | Rule                                                                                                                                                                                                                                                                    |
-| --------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WebcastChatMessage`        | `chat`                       | always                                                                                                                                                                                                                                                                  |
-| `WebcastGiftMessage`        | `gift`                       | always                                                                                                                                                                                                                                                                  |
-| `WebcastLikeMessage`        | `like`                       | always                                                                                                                                                                                                                                                                  |
-| `WebcastSocialMessage`      | `follow` or `share`          | `common.displayText.key` contains `follow` → `follow`; else contains `share` → `share`; else nothing (2.4.0 emitted a generic `social` event, which we don't have)                                                                                                      |
-| `WebcastMemberMessage`      | `member`                     | always, whatever `actionId`                                                                                                                                                                                                                                             |
-| `WebcastRoomUserSeqMessage` | `roomUser`                   | always                                                                                                                                                                                                                                                                  |
-| `WebcastControlMessage`     | `streamEnd`                  | `action` 3 → `streamEnd` `{ action: "ended" }`, 4 → `{ action: "suspended" }`, then disconnect (reason `streamEnd`) without reconnecting; other actions: nothing                                                                                                        |
-| `WebcastEnvelopeMessage`    | `superFanBox`, `envelope`    | `superFanBox` first when the lowercased `common.displayText.key` contains `ttlive_superfanbox` or `envelopeInfo.businessType` is 19; then `envelope`, always                                                                                                            |
-| `WebcastBarrageMessage`     | `superFanJoin` or `superFan` | over the lowercased, non-empty `content.key` and `commonBarrageContent.key`: one contains `ttlive_superfan_commentnotif_superfanjoined` → `superFanJoin`; else one contains `ttlive_superfan` → `superFan`; else nothing (2.4.0 also emitted a generic `barrage` event) |
-| anything else               | (only `raw`)                 |                                                                                                                                                                                                                                                                         |
+`raw` comes first, for every message that survives the duplicate check, history included. Anything without a route reaches only `raw`.
 
-`raw` comes first, for every message that survives the duplicate check, history included.
+### Chat, reactions and moderation
+
+| Message                | Events              | Rule                                                                                                                                     |
+| ---------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `WebcastChatMessage`   | `chat`              | always                                                                                                                                   |
+| `WebcastLikeMessage`   | `like`              | always                                                                                                                                   |
+| `WebcastSocialMessage` | `follow` or `share` | `common.displayText.key` contains `follow` → `follow`; else contains `share` → `share`; else nothing (`social`, before them, is pending) |
+
+### Gifts, money and membership
+
+| Message                  | Events                       | Rule                                                                                                                                                                                                                                                          |
+| ------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WebcastGiftMessage`     | `gift`                       | always                                                                                                                                                                                                                                                        |
+| `WebcastMemberMessage`   | `member`                     | always, whatever `actionId`                                                                                                                                                                                                                                   |
+| `WebcastEnvelopeMessage` | `superFanBox`, `envelope`    | `superFanBox` first when the lowercased `common.displayText.key` contains `ttlive_superfanbox` or `envelopeInfo.businessType` is 19; then `envelope`, always                                                                                                  |
+| `WebcastBarrageMessage`  | `superFanJoin` or `superFan` | over the lowercased, non-empty `content.key` and `commonBarrageContent.key`: one contains `ttlive_superfan_commentnotif_superfanjoined` → `superFanJoin`; else one contains `ttlive_superfan` → `superFan`; else nothing (`barrage`, before them, is pending) |
+
+### Link-mic and battles
+
+No route yet: every message of the group is pending.
+
+### Room, ranks, polls, shopping and system
+
+| Message                     | Events      | Rule                                                                                                                                                                                                                            |
+| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WebcastRoomUserSeqMessage` | `roomUser`  | always                                                                                                                                                                                                                          |
+| `WebcastControlMessage`     | `streamEnd` | `action` 3 → `streamEnd` `{ action: "ended" }`, 4 → `{ action: "suspended" }`, then disconnect (reason `streamEnd`) without reconnecting; other actions: nothing (`controlMessage`, before it and for every action, is pending) |
 
 ## Reconnects
 
@@ -705,3 +821,4 @@ What the references and docs can't settle. `yarn capture` on the user's own LIVE
 16. **Entering the room.** _Settled: TikTok confirms it._ The second smoke run logged `Entered room …: the server's im_enter_room_resp`, so entering doesn't wait for a batch, and a quiet room doesn't run into `connectTimeoutMs`.
 17. **Quiet rooms.** _Most likely settled (the server answered heartbeats in the second smoke run too)._ The server answered the first smoke run's heartbeat with an `hb` frame. If it answers every heartbeat (10 s apart by default), a healthy socket gets a frame well within `idleTimeoutMs` (30 s) even in a LIVE where nothing happens, so the idle check never fires on it. A longer run confirms it: the session logs the first reply at `debug`, and an idle drop shows as `disconnected` with reason `idle`.
 18. **Resuming.** _Settled: TikTok refuses it._ A socket opened from a resumed batch, on the old push server, gets an HTTP `200` instead of a WebSocket, even with the first connect's route params merged in (third smoke run, an empty body). Reconnects sign fresh for their socket, and sign with the cursor only for the gap ([Reconnects](#reconnects), "The gap").
+19. **`Text.pieces`.** A display text's `pieces` (4, repeated `TextPiece`: typed parts such as a user, a gift or a pattern reference) aren't read: `key` and `default_pattern` are enough for routing and for showing the text. Read them if an app needs the parts (the user a text names, say). Items 20–59 are reserved for the groups: chat 20–29, gift 30–39, link 40–49, room 50–59.
