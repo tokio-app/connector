@@ -28,6 +28,7 @@ describe("public API", () => {
         "TimeoutError",
         "TypedEmitter",
         "WebSocketError",
+        "WebcastEvent",
         "consoleLogger",
         "createConsoleLogger",
         "isConnectorError",

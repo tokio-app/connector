@@ -469,3 +469,33 @@ export interface WebcastEventMap {
 
 /** A public event name: a key of {@link WebcastEventMap}. */
 export type WebcastEventName = EventName<WebcastEventMap>;
+
+/**
+ * Every event name, as a constant, so apps needn't spell them as strings:
+ *
+ * ```ts
+ * connection.on(WebcastEvent.CHAT, (chat) => console.log(chat.content));
+ * ```
+ *
+ * The keys are the names in SCREAMING_CASE; the values are the keys of
+ * {@link WebcastEventMap}. events/index.test.ts fails when one is missing.
+ */
+export const WebcastEvent = Object.freeze({
+  CONNECTED: "connected",
+  DISCONNECTED: "disconnected",
+  RECONNECTING: "reconnecting",
+  ERROR: "error",
+  STREAM_END: "streamEnd",
+  CHAT: "chat",
+  GIFT: "gift",
+  LIKE: "like",
+  FOLLOW: "follow",
+  SHARE: "share",
+  MEMBER: "member",
+  ROOM_USER: "roomUser",
+  ENVELOPE: "envelope",
+  SUPER_FAN: "superFan",
+  SUPER_FAN_JOIN: "superFanJoin",
+  SUPER_FAN_BOX: "superFanBox",
+  RAW: "raw",
+} as const satisfies Record<string, WebcastEventName>);

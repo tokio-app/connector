@@ -28,48 +28,8 @@ export {
   type TimeoutPhase,
   type WebSocketErrorOptions,
 } from "./errors.js";
-export {
-  ControlAction,
-  EnvelopeBusinessType,
-  MemberAction,
-} from "./events/index.js";
-export type {
-  Badge,
-  BarrageMessage,
-  ChatEmote,
-  ChatMessage,
-  CombineBadge,
-  Common,
-  ConnectedEvent,
-  ConnectionState,
-  ConnectResult,
-  ControlMessage,
-  DisconnectedEvent,
-  DisconnectReason,
-  Emote,
-  EnvelopeInfo,
-  EnvelopeMessage,
-  Gift,
-  GiftDetails,
-  GiftList,
-  GiftMessage,
-  GiftSource,
-  Image,
-  LikeMessage,
-  MemberMessage,
-  PrivilegeLogExtra,
-  RawMessage,
-  ReconnectingEvent,
-  RoomUserMessage,
-  RoomUserRank,
-  SocialMessage,
-  StreamEndAction,
-  StreamEndEvent,
-  Text,
-  User,
-  UserIdentity,
-  WebcastEventMap,
-} from "./events/index.js";
+// The events, their payload types and the constants of their enum fields.
+export * from "./events/index.js";
 export { isStreakEnd, isStreakable } from "./gifts.js";
 export {
   consoleLogger,
