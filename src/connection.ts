@@ -88,6 +88,33 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+// The route params of a resumed connect: the kept ones, with the resumed
+// batch's values replacing them key by key (PROTOCOL.md, "Reconnects"). A
+// key keeps its place; params without a value are left out.
+function mergeRouteParams(
+  kept: readonly RouteParam[],
+  resumed: readonly RouteParam[],
+): RouteParam[] {
+  const merged = new Map<string, string>();
+  for (const { key, value } of [...kept, ...resumed]) {
+    if (value !== "") merged.set(key, value);
+  }
+  return [...merged].map(([key, value]) => ({ key, value }));
+}
+
+// Whether the push server answered the WebSocket upgrade with an HTTP
+// response instead of switching protocols.
+function isRefusedUpgrade(error: unknown): error is WebSocketError {
+  return error instanceof WebSocketError && error.status !== undefined;
+}
+
+// A push server's host and path, for logs: no query string.
+function whereOf(pushServer: string): string {
+  return URL.canParse(pushServer)
+    ? ((url) => `${url.host}${url.pathname}`)(new URL(pushServer))
+    : "(not a URL)";
+}
+
 // A signer written in JavaScript can answer anything: the connection needs
 // the body's bytes and a list of cookies.
 function checkSigned(signed: SignedConnect | undefined): SignedConnect {
@@ -178,6 +205,15 @@ interface PushTarget {
   routeParams: RouteParam[];
   internalExt: string;
   cursor: string;
+  /** Whether it resumes the run's stream: signed with a cursor. */
+  resumed: boolean;
+}
+
+/** A signed connect, ready for a socket. */
+interface Signed {
+  roomId: string;
+  batch: FetchResult;
+  target: PushTarget;
 }
 
 /** Where a run's reconnect attempts stand after a drop. */
@@ -394,9 +430,29 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
   ): Promise<string> {
     const context = this.#roomContext(run.signal);
     const found = await this.#findRoom(run, context, attempt, resolveRoom);
-    const { roomId, batch, target } = await this.#sign(run, context, found);
-    await this.#enter(run, roomId, batch, target, attempt);
-    return roomId;
+    const signed = await this.#sign(run, context, found, run.cursor);
+    try {
+      await this.#enter(run, signed, [signed.batch], attempt);
+      return signed.roomId;
+    } catch (error) {
+      if (
+        !signed.target.resumed ||
+        !isRefusedUpgrade(error) ||
+        run.stopped !== undefined
+      ) {
+        throw error;
+      }
+      // The push server refused to resume (PROTOCOL.md, "Reconnects"). A
+      // fresh connect, one more sign within the same attempt, brings a new
+      // push server; the resumed batch's messages (the gap) go out first
+      // once it is in, and duplicates are dropped.
+      this.#log("info", "Resuming failed, reconnecting fresh", {
+        status: error.status,
+      });
+      const fresh = await this.#sign(run, context, signed.roomId, "");
+      await this.#enter(run, fresh, [signed.batch, fresh.batch], attempt);
+      return fresh.roomId;
+    }
   }
 
   // The room id, looked up when asked or when none is known, and checked to
@@ -443,11 +499,12 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
     run: Run,
     context: RoomContext,
     roomId: string,
-  ): Promise<{ roomId: string; batch: FetchResult; target: PushTarget }> {
+    cursor: string,
+  ): Promise<Signed> {
     const sessionCookies = this.#http.sessionCookieHeader();
     const request = {
       roomId,
-      cursor: run.cursor,
+      cursor,
       ...(sessionCookies === undefined ? {} : { sessionCookies }),
     };
     const signed = checkSigned(
@@ -476,32 +533,32 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
     return {
       roomId: this.#signedRoom(signed.roomId, roomId),
       batch,
-      target: this.#pushTarget(run, batch),
+      target: this.#pushTarget(run, batch, cursor !== ""),
     };
   }
 
-  // What the socket connects with: the signed batch's push server, route
-  // params, internalExt and cursor. A reconnect's batch, asked for with a
-  // cursor, can leave them out; the run's kept ones stand in then. With
-  // nothing kept (the first connect of a run), a batch without a push server
-  // or a cursor is a ProtocolError.
-  #pushTarget(run: Run, batch: FetchResult): PushTarget {
-    const { kept } = run;
+  // What the socket connects with. A fresh connect (cursor "") takes the
+  // signed batch's push server, route params, internalExt and cursor, and
+  // must have a push server and a cursor (else a ProtocolError). A resumed
+  // one (signed with the run's cursor) comes without a push server and with
+  // fewer route params: the run's kept connect fills in, its route params
+  // merged with the batch's (PROTOCOL.md, "Reconnects").
+  #pushTarget(run: Run, batch: FetchResult, resumed: boolean): PushTarget {
+    const kept = resumed ? run.kept : undefined;
     const pushServer = batch.pushServer || kept?.pushServer;
     if (!pushServer) {
       throw new ProtocolError("The signed connect has no push server");
     }
-    const cursor = batch.cursor || run.cursor;
+    const cursor = batch.cursor || (resumed ? run.cursor : "");
     if (!cursor) throw new ProtocolError("The signed connect has no cursor");
-    const routeParams =
-      kept !== undefined && !batch.routeParams.some(({ value }) => value)
-        ? kept.routeParams
-        : batch.routeParams;
     return {
       pushServer,
-      routeParams,
-      internalExt: batch.internalExt || run.internalExt,
+      routeParams: kept
+        ? mergeRouteParams(kept.routeParams, batch.routeParams)
+        : batch.routeParams,
+      internalExt: batch.internalExt || (resumed ? run.internalExt : ""),
       cursor,
+      resumed,
     };
   }
 
@@ -520,13 +577,12 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
   }
 
   // Opens a session and, once it is in the room, takes it over: state
-  // `connected`, the `connected` event, then the signed batch and the batches
-  // that arrived meanwhile, in order.
+  // `connected`, the `connected` event, then the signed `batches` and the
+  // batches that arrived meanwhile, in order.
   async #enter(
     run: Run,
-    roomId: string,
-    batch: FetchResult,
-    target: PushTarget,
+    { roomId, target }: Signed,
+    batches: readonly FetchResult[],
     attempt: number,
   ): Promise<void> {
     const session = new WebcastSession();
@@ -546,6 +602,15 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
       run.session = undefined;
       if (run.live) this.#drop(run, closed);
       else ended = closed;
+    });
+    // The names of what the URL carries, never the values: they can hold
+    // tokens.
+    this.#log("debug", "Opening the WebSocket", {
+      pushServer: whereOf(target.pushServer),
+      resumed: target.resumed,
+      routeParams: target.routeParams.map(({ key }) => key),
+      cursor: target.cursor !== "",
+      internalExt: target.internalExt !== "",
     });
     await session.open({
       url: this.#webSocketUrl(roomId, target),
@@ -574,13 +639,15 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
     this.#state = "connected";
     this.#log("info", `Connected to room ${roomId}`, { attempt });
     this.emit("connected", { roomId, reconnected: attempt > 0, attempt });
-    // The signed connect's messages are the room's recent backlog: skipped on
-    // the first connect unless processInitialData, always dispatched after a
-    // reconnect (they may hold the gap; duplicates are dropped).
-    if (attempt > 0 || this.#options.processInitialData) {
-      this.#dispatchBatch(run, batch);
-    } else {
-      this.#skipBatch(run, batch);
+    // The signed connects' messages: the room's recent backlog, or a
+    // resume's gap. Skipped on the first connect unless processInitialData,
+    // always dispatched after a reconnect (duplicates are dropped).
+    for (const batch of batches) {
+      if (attempt > 0 || this.#options.processInitialData) {
+        this.#dispatchBatch(run, batch);
+      } else {
+        this.#skipBatch(run, batch);
+      }
     }
     const pending = run.pending;
     run.pending = [];

@@ -31,7 +31,8 @@ export interface FakeSignCall {
  * Signs connections without a network. Each signed connect is a fresh
  * `ProtoMessageFetchResult`: cursor `signed-cursor-<n>`, internalExt
  * `signed-ext-<n>`, the push server, and whatever {@link FakeSigner.batch}
- * adds (messages, route params). `failNext` makes the next calls throw.
+ * adds (messages, route params), or {@link FakeSigner.resumed} for a connect
+ * asked for with a cursor. `failNext` makes the next calls throw.
  */
 export class FakeSigner implements Signer {
   /** Every call, oldest first. */
@@ -44,6 +45,12 @@ export class FakeSigner implements Signer {
   cookies: string[];
   /** Fields added to every signed batch, such as `messages` and `routeParams`. */
   batch: EncodeInput<FetchResult> = {};
+  /**
+   * When set, the fields of a signed batch asked for with a cursor (a
+   * resume), instead of `batch`. TikTok answers those without a push server:
+   * `{ pushServer: "" }` does the same.
+   */
+  resumed: EncodeInput<FetchResult> | undefined;
   /** Replaces the encoded batch of every signed connect, when set. */
   body: Uint8Array | undefined;
   /** The room id the signed connects name (Euler Stream's `x-room-id`), if any. */
@@ -90,7 +97,9 @@ export class FakeSigner implements Signer {
           cursor: `signed-cursor-${count}`,
           internalExt: `signed-ext-${count}`,
           pushServer: this.pushServers.shift() ?? this.pushServer,
-          ...this.batch,
+          ...(request.cursor !== "" && this.resumed !== undefined
+            ? this.resumed
+            : this.batch),
         }),
       cookies: [...this.cookies],
       ...(this.roomId === undefined ? {} : { roomId: this.roomId }),

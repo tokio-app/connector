@@ -428,6 +428,13 @@ describe("connect()", () => {
         },
         TimeoutError,
       ],
+      [
+        "the push server refuses the upgrade",
+        () => {
+          fake.refuseUpgrade = () => 200;
+        },
+        WebSocketError,
+      ],
     ])(
       "rejects when %s, without a disconnected event",
       async (_, arrange, expected) => {
@@ -539,6 +546,27 @@ describe("connect()", () => {
         { roomId: ROOM_ID, reconnected: false, attempt: 0 },
       ]);
     });
+  });
+
+  it("sends an empty internal_ext when the first signed batch has none", async () => {
+    signer.batch = { internalExt: "" };
+    const { connection } = create();
+    await connection.connect();
+    expect(fake.last.url.searchParams.get("internal_ext")).toBe("");
+  });
+
+  it("logs a push server that isn't a URL as such, and fails to open it", async () => {
+    signer.pushServer = "not a push server";
+    const { connection, logger } = create();
+    await expect(connection.connect()).rejects.toMatchObject({
+      code: "WEBSOCKET",
+      message: expect.stringMatching(/^Can't open the WebSocket: /),
+    });
+    expect(logger).toHaveBeenCalledWith(
+      "debug",
+      "Opening the WebSocket",
+      expect.objectContaining({ pushServer: "(not a URL)" }),
+    );
   });
 
   it("builds the WebSocket URL and headers PROTOCOL.md describes", async () => {
@@ -1182,7 +1210,7 @@ describe("reconnecting", () => {
     expect(ofType("reconnecting")[1]?.reason).toBe("wsError");
   });
 
-  it("gives a refused WebSocket handshake as the next attempt's reason", async () => {
+  it("signs fresh when an HTTP server answers a resumed handshake", async () => {
     // An HTTP server that answers every upgrade with 403.
     const refusing = createServer();
     refusing.on("upgrade", (_request, socket: Duplex) => {
@@ -1198,11 +1226,146 @@ describe("reconnecting", () => {
       signer.pushServers = [`ws://127.0.0.1:${port}/`];
       fake.dropSocket();
       await until(() => expect(ofType("connected")).toHaveLength(2));
-      expect(ofType("reconnecting")[1]?.reason).toBe("wsError");
+      // The fresh sign is part of attempt 1.
+      expect(ofType("reconnecting")).toHaveLength(1);
+      expect(ofType("connected")[1]).toMatchObject({ attempt: 1 });
+      expect(signer.calls.map(({ request }) => request.cursor)).toEqual([
+        "",
+        "signed-cursor-1",
+        "",
+      ]);
     } finally {
       refusing.closeAllConnections();
       await new Promise((resolve) => refusing.close(resolve));
     }
+  });
+
+  it("merges the kept route params into a resumed connect's, its own values winning", async () => {
+    signer.batch = {
+      routeParams: [
+        { key: "wrds_v", value: "7" },
+        { key: "token", value: "t1" },
+        { key: "extra", value: "e" },
+      ],
+    };
+    // TikTok-like: a resume without the first connect's params is refused.
+    fake.refuseUpgrade = (url) =>
+      url.searchParams.get("token") === "t1" ? undefined : 200;
+    const { connection, ofType, raw, logger } = create();
+    await connection.connect();
+    signer.resumed = {
+      pushServer: "",
+      routeParams: [
+        { key: "wrds_v", value: "8" },
+        { key: "seq", value: "s" },
+      ],
+      messages: [chat("1")],
+    };
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+
+    expect(fake.refused).toEqual([]);
+    expect(signer.calls.map(({ request }) => request.cursor)).toEqual([
+      "",
+      "signed-cursor-1",
+    ]);
+    const params = fake.connections[1]!.url.searchParams;
+    expect(params.get("wrds_v")).toBe("8");
+    expect(params.get("token")).toBe("t1");
+    expect(params.get("extra")).toBe("e");
+    expect(params.get("seq")).toBe("s");
+    expect(raw).toEqual(["1"]);
+    // The names of what each socket's URL carries, not the values.
+    expect(logger).toHaveBeenCalledWith("debug", "Opening the WebSocket", {
+      pushServer: `127.0.0.1:${fake.last.url.port}${fake.last.url.pathname}`,
+      resumed: true,
+      routeParams: ["wrds_v", "token", "extra", "seq"],
+      cursor: true,
+      internalExt: true,
+    });
+    expect(JSON.stringify(logger.mock.calls)).not.toContain("t1");
+  });
+
+  it("signs fresh when the push server refuses a resumed connect, the gap first", async () => {
+    signer.batch = { routeParams: [{ key: "token", value: "t1" }] };
+    const { connection, ofType, raw, logger } = create();
+    await connection.connect();
+    // The resume holds the gap (10, 11); the fresh connect's backlog overlaps
+    // it (11) and goes on (12), without the first connect's route params.
+    signer.resumed = {
+      pushServer: "",
+      cursor: "resumed-cursor",
+      messages: [chat("10"), chat("11")],
+    };
+    signer.batch = { messages: [chat("11"), chat("12")] };
+    fake.refuseUpgrade = (url) =>
+      url.searchParams.get("cursor") === "resumed-cursor" ? 200 : undefined;
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+
+    expect(fake.refused).toHaveLength(1);
+    expect(ofType("reconnecting")).toHaveLength(1);
+    expect(ofType("connected")[1]).toEqual({
+      roomId: ROOM_ID,
+      reconnected: true,
+      attempt: 1,
+    });
+    expect(signer.calls.map(({ request }) => request.cursor)).toEqual([
+      "",
+      "signed-cursor-1",
+      "",
+    ]);
+    expect(raw).toEqual(["10", "11", "12"]);
+    const params = fake.connections[1]!.url.searchParams;
+    expect(params.get("cursor")).toBe("signed-cursor-3");
+    expect(params.get("internal_ext")).toBe("signed-ext-3");
+    expect(params.has("token")).toBe(false);
+    expect(logger).toHaveBeenCalledWith(
+      "info",
+      "Resuming failed, reconnecting fresh",
+      { status: 200 },
+    );
+    // The next drop resumes from the fresh connect.
+    signer.resumed = undefined;
+    fake.refuseUpgrade = undefined;
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(3));
+    expect(signer.calls[3]?.request.cursor).toBe("signed-cursor-3");
+  });
+
+  it("backs off as usual when the fresh connect is refused too", async () => {
+    const { connection, events, ofType } = create({
+      reconnect: { maxAttempts: 2 },
+    });
+    const errors: ConnectorError[] = [];
+    connection.on("error", (error) => errors.push(error));
+    await connection.connect();
+    signer.resumed = { pushServer: "" };
+    fake.refuseUpgrade = () => 200;
+    fake.dropSocket();
+    await until(() => expect(connection.state).toBe("disconnected"));
+
+    expect(ofType("reconnecting").map(({ reason }) => reason)).toEqual([
+      "wsClose",
+      "wsError",
+    ]);
+    // Each attempt: a resumed sign, then a fresh one.
+    expect(signer.calls.map(({ request }) => request.cursor)).toEqual([
+      "",
+      "signed-cursor-1",
+      "",
+      "signed-cursor-1",
+      "",
+    ]);
+    expect(fake.refused).toHaveLength(4);
+    expect(errors.slice(0, 2)).toEqual([
+      expect.objectContaining({ code: "WEBSOCKET", status: 200 }),
+      expect.objectContaining({ code: "WEBSOCKET", status: 200 }),
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      event: "disconnected",
+      payload: { reason: "giveUp" },
+    });
   });
 
   it("ends the stream when the room went offline (checkLiveBeforeRetry)", async () => {

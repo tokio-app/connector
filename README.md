@@ -155,7 +155,7 @@ Once connected, the connection reconnects by itself when the WebSocket closes or
 
 It resumes from the last cursor, so the messages of the gap can still come through, and duplicates are dropped. With `d = min(maxDelayMs, baseDelayMs * factor ** (n - 1))`, the wait before attempt `n` is a random time from `d / 2` up to `d` ("equal jitter"), at least `minDelayMs`, and at least what a `RateLimitError` asks for: with the defaults, the first five attempts wait at least 1, 1, 2, 4 and 8 seconds. The count starts over after each successful reconnect.
 
-Every attempt is a request to the signer. Without an API key, Euler Stream allows 5 a minute: the waits keep a reconnect from spending them all at once, and when its limit is hit anyway, the `RateLimitError` says how long to wait, and the next attempt waits that long.
+Every attempt is a request to the signer. Without an API key, Euler Stream allows 5 a minute: the waits keep a reconnect from spending them all at once, and when its limit is hit anyway, the `RateLimitError` says how long to wait, and the next attempt waits that long. An attempt resumes the stream where it stopped; when TikTok refuses to resume (its push server answers the WebSocket upgrade with a plain HTTP response), the attempt connects afresh right away, which costs one more request to the signer. The messages of the gap still come through.
 
 ```ts
 const connection = new TikTokLiveConnection("username", {
