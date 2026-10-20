@@ -1,10 +1,226 @@
-import { describe, expect, it, vi } from "vitest";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import type { Duplex } from "node:stream";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { decodeMessage } from "./codec/decode.js";
+import {
+  FetchResultSchema,
+  type FetchResultMessage,
+} from "./codec/messages/fetchResult.js";
+import { defineSchema, f } from "./codec/schema.js";
 import { TikTokLiveConnection } from "./connection.js";
-import { InvalidUsernameError } from "./errors.js";
-import type { Signer } from "./signer/types.js";
+import { dispatch, type DispatchContext } from "./dispatch.js";
+import {
+  AbortError,
+  ConnectorError,
+  InvalidUsernameError,
+  OfflineError,
+  ProtocolError,
+  RateLimitError,
+  ReconnectGiveUpError,
+  RoomNotFoundError,
+  SignError,
+  TimeoutError,
+  WebSocketError,
+} from "./errors.js";
+import type { StreamEndAction, WebcastEventMap } from "./events.js";
+import type { HttpClientOptions } from "./http/client.js";
+import { DEFAULT_USER_AGENT } from "./http/params.js";
+import type { ConnectOptions } from "./options.js";
+import { fetchGiftList } from "./room/gifts.js";
+import { checkLive, resolveRoomId } from "./room/resolver.js";
+import { WebcastSession, type SessionOptions } from "./ws/session.js";
+import { encodeMessage, fromHex } from "../test/helpers/encoder.js";
+import { FakeSigner } from "../test/helpers/fakeSigner.js";
+import { FakeTikTok, serverFrame } from "../test/helpers/fakeTikTok.js";
 
-// connect(), disconnect() and fetchGifts() are T3's (Phase 1); these cover
-// the parts frozen in Phase 0B.
+// dispatch() (T1) and the HTTP client, resolver and gift list (T2) are
+// written in parallel with this file: these tests stand in for them with
+// fakes that follow their contracts.
+vi.mock("./dispatch.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./dispatch.js")>()),
+  dispatch: vi.fn(),
+}));
+vi.mock("./room/resolver.js", () => ({
+  resolveRoomId: vi.fn(),
+  checkLive: vi.fn(),
+}));
+vi.mock("./room/gifts.js", () => ({ fetchGiftList: vi.fn() }));
+
+interface FakeHttp {
+  readonly options: HttpClientOptions;
+  cookieHeader(): string;
+}
+const httpClients = vi.hoisted((): FakeHttp[] => []);
+
+// A cookie jar as PROTOCOL.md describes it, without any request.
+vi.mock("./http/client.js", async () => {
+  const { SESSION_COOKIE_NAMES, userAgentOf } =
+    await import("./http/params.js");
+  class HttpClient implements FakeHttp {
+    readonly options: HttpClientOptions;
+    readonly #jar = new Map<string, string>();
+
+    constructor(options: HttpClientOptions) {
+      this.options = options;
+      const { session } = options;
+      this.#jar.set("tt-target-idc", session?.ttTargetIdc ?? "useast1a");
+      for (const name of session === undefined ? [] : SESSION_COOKIE_NAMES) {
+        this.#jar.set(name, session!.sessionId);
+      }
+      httpClients.push(this);
+    }
+
+    get userAgent(): string {
+      return userAgentOf(this.options.headers);
+    }
+
+    cookieHeader(): string {
+      return [...this.#jar]
+        .map(([name, value]) => `${name}=${value}`)
+        .join("; ");
+    }
+
+    sessionCookieHeader(): string | undefined {
+      const { session } = this.options;
+      return (
+        session &&
+        `sessionid=${session.sessionId}; tt-target-idc=${session.ttTargetIdc}`
+      );
+    }
+
+    addCookies(pairs: readonly string[]): void {
+      for (const pair of pairs) {
+        const at = pair.indexOf("=");
+        this.#jar.set(pair.slice(0, at), pair.slice(at + 1));
+      }
+    }
+  }
+  return { HttpClient };
+});
+
+const ROOM_ID = "7140000000000000001";
+const OTHER_ROOM_ID = "7140000000000000002";
+
+// The real WebcastSession.open, for spies that wrap it (called with each
+// session as `this`).
+// oxlint-disable-next-line typescript/unbound-method
+const realOpen = WebcastSession.prototype.open;
+
+// T1's dispatch, reduced to what the connection relies on: duplicates
+// dropped through the context's RecentIds, `raw` for listened messages,
+// history dropped unless processInitialData, control messages ending the
+// stream.
+const ControlSchema = defineSchema<{ action: number }>(
+  "WebcastControlMessage",
+  {
+    action: f.enum(2),
+  },
+);
+
+const STREAM_ENDS: Readonly<Record<number, StreamEndAction>> = {
+  3: "ended",
+  4: "suspended",
+};
+
+// Messages whose dispatch throws: an Error, and a value that isn't one.
+const THROWS: Readonly<Record<string, unknown>> = {
+  Boom: new Error("dispatch failed"),
+  BoomText: "dispatch failed as text",
+};
+
+function fakeDispatch(context: DispatchContext, message: FetchResultMessage) {
+  if (Object.hasOwn(THROWS, message.method)) throw THROWS[message.method];
+  if (message.msgId !== "0" && !context.recentIds.add(message.msgId)) return;
+  if (context.listenerCount("raw") > 0) {
+    const { method, payload, msgId, isHistory } = message;
+    context.emit("raw", { method, payload, msgId, isHistory, createTime: "0" });
+  }
+  if (message.isHistory && !context.processInitialData) return;
+  if (message.method === "WebcastControlMessage") {
+    const { action } = decodeMessage(ControlSchema, message.payload);
+    const ended = STREAM_ENDS[action];
+    if (ended !== undefined) context.endStream(ended);
+  }
+}
+
+let fake: FakeTikTok;
+let signer: FakeSigner;
+let connections: TikTokLiveConnection[];
+
+beforeEach(async () => {
+  vi.resetAllMocks();
+  httpClients.length = 0;
+  vi.mocked(dispatch).mockImplementation(fakeDispatch);
+  vi.mocked(resolveRoomId).mockResolvedValue(ROOM_ID);
+  vi.mocked(checkLive).mockResolvedValue(true);
+  vi.mocked(fetchGiftList).mockResolvedValue({ gifts: [], source: "region" });
+  fake = await FakeTikTok.start();
+  signer = new FakeSigner({ pushServer: fake.url });
+  connections = [];
+});
+
+afterEach(async () => {
+  await Promise.all(connections.map((connection) => connection.disconnect()));
+  await fake.close();
+});
+
+type Recorded = {
+  [K in keyof WebcastEventMap]: { event: K; payload: WebcastEventMap[K] };
+}[keyof WebcastEventMap];
+
+const LIFECYCLE = [
+  "connected",
+  "disconnected",
+  "reconnecting",
+  "streamEnd",
+] as const;
+
+// A connection with short timers, its lifecycle events and its `raw`
+// messages recorded. afterEach disconnects it.
+function create(options: ConnectOptions = {}) {
+  const logger = vi.fn();
+  const connection = new TikTokLiveConnection("@someone", {
+    signer,
+    logger,
+    heartbeatIntervalMs: 50,
+    idleTimeoutMs: 0,
+    connectTimeoutMs: 2_000,
+    ...options,
+    reconnect:
+      options.reconnect === false
+        ? false
+        : { baseDelayMs: 10, maxDelayMs: 40, ...options.reconnect },
+  });
+  connections.push(connection);
+  const events: Recorded[] = [];
+  for (const event of LIFECYCLE) {
+    connection.on(event, (payload) => {
+      events.push({ event, payload } as Recorded);
+    });
+  }
+  const raw: string[] = [];
+  connection.on("raw", ({ msgId }) => raw.push(msgId));
+  const names = () => events.map(({ event }) => event);
+  const ofType = <K extends Recorded["event"]>(event: K) =>
+    events
+      .filter((entry) => entry.event === event)
+      .map(({ payload }) => payload as WebcastEventMap[K]);
+  return { connection, logger, events, names, ofType, raw };
+}
+
+const chat = (msgId: string, isHistory = false) => ({
+  method: "WebcastChatMessage",
+  msgId,
+  isHistory,
+  payload: fromHex("0a 00"),
+});
+
+const until = (check: () => void, timeout = 3_000) =>
+  vi.waitFor(check, { timeout, interval: 5 });
+
+const delay = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 describe("TikTokLiveConnection", () => {
   it("normalizes the username and starts idle", () => {
@@ -47,17 +263,1109 @@ describe("TikTokLiveConnection", () => {
     );
   });
 
-  it("rejects until Phase 1 implements it", async () => {
-    const signer: Signer = { fetchConnect: vi.fn() };
-    const connection = new TikTokLiveConnection("someone", { signer });
-    await expect(connection.connect()).rejects.toMatchObject({
-      code: "NOT_IMPLEMENTED",
+  it("makes one HTTP client from the options", () => {
+    const fetch = vi.fn();
+    const { logger } = create({
+      fetch,
+      requestTimeoutMs: 1_234,
+      clientParams: { a: "1" },
+      headers: { "X-Test": "1" },
+      session: { sessionId: "sid" },
     });
-    await expect(connection.disconnect()).rejects.toMatchObject({
-      code: "NOT_IMPLEMENTED",
+    expect(httpClients).toHaveLength(1);
+    const { options } = httpClients[0]!;
+    expect(options).toEqual({
+      fetch,
+      timeoutMs: 1_234,
+      clientParams: { a: "1" },
+      headers: { "X-Test": "1" },
+      session: { sessionId: "sid", ttTargetIdc: "useast1a" },
+      logger: expect.any(Function),
     });
-    await expect(connection.fetchGifts({ region: "DE" })).rejects.toMatchObject(
-      { code: "NOT_IMPLEMENTED" },
+    // The logger option, wrapped so that it can't throw.
+    options.logger("info", "hello", { a: 1 });
+    expect(logger).toHaveBeenCalledWith("info", "hello", { a: 1 });
+  });
+
+  it("keeps going when the logger throws", async () => {
+    const { connection, ofType, logger } = create();
+    logger.mockImplementation(() => {
+      throw new Error("logger broke");
+    });
+    connection.on("chat", () => {
+      throw new Error("listener broke");
+    });
+    connection.emit("chat", { content: "hi" } as WebcastEventMap["chat"]);
+    await connection.connect();
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(logger).toHaveBeenCalled();
+  });
+});
+
+describe("connect()", () => {
+  it("resolves the room id, checks it is LIVE, signs, and enters the room", async () => {
+    const { connection, events } = create();
+    const connecting = connection.connect();
+    expect(connection.state).toBe("connecting");
+    await expect(connecting).resolves.toEqual({ roomId: ROOM_ID });
+    expect(connection.state).toBe("connected");
+    expect(connection.roomId).toBe(ROOM_ID);
+    expect(events).toEqual([
+      {
+        event: "connected",
+        payload: { roomId: ROOM_ID, reconnected: false, attempt: 0 },
+      },
+    ]);
+
+    expect(resolveRoomId).toHaveBeenCalledTimes(1);
+    const [username, context] = vi.mocked(resolveRoomId).mock.calls[0]!;
+    expect(username).toBe("someone");
+    expect(context.http).toBe(httpClients[0]);
+    expect(context.signer).toBe(signer);
+    expect(checkLive).toHaveBeenCalledWith(ROOM_ID, context);
+
+    expect(signer.calls).toHaveLength(1);
+    const { request, context: signContext } = signer.calls[0]!;
+    expect(request).toEqual({ roomId: ROOM_ID, cursor: "" });
+    expect(signContext).toMatchObject({
+      timeoutMs: 10_000,
+      userAgent: DEFAULT_USER_AGENT,
+    });
+    expect(signContext.signal.aborted).toBe(false);
+    expect(fake.framesOfType("im_enter_room")[0]?.enter?.roomId).toBe(ROOM_ID);
+  });
+
+  it("skips the lookup with the roomId option", async () => {
+    const { connection } = create({ roomId: OTHER_ROOM_ID });
+    await expect(connection.connect()).resolves.toEqual({
+      roomId: OTHER_ROOM_ID,
+    });
+    expect(resolveRoomId).not.toHaveBeenCalled();
+    expect(signer.calls[0]?.request.roomId).toBe(OTHER_ROOM_ID);
+  });
+
+  it("goes on when the live check is inconclusive", async () => {
+    vi.mocked(checkLive).mockResolvedValue(null);
+    const { connection } = create();
+    await expect(connection.connect()).resolves.toEqual({ roomId: ROOM_ID });
+  });
+
+  it("uses the room the signer connected to", async () => {
+    signer.roomId = OTHER_ROOM_ID;
+    const { connection, ofType } = create();
+    await expect(connection.connect()).resolves.toEqual({
+      roomId: OTHER_ROOM_ID,
+    });
+    expect(connection.roomId).toBe(OTHER_ROOM_ID);
+    expect(ofType("connected")[0]?.roomId).toBe(OTHER_ROOM_ID);
+    expect(fake.framesOfType("im_enter_room")[0]?.enter?.roomId).toBe(
+      OTHER_ROOM_ID,
     );
+    expect(fake.last.url.searchParams.get("room_id")).toBe(OTHER_ROOM_ID);
+  });
+
+  it("ignores a signer room id that isn't one", async () => {
+    signer.roomId = "room";
+    const { connection, logger } = create();
+    await expect(connection.connect()).resolves.toEqual({ roomId: ROOM_ID });
+    expect(logger).toHaveBeenCalledWith(
+      "warn",
+      "The signer named a room id that isn't one",
+      { roomId: "room" },
+    );
+  });
+
+  it("rejects with INVALID_STATE, changing nothing, unless idle or disconnected", async () => {
+    const { connection } = create();
+    const first = connection.connect();
+    await expect(connection.connect()).rejects.toMatchObject({
+      code: "INVALID_STATE",
+      message: "connect() can't be called while the connection is connecting",
+    });
+    expect(connection.state).toBe("connecting");
+    await first;
+    await expect(connection.connect()).rejects.toMatchObject({
+      code: "INVALID_STATE",
+    });
+    expect(connection.state).toBe("connected");
+    expect(signer.calls).toHaveLength(1);
+  });
+
+  describe("when the first connect fails", () => {
+    it.each([
+      [
+        "the room can't be found",
+        () => {
+          vi.mocked(resolveRoomId).mockRejectedValue(
+            new RoomNotFoundError("no room"),
+          );
+        },
+        RoomNotFoundError,
+      ],
+      [
+        "the room isn't LIVE",
+        () => vi.mocked(checkLive).mockResolvedValue(false),
+        OfflineError,
+      ],
+      [
+        "the signer fails",
+        () => signer.failNext(new SignError("down", { status: 503 })),
+        SignError,
+      ],
+      [
+        "the signer is rate limited",
+        () => signer.failNext(new RateLimitError("slow down")),
+        RateLimitError,
+      ],
+      [
+        "the signed body can't be decoded",
+        () => {
+          signer.body = fromHex("0a 05 01");
+        },
+        ProtocolError,
+      ],
+      [
+        "the signed body has no push server",
+        () => {
+          signer.batch = { pushServer: "" };
+        },
+        ProtocolError,
+      ],
+      [
+        "the signed body has no cursor",
+        () => {
+          signer.batch = { cursor: "" };
+        },
+        ProtocolError,
+      ],
+      [
+        "the socket closes before the entry",
+        () => {
+          fake.answerEnter = false;
+          fake.onConnection = (connection) => connection.socket.close(4001);
+        },
+        WebSocketError,
+      ],
+      [
+        "the room isn't entered in time",
+        () => {
+          fake.answerEnter = false;
+        },
+        TimeoutError,
+      ],
+    ])(
+      "rejects when %s, without a disconnected event",
+      async (_, arrange, expected) => {
+        arrange();
+        const { connection, events } = create({ connectTimeoutMs: 200 });
+        await expect(connection.connect()).rejects.toBeInstanceOf(expected);
+        expect(connection.state).toBe("disconnected");
+        expect(events).toEqual([]);
+        expect(signer.calls.length).toBeLessThanOrEqual(1);
+      },
+    );
+
+    it("tells which room isn't LIVE", async () => {
+      vi.mocked(checkLive).mockResolvedValue(false);
+      const { connection } = create();
+      await expect(connection.connect()).rejects.toMatchObject({
+        code: "OFFLINE",
+        roomId: ROOM_ID,
+        message: "@someone isn't LIVE",
+      });
+      expect(signer.calls).toEqual([]);
+    });
+
+    it("wraps an error that isn't a ConnectorError", async () => {
+      const failure = new TypeError("signer bug");
+      signer.failNext(failure);
+      const { connection } = create();
+      await expect(connection.connect()).rejects.toMatchObject({
+        code: "INTERNAL",
+        message: "signer bug",
+        cause: failure,
+      });
+    });
+
+    it("can connect again", async () => {
+      signer.failNext(new SignError("down", { status: 503 }));
+      const { connection, ofType } = create();
+      await expect(connection.connect()).rejects.toBeInstanceOf(SignError);
+      await expect(connection.connect()).resolves.toEqual({ roomId: ROOM_ID });
+      expect(ofType("connected")).toEqual([
+        { roomId: ROOM_ID, reconnected: false, attempt: 0 },
+      ]);
+    });
+  });
+
+  it("builds the WebSocket URL and headers PROTOCOL.md describes", async () => {
+    signer.cookies = ["ttwid=abc", "msToken=xyz"];
+    signer.batch = {
+      routeParams: [
+        { key: "wrds_v", value: "7" },
+        { key: "aid", value: "1989" },
+        { key: "empty", value: "" },
+        { key: "wrds_v", value: "8" },
+      ],
+    };
+    const { connection } = create();
+    await connection.connect();
+    const { url, headers } = fake.last;
+    expect([...url.searchParams.keys()]).toEqual([
+      "version_code",
+      "aid",
+      "app_language",
+      "app_name",
+      "browser_platform",
+      "browser_language",
+      "browser_name",
+      "browser_version",
+      "browser_online",
+      "cookie_enabled",
+      "tz_name",
+      "device_platform",
+      "identity",
+      "live_id",
+      "webcast_language",
+      "ws_direct",
+      "sup_ws_ds_opt",
+      "update_version_code",
+      "did_rule",
+      "screen_height",
+      "screen_width",
+      "heartbeat_duration",
+      "resp_content_type",
+      "history_comment_count",
+      "client_enter",
+      "last_rtt",
+      "User-Agent",
+      "compress",
+      "room_id",
+      "internal_ext",
+      "cursor",
+      "wrds_v",
+      "version_code",
+    ]);
+    const params = url.searchParams;
+    expect(params.getAll("version_code")).toEqual(["180800", "270000"]);
+    expect(url.search.endsWith("&version_code=270000")).toBe(true);
+    expect(params.get("aid")).toBe("1989");
+    expect(params.get("wrds_v")).toBe("8");
+    expect(params.get("compress")).toBe("gzip");
+    expect(params.get("room_id")).toBe(ROOM_ID);
+    expect(params.get("internal_ext")).toBe("signed-ext-1");
+    expect(params.get("cursor")).toBe("signed-cursor-1");
+    expect(params.get("User-Agent")).toBe(DEFAULT_USER_AGENT);
+    expect(params.get("device_platform")).toBe("web");
+    const lastRtt = Number(params.get("last_rtt"));
+    expect(lastRtt).toBeGreaterThanOrEqual(100);
+    expect(lastRtt).toBeLessThan(200);
+    expect(headers["user-agent"]).toBe(DEFAULT_USER_AGENT);
+    expect(headers.cookie).toBe(
+      "tt-target-idc=useast1a; ttwid=abc; msToken=xyz",
+    );
+  });
+
+  it("applies the clientParams and headers options, and sends the session", async () => {
+    const { connection } = create({
+      clientParams: { app_language: "fr", room_id: "1" },
+      headers: { "user-agent": "custom-agent", "X-Extra": "1" },
+      session: { sessionId: "sid", ttTargetIdc: "alisg" },
+    });
+    await connection.connect();
+    const { url, headers } = fake.last;
+    expect(url.searchParams.get("app_language")).toBe("fr");
+    // The connection's own parameters win over clientParams.
+    expect(url.searchParams.get("room_id")).toBe(ROOM_ID);
+    expect(url.searchParams.get("User-Agent")).toBe("custom-agent");
+    expect(headers["user-agent"]).toBe("custom-agent");
+    expect(headers["x-extra"]).toBe("1");
+    expect(headers.cookie).toBe(
+      "tt-target-idc=alisg; sessionid=sid; sessionid_ss=sid; sid_tt=sid; sid_guard=sid; ttwid=fake-ttwid",
+    );
+    expect(signer.calls[0]?.request).toEqual({
+      roomId: ROOM_ID,
+      cursor: "",
+      sessionCookies: "sessionid=sid; tt-target-idc=alisg",
+    });
+    expect(signer.calls[0]?.context.userAgent).toBe("custom-agent");
+  });
+});
+
+describe("batches", () => {
+  it("reach listeners attached before connect(), with no gap", async () => {
+    // A batch the server sends before confirming the entry waits for
+    // `connected`, then goes out.
+    fake.answerEnter = false;
+    fake.onConnection = (connection) => fake.push([chat("1")], { connection });
+    const { connection, names, raw } = create();
+    await connection.connect();
+    expect(raw).toEqual(["1"]);
+    expect(names()).toEqual(["connected"]);
+  });
+
+  it("dispatches the initial batch first with processInitialData, then every batch in order", async () => {
+    signer.batch = { messages: [chat("1"), chat("2", true)] };
+    const { connection, raw } = create({ processInitialData: true });
+    await connection.connect();
+    expect(raw).toEqual(["1", "2"]);
+    fake.push([chat("3")]);
+    fake.push([chat("4"), chat("5")], { gzip: true });
+    await until(() => expect(raw).toEqual(["1", "2", "3", "4", "5"]));
+  });
+
+  it("skips the first connect's initial batch without processInitialData", async () => {
+    signer.batch = {
+      messages: [chat("1"), chat("2", true), { method: "NoId" }],
+    };
+    const { connection, raw } = create();
+    await connection.connect();
+    expect(raw).toEqual([]);
+    // Its messages count as seen: TikTok sending them again changes nothing.
+    fake.push([chat("1"), chat("3")]);
+    await until(() => expect(raw).toEqual(["3"]));
+    expect(dispatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("acks the batches that ask for it", async () => {
+    const { connection } = create();
+    await connection.connect();
+    fake.push([chat("1")], { needAck: true, logId: "77", internalExt: "x" });
+    await until(() => expect(fake.framesOfType("ack")).toHaveLength(1));
+    expect(fake.framesOfType("ack")[0]).toMatchObject({
+      ack: "x",
+      frame: { logId: "77" },
+    });
+  });
+
+  it("reports a message dispatch throws for, and goes on", async () => {
+    const { connection, raw } = create();
+    const errors: ConnectorError[] = [];
+    connection.on("error", (error) => errors.push(error));
+    await connection.connect();
+    fake.push([
+      { method: "Boom", msgId: "1" },
+      { method: "BoomText", msgId: "2" },
+      chat("3"),
+    ]);
+    await until(() => expect(raw).toEqual(["3"]));
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "INTERNAL",
+        message: "Handling a Boom message failed: dispatch failed",
+      }),
+      expect.objectContaining({
+        code: "INTERNAL",
+        message: "Handling a BoomText message failed: dispatch failed as text",
+      }),
+    ]);
+  });
+
+  it("gives dispatch a context that follows the connection", async () => {
+    signer.batch = { messages: [chat("1")] };
+    const { connection, ofType } = create({ processInitialData: true });
+    await connection.connect();
+    const [context] = vi.mocked(dispatch).mock.calls[0]!;
+    expect(context.processInitialData).toBe(true);
+    expect(context.listenerCount("raw")).toBe(1);
+    expect(context.listenerCount("chat")).toBe(0);
+    const chats: unknown[] = [];
+    connection.on("chat", (message) => chats.push(message));
+    const message = { content: "hi" } as WebcastEventMap["chat"];
+    context.emit("chat", message);
+    expect(chats).toEqual([message]);
+    const errors: ConnectorError[] = [];
+    connection.on("error", (error) => errors.push(error));
+    const failure = new ProtocolError("bad payload");
+    context.reportError(failure);
+    expect(errors).toEqual([failure]);
+    // Once stopped, a late stream end changes nothing.
+    await connection.disconnect();
+    context.endStream("ended");
+    expect(ofType("streamEnd")).toEqual([]);
+  });
+
+  it("logs counters past the safe integer range once per field", async () => {
+    const { connection, logger } = create();
+    await connection.connect();
+    for (let index = 0; index < 2; index++) {
+      fake.pushFrame(
+        serverFrame({
+          payloadType: "msg",
+          payload: encodeMessage(FetchResultSchema, { now: 2 ** 60 }),
+        }),
+      );
+    }
+    fake.push([chat("1")]);
+    await until(() => expect(dispatch).toHaveBeenCalledTimes(1));
+    expect(logger.mock.calls.filter(([level]) => level === "warn")).toEqual([
+      [
+        "warn",
+        `ProtoMessageFetchResult.now is ${2n ** 60n}, past Number.MAX_SAFE_INTEGER: its number value is rounded`,
+        { path: "ProtoMessageFetchResult.now", value: String(2n ** 60n) },
+      ],
+    ]);
+  });
+});
+
+describe("errors", () => {
+  it("are emitted when the error event has a listener", async () => {
+    const { connection, logger } = create();
+    const errors: ConnectorError[] = [];
+    connection.on("error", (error) => errors.push(error));
+    await connection.connect();
+    fake.pushFrame(fromHex("0a ff ff"));
+    await until(() => expect(errors).toHaveLength(1));
+    expect(errors[0]).toBeInstanceOf(ProtocolError);
+    expect(logger).not.toHaveBeenCalledWith(
+      "error",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("are logged otherwise", async () => {
+    const { connection, logger } = create();
+    await connection.connect();
+    fake.pushFrame(fromHex("0a ff ff"));
+    await until(() =>
+      expect(logger).toHaveBeenCalledWith(
+        "error",
+        expect.stringMatching(/^Can't decode WebcastPushFrame/),
+        { error: expect.any(ProtocolError) },
+      ),
+    );
+  });
+});
+
+describe("reconnecting", () => {
+  it("follows a dropped socket, resuming from the last cursor", async () => {
+    const { connection, names, ofType, raw } = create();
+    await connection.connect();
+    fake.push([chat("1")], { cursor: "ws-cursor-a" });
+    await until(() => expect(raw).toEqual(["1"]));
+    // The reconnect's signed batch holds the gap, and a message seen already.
+    signer.batch = { messages: [chat("1"), chat("2")] };
+
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(connection.state).toBe("connected");
+    expect(names()).toEqual([
+      "connected",
+      "disconnected",
+      "reconnecting",
+      "connected",
+    ]);
+    const [disconnected] = ofType("disconnected");
+    expect(disconnected).toMatchObject({
+      willReconnect: true,
+      error: expect.any(WebSocketError),
+    });
+    expect(["wsClose", "wsError"]).toContain(disconnected?.reason);
+    const [reconnecting] = ofType("reconnecting");
+    expect(reconnecting).toMatchObject({
+      attempt: 1,
+      reason: disconnected?.reason,
+    });
+    expect(reconnecting?.delayMs).toBeLessThan(10);
+    expect(ofType("connected")[1]).toEqual({
+      roomId: ROOM_ID,
+      reconnected: true,
+      attempt: 1,
+    });
+
+    expect(signer.calls.map(({ request }) => request.cursor)).toEqual([
+      "",
+      "ws-cursor-a",
+    ]);
+    // The reconnect's batch went through dispatch: the duplicate was dropped.
+    expect(raw).toEqual(["1", "2"]);
+    fake.push([chat("3")]);
+    await until(() => expect(raw).toEqual(["1", "2", "3"]));
+    expect(fake.connections).toHaveLength(2);
+    expect(fake.connections[1]?.url.searchParams.get("cursor")).toBe(
+      "signed-cursor-2",
+    );
+  });
+
+  it("follows an idle stream", async () => {
+    const { connection, events } = create({ idleTimeoutMs: 200 });
+    await connection.connect();
+    fake.goSilent();
+    await until(() => expect(events.length).toBeGreaterThanOrEqual(4));
+    expect(events.slice(1, 4)).toEqual([
+      {
+        event: "disconnected",
+        payload: {
+          reason: "idle",
+          willReconnect: true,
+          error: expect.any(TimeoutError),
+        },
+      },
+      {
+        event: "reconnecting",
+        payload: { attempt: 1, delayMs: expect.any(Number), reason: "idle" },
+      },
+      {
+        event: "connected",
+        payload: { roomId: ROOM_ID, reconnected: true, attempt: 1 },
+      },
+    ]);
+  });
+
+  it("follows _terminateSocket()", async () => {
+    const { connection, events } = create();
+    await connection.connect();
+    connection._terminateSocket();
+    await until(() => expect(events).toHaveLength(4));
+    expect(events.slice(1)).toEqual([
+      {
+        event: "disconnected",
+        payload: {
+          reason: "wsClose",
+          willReconnect: true,
+          error: expect.objectContaining({
+            message: "The WebSocket was terminated",
+          }),
+        },
+      },
+      {
+        event: "reconnecting",
+        payload: { attempt: 1, delayMs: expect.any(Number), reason: "wsClose" },
+      },
+      {
+        event: "connected",
+        payload: { roomId: ROOM_ID, reconnected: true, attempt: 1 },
+      },
+    ]);
+  });
+
+  it("retries with a growing backoff, and counts from 1 again once connected", async () => {
+    const { connection, ofType, logger } = create();
+    await connection.connect();
+    signer.failNext(new SignError("down", { status: 503 }), 2);
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    const reconnecting = ofType("reconnecting");
+    expect(reconnecting.map(({ attempt }) => attempt)).toEqual([1, 2, 3]);
+    expect(reconnecting.map(({ reason }) => reason).slice(1)).toEqual([
+      "signError",
+      "signError",
+    ]);
+    reconnecting.forEach(({ delayMs }, index) => {
+      expect(delayMs).toBeGreaterThanOrEqual(0);
+      expect(delayMs).toBeLessThan(Math.min(40, 10 * 2 ** index));
+    });
+    expect(ofType("connected")[1]).toEqual({
+      roomId: ROOM_ID,
+      reconnected: true,
+      attempt: 3,
+    });
+    // Each failed attempt is logged: nothing listens to `error`.
+    expect(
+      logger.mock.calls.filter(
+        ([level, message]) => level === "error" && message === "down",
+      ),
+    ).toHaveLength(2);
+
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(3));
+    expect(ofType("reconnecting").at(-1)?.attempt).toBe(1);
+    expect(ofType("connected")[2]?.attempt).toBe(1);
+  });
+
+  it("emits each failed attempt as an error", async () => {
+    const { connection, ofType } = create();
+    const errors: ConnectorError[] = [];
+    connection.on("error", (error) => errors.push(error));
+    await connection.connect();
+    const failure = new SignError("down", { status: 503 });
+    signer.failNext(failure);
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(errors).toEqual([failure]);
+  });
+
+  it("gives up after maxAttempts", async () => {
+    const { connection, events, ofType } = create({
+      reconnect: { maxAttempts: 2 },
+    });
+    const errors: ConnectorError[] = [];
+    connection.on("error", (error) => errors.push(error));
+    await connection.connect();
+    const failure = new SignError("down", { status: 503 });
+    signer.failNext(failure, 5);
+    fake.dropSocket();
+    await until(() => expect(connection.state).toBe("disconnected"));
+    expect(ofType("reconnecting").map(({ attempt }) => attempt)).toEqual([
+      1, 2,
+    ]);
+    expect(signer.calls).toHaveLength(3);
+    expect(errors).toHaveLength(3);
+    const giveUp = errors[2];
+    expect(giveUp).toBeInstanceOf(ReconnectGiveUpError);
+    expect(giveUp).toMatchObject({
+      attempts: 2,
+      cause: failure,
+      message: "Gave up reconnecting after 2 attempts",
+    });
+    expect(events.at(-1)).toEqual({
+      event: "disconnected",
+      payload: { reason: "giveUp", error: giveUp, willReconnect: false },
+    });
+  });
+
+  it("waits at least what a RateLimitError asks for", async () => {
+    const { connection, ofType } = create();
+    await connection.connect();
+    signer.failNext(new RateLimitError("slow down", { retryAfterMs: 300 }));
+    fake.dropSocket();
+    await until(() => expect(ofType("reconnecting")).toHaveLength(2));
+    const asked = Date.now();
+    expect(ofType("reconnecting")[1]).toMatchObject({
+      attempt: 2,
+      delayMs: 300,
+      reason: "signError",
+    });
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(Date.now() - asked).toBeGreaterThanOrEqual(280);
+    expect(signer.calls).toHaveLength(3);
+  });
+
+  it.each([
+    ["a 4xx from the signer", new SignError("gone", { status: 404 })],
+    ["the signer not finding the room", new RoomNotFoundError("no room")],
+  ])("resolves the room id again after %s", async (_, failure) => {
+    const { connection, ofType } = create();
+    await connection.connect();
+    vi.mocked(resolveRoomId).mockResolvedValue(OTHER_ROOM_ID);
+    signer.failNext(failure);
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(resolveRoomId).toHaveBeenCalledTimes(2);
+    expect(signer.calls.map(({ request }) => request.roomId)).toEqual([
+      ROOM_ID,
+      ROOM_ID,
+      OTHER_ROOM_ID,
+    ]);
+    expect(ofType("connected")[1]).toEqual({
+      roomId: OTHER_ROOM_ID,
+      reconnected: true,
+      attempt: 2,
+    });
+    expect(connection.roomId).toBe(OTHER_ROOM_ID);
+  });
+
+  it("resolves the room id only once, then stops on a failure that can't be retried", async () => {
+    const { connection, events } = create();
+    await connection.connect();
+    const refused = new SignError("bad key", { status: 401 });
+    signer.failNext(refused, 3);
+    fake.dropSocket();
+    await until(() => expect(connection.state).toBe("disconnected"));
+    expect(resolveRoomId).toHaveBeenCalledTimes(2);
+    expect(signer.calls).toHaveLength(3);
+    expect(events.at(-1)).toEqual({
+      event: "disconnected",
+      payload: { reason: "signError", error: refused, willReconnect: false },
+    });
+  });
+
+  it("stops at once on a failure that can't be retried", async () => {
+    const { connection, events } = create();
+    await connection.connect();
+    const failure = new SignError("refused", { retryable: false });
+    signer.failNext(failure);
+    fake.dropSocket();
+    await until(() => expect(connection.state).toBe("disconnected"));
+    expect(signer.calls).toHaveLength(2);
+    expect(events.at(-1)).toEqual({
+      event: "disconnected",
+      payload: { reason: "signError", error: failure, willReconnect: false },
+    });
+  });
+
+  it("gives a socket closing before the entry as the next attempt's reason", async () => {
+    const { connection, ofType } = create();
+    await connection.connect();
+    fake.onConnection = (connection) => {
+      fake.onConnection = undefined;
+      connection.socket.close(4002);
+    };
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(ofType("reconnecting")[1]?.reason).toBe("wsClose");
+  });
+
+  it("gives an entry that timed out as the next attempt's reason", async () => {
+    const { connection, ofType } = create({ connectTimeoutMs: 100 });
+    await connection.connect();
+    fake.onConnection = (connection) => {
+      fake.onConnection = undefined;
+      connection.silent = true;
+    };
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(ofType("reconnecting")[1]?.reason).toBe("wsError");
+  });
+
+  it("gives a refused WebSocket handshake as the next attempt's reason", async () => {
+    // An HTTP server that answers every upgrade with 403.
+    const refusing = createServer();
+    refusing.on("upgrade", (_request, socket: Duplex) => {
+      socket.end("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n");
+    });
+    await new Promise<void>((resolve) =>
+      refusing.listen(0, "127.0.0.1", resolve),
+    );
+    try {
+      const { port } = refusing.address() as AddressInfo;
+      const { connection, ofType } = create();
+      await connection.connect();
+      signer.pushServers = [`ws://127.0.0.1:${port}/`];
+      fake.dropSocket();
+      await until(() => expect(ofType("connected")).toHaveLength(2));
+      expect(ofType("reconnecting")[1]?.reason).toBe("wsError");
+    } finally {
+      refusing.closeAllConnections();
+      await new Promise((resolve) => refusing.close(resolve));
+    }
+  });
+
+  it("ends the stream when the room went offline (checkLiveBeforeRetry)", async () => {
+    const { connection, events, ofType } = create();
+    await connection.connect();
+    vi.mocked(checkLive).mockResolvedValue(false);
+    fake.dropSocket();
+    await until(() => expect(connection.state).toBe("disconnected"));
+    expect(ofType("streamEnd")).toEqual([{ action: "ended" }]);
+    expect(events.at(-1)).toEqual({
+      event: "disconnected",
+      payload: { reason: "streamEnd", willReconnect: false },
+    });
+    expect(checkLive).toHaveBeenCalledTimes(2);
+    expect(signer.calls).toHaveLength(1);
+  });
+
+  it("doesn't check the room without checkLiveBeforeRetry", async () => {
+    const { connection, ofType } = create({
+      reconnect: { checkLiveBeforeRetry: false },
+    });
+    await connection.connect();
+    vi.mocked(checkLive).mockResolvedValue(false);
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+    expect(checkLive).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["reconnect is false", false as const],
+    ["maxAttempts is 0", { maxAttempts: 0 }],
+  ])("doesn't happen when %s", async (_, reconnect) => {
+    const { connection, events } = create({ reconnect });
+    await connection.connect();
+    fake.dropSocket();
+    await until(() => expect(connection.state).toBe("disconnected"));
+    expect(events.slice(1)).toEqual([
+      {
+        event: "disconnected",
+        payload: {
+          reason: expect.stringMatching(/^ws(Close|Error)$/),
+          error: expect.any(WebSocketError),
+          willReconnect: false,
+        },
+      },
+    ]);
+    await delay(50);
+    expect(signer.calls).toHaveLength(1);
+  });
+});
+
+describe("streamEnd", () => {
+  it.each([
+    [3, "ended"],
+    [4, "suspended"],
+  ] as const)(
+    "stops the connection without reconnecting (action %i)",
+    async (action, expected) => {
+      const { connection, events } = create();
+      await connection.connect();
+      const serverClosed = new Promise((resolve) =>
+        fake.last.socket.once("close", resolve),
+      );
+      fake.endStream(action);
+      await until(() => expect(connection.state).toBe("disconnected"));
+      expect(events.slice(1)).toEqual([
+        { event: "streamEnd", payload: { action: expected } },
+        {
+          event: "disconnected",
+          payload: { reason: "streamEnd", willReconnect: false },
+        },
+      ]);
+      await serverClosed;
+      await delay(50);
+      expect(signer.calls).toHaveLength(1);
+    },
+  );
+
+  it("drops the rest of the batch", async () => {
+    const { connection, raw } = create();
+    await connection.connect();
+    fake.push([
+      {
+        method: "WebcastControlMessage",
+        msgId: "1",
+        payload: fromHex("10 03"),
+      },
+      chat("2"),
+    ]);
+    await until(() => expect(connection.state).toBe("disconnected"));
+    expect(raw).toEqual(["1"]);
+  });
+});
+
+describe("disconnect()", () => {
+  it("closes the socket and emits disconnected once", async () => {
+    const { connection, events } = create();
+    await connection.connect();
+    const serverClosed = new Promise<number>((resolve) =>
+      fake.last.socket.once("close", resolve),
+    );
+    await connection.disconnect();
+    expect(connection.state).toBe("disconnected");
+    expect(await serverClosed).toBe(1000);
+    await connection.disconnect();
+    expect(events.slice(1)).toEqual([
+      {
+        event: "disconnected",
+        payload: { reason: "user", willReconnect: false },
+      },
+    ]);
+  });
+
+  it("does nothing before connect()", async () => {
+    const { connection, events } = create();
+    await connection.disconnect();
+    expect(connection.state).toBe("idle");
+    expect(events).toEqual([]);
+  });
+
+  it("lets connect() start over", async () => {
+    const { connection, ofType } = create();
+    await connection.connect();
+    await connection.disconnect();
+    await expect(connection.connect()).resolves.toEqual({ roomId: ROOM_ID });
+    expect(ofType("connected")).toEqual([
+      { roomId: ROOM_ID, reconnected: false, attempt: 0 },
+      { roomId: ROOM_ID, reconnected: false, attempt: 0 },
+    ]);
+    // A new start: the stream isn't resumed, the room id is looked up again.
+    expect(signer.calls.map(({ request }) => request.cursor)).toEqual(["", ""]);
+    expect(resolveRoomId).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels the wait before a reconnect attempt", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const { connection, ofType, names } = create({
+      reconnect: { baseDelayMs: 2_000, maxDelayMs: 2_000 },
+    });
+    await connection.connect();
+    fake.dropSocket();
+    await until(() => expect(ofType("reconnecting")).toHaveLength(1));
+    expect(ofType("reconnecting")[0]?.delayMs).toBe(1_980);
+    const started = Date.now();
+    await connection.disconnect();
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(connection.state).toBe("disconnected");
+    expect(names()).toEqual([
+      "connected",
+      "disconnected",
+      "reconnecting",
+      "disconnected",
+    ]);
+    expect(ofType("disconnected")[1]).toEqual({
+      reason: "user",
+      willReconnect: false,
+    });
+    expect(signer.calls).toHaveLength(1);
+  });
+
+  it("cancels a reconnect attempt in progress", async () => {
+    const { connection, ofType } = create();
+    await connection.connect();
+    signer.hold = new Promise(() => {});
+    fake.dropSocket();
+    await until(() => expect(signer.calls).toHaveLength(2));
+    await connection.disconnect();
+    expect(signer.calls[1]?.context.signal.aborted).toBe(true);
+    await delay(50);
+    expect(connection.state).toBe("disconnected");
+    expect(ofType("connected")).toHaveLength(1);
+    expect(ofType("disconnected").at(-1)?.reason).toBe("user");
+  });
+
+  it("can be called from a disconnected listener", async () => {
+    const { connection, names } = create();
+    connection.once("disconnected", () => {
+      void connection.disconnect();
+    });
+    await connection.connect();
+    fake.dropSocket();
+    await until(() => expect(connection.state).toBe("disconnected"));
+    await delay(50);
+    expect(names()).toEqual(["connected", "disconnected", "disconnected"]);
+    expect(signer.calls).toHaveLength(1);
+  });
+
+  it("rejects a first connect still signing with an AbortError", async () => {
+    signer.hold = new Promise(() => {});
+    const { connection, events } = create();
+    const connecting = connection.connect();
+    await until(() => expect(signer.calls).toHaveLength(1));
+    await connection.disconnect();
+    await expect(connecting).rejects.toMatchObject({
+      code: "ABORTED",
+      message: "disconnect() was called",
+    });
+    expect(connection.state).toBe("disconnected");
+    expect(events).toEqual([]);
+  });
+
+  it("rejects a first connect still opening the socket with an AbortError", async () => {
+    fake.answerEnter = false;
+    const { connection, events } = create();
+    const connecting = connection.connect();
+    await until(() => expect(fake.connections).toHaveLength(1));
+    const serverClosed = new Promise((resolve) =>
+      fake.last.socket.once("close", resolve),
+    );
+    await connection.disconnect();
+    await expect(connecting).rejects.toBeInstanceOf(AbortError);
+    await serverClosed;
+    expect(events).toEqual([]);
+  });
+
+  it("rejects a first connect stopped right after the entry", async () => {
+    const { connection, events } = create();
+    let disconnecting: Promise<void> | undefined;
+    vi.spyOn(WebcastSession.prototype, "open").mockImplementation(
+      async function (this: WebcastSession, options: SessionOptions) {
+        await realOpen.call(this, options);
+        // Lands between the entry and the end of connect().
+        disconnecting = connection.disconnect();
+      },
+    );
+    await expect(connection.connect()).rejects.toBeInstanceOf(AbortError);
+    await disconnecting;
+    expect(connection.state).toBe("disconnected");
+    expect(events).toEqual([]);
+  });
+
+  it("rejects a first connect whose socket closed right after the entry", async () => {
+    const { connection, events } = create();
+    vi.spyOn(WebcastSession.prototype, "open").mockImplementation(
+      async function (this: WebcastSession, options: SessionOptions) {
+        await realOpen.call(this, options);
+        const closed = new Promise((resolve) => this.once("closed", resolve));
+        this.terminate();
+        await closed;
+      },
+    );
+    await expect(connection.connect()).rejects.toMatchObject({
+      code: "WEBSOCKET",
+      message: "The WebSocket was terminated",
+    });
+    expect(connection.state).toBe("disconnected");
+    expect(events).toEqual([]);
+  });
+});
+
+describe("the signal option", () => {
+  it("stops a connected connection for good", async () => {
+    const controller = new AbortController();
+    const { connection, events } = create({ signal: controller.signal });
+    await connection.connect();
+    const reason = new Error("shutting down");
+    controller.abort(reason);
+    expect(connection.state).toBe("disconnected");
+    expect(events.at(-1)).toEqual({
+      event: "disconnected",
+      payload: {
+        reason: "aborted",
+        error: expect.objectContaining({ code: "ABORTED", cause: reason }),
+        willReconnect: false,
+      },
+    });
+    await connection.disconnect();
+  });
+
+  it("rejects connect() when it aborted already", async () => {
+    const { connection, events } = create({ signal: AbortSignal.abort() });
+    await expect(connection.connect()).rejects.toMatchObject({
+      code: "ABORTED",
+      message: "The signal aborted",
+    });
+    expect(connection.state).toBe("disconnected");
+    expect(events).toEqual([]);
+    expect(signer.calls).toEqual([]);
+  });
+
+  it("rejects a first connect in progress", async () => {
+    signer.hold = new Promise(() => {});
+    const controller = new AbortController();
+    const { connection, events } = create({ signal: controller.signal });
+    const connecting = connection.connect();
+    await until(() => expect(signer.calls).toHaveLength(1));
+    controller.abort();
+    await expect(connecting).rejects.toMatchObject({
+      code: "ABORTED",
+      message: "The signal aborted",
+    });
+    expect(events).toEqual([]);
+  });
+
+  it("is let go when the connection stops", async () => {
+    const controller = new AbortController();
+    const { connection, names } = create({ signal: controller.signal });
+    await connection.connect();
+    await connection.disconnect();
+    controller.abort();
+    expect(names()).toEqual(["connected", "disconnected"]);
+  });
+});
+
+describe("fetchGifts()", () => {
+  it("asks for the region list without a room id", async () => {
+    const list = { gifts: [], source: "region" as const };
+    vi.mocked(fetchGiftList).mockResolvedValue(list);
+    const { connection } = create();
+    await expect(connection.fetchGifts()).resolves.toBe(list);
+    const [request, context] = vi.mocked(fetchGiftList).mock.calls[0]!;
+    expect(request).toEqual({ roomId: null, region: "US", language: "en-US" });
+    expect(context.http).toBe(httpClients[0]);
+    expect(context.signer).toBe(signer);
+    expect(context.signContext.signal.aborted).toBe(false);
+  });
+
+  it("passes the room id, the region, the language and the signal", async () => {
+    const controller = new AbortController();
+    const { connection } = create({ signal: controller.signal });
+    await connection.connect();
+    await connection.fetchGifts({ region: "DE", language: "de-DE" });
+    const [request, context] = vi.mocked(fetchGiftList).mock.calls[0]!;
+    expect(request).toEqual({
+      roomId: ROOM_ID,
+      region: "DE",
+      language: "de-DE",
+    });
+    expect(context.signContext.signal).toBe(controller.signal);
+  });
+
+  it("rejects when the gift list does", async () => {
+    const failure = new ConnectorError("GIFTS_UNAVAILABLE", "no gifts");
+    vi.mocked(fetchGiftList).mockRejectedValue(failure);
+    const { connection } = create();
+    await expect(connection.fetchGifts()).rejects.toBe(failure);
   });
 });
