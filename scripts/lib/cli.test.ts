@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { consoleLogger, EulerSigner } from "../../src/index.js";
+import { EulerSigner } from "../../src/index.js";
 import {
   connectionOptions,
   createLogger,
@@ -132,28 +132,57 @@ describe("readDuration", () => {
 });
 
 describe("createLogger", () => {
-  it("is the library's console logger without --verbose", () => {
-    expect(createLogger(false)).toBe(consoleLogger);
+  // What the logger writes to stderr, as text.
+  function stderrOf(run: () => void): string {
+    const chunks: string[] = [];
+    const write = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation((chunk: string | Uint8Array) => {
+        chunks.push(String(chunk));
+        return true;
+      });
+    const stdout = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+    run();
+    expect(stdout).not.toHaveBeenCalled();
+    write.mockRestore();
+    return chunks.join("");
+  }
+
+  // The lines of `text`, each ended by a line feed.
+  function lines(text: string): string[] {
+    const all = text.split("\n");
+    expect(all.pop()).toBe("");
+    return all;
+  }
+
+  it("prints only warnings and errors without --verbose, to stderr", () => {
+    const logger = createLogger(false);
+    const text = stderrOf(() => {
+      logger("debug", "frame");
+      logger("info", "entered");
+      logger("warn", "slow");
+      logger("error", "failed");
+    });
+    expect(lines(text)).toEqual([
+      "[@tokioapp/connector] slow",
+      "[@tokioapp/connector] failed",
+    ]);
   });
 
-  it("also prints debug and info entries to stderr with --verbose", () => {
-    const error = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+  it("also prints debug and info entries with --verbose, to stderr", () => {
     const logger = createLogger(true);
-
-    logger("debug", "frame", { bytes: 3 });
-    logger("info", "entered");
-    logger("warn", "slow");
-
-    expect(error).toHaveBeenCalledWith("[@tokioapp/connector] debug: frame", {
-      bytes: 3,
+    const text = stderrOf(() => {
+      logger("debug", "frame", { bytes: 3 });
+      logger("info", "entered");
+      logger("warn", "slow");
     });
-    expect(error).toHaveBeenCalledWith("[@tokioapp/connector] info: entered");
-    expect(warn).toHaveBeenCalledWith("[@tokioapp/connector] slow");
-    expect(log).not.toHaveBeenCalled();
+    expect(lines(text)).toEqual([
+      "[@tokioapp/connector] debug: frame { bytes: 3 }",
+      "[@tokioapp/connector] info: entered",
+      "[@tokioapp/connector] slow",
+    ]);
   });
 });
 
@@ -169,6 +198,6 @@ describe("connectionOptions", () => {
     });
     expect(options.roomId).toBe("7140000000000000001");
     expect(options.signer).toBeInstanceOf(EulerSigner);
-    expect(options.logger).toBe(consoleLogger);
+    expect(options.logger).toEqual(expect.any(Function));
   });
 });

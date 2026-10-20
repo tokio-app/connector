@@ -2,9 +2,10 @@
 // connection options they build, their logger, their clock, and how they start
 // and end. runScript, onInterrupt and the clock touch the process; the rest is
 // pure and tested in cli.test.ts.
+import { Console } from "node:console";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import {
-  consoleLogger,
+  createConsoleLogger,
   EulerSigner,
   normalizeUsername,
   type ConnectOptions,
@@ -180,24 +181,18 @@ export function parseCommand(
   };
 }
 
-const PREFIX = "[@tokioapp/connector]";
+// Every level to stderr, so stdout stays clean for `--json`.
+const STDERR = new Console(process.stderr);
 
 /**
- * The scripts' logger: the library's `consoleLogger` (warnings and errors),
- * plus its debug and info entries with `verbose`. Everything goes to stderr,
- * so stdout stays clean for `--json`.
+ * The scripts' logger: the library's console logger printing warnings and
+ * errors, and with `verbose` its debug and info entries too, all to stderr.
  */
 export function createLogger(verbose: boolean): Logger {
-  if (!verbose) return consoleLogger;
-  return (level, message, data) => {
-    if (level === "warn" || level === "error") {
-      consoleLogger(level, message, data);
-      return;
-    }
-    const args: unknown[] = [`${PREFIX} ${level}: ${message}`];
-    if (data !== undefined) args.push(data);
-    console.error(...args);
-  };
+  return createConsoleLogger({
+    level: verbose ? "debug" : "warn",
+    console: STDERR,
+  });
 }
 
 /**

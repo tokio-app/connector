@@ -115,11 +115,35 @@ A gift of type 1 (`isStreakable(gift)`) can be sent in a streak. Each update of 
 | `headers`             | none                | Headers to add to, or replace in, every request to TikTok and the WebSocket                                                                                     |
 | `fetch`               | global `fetch`      | The `fetch` for HTTP requests, to instrument or route them. The WebSocket doesn't use it                                                                        |
 | `signal`              | none                | An `AbortSignal` that stops the connection for good (`disconnected` with reason `aborted`)                                                                      |
-| `logger`              | `consoleLogger`     | `(level, message, data?) => void`. The default prints warnings and errors to the console                                                                        |
+| `logger`              | `consoleLogger`     | `(level, message, data?) => void`. The default prints warnings and errors to the console ([Logging](#logging))                                                  |
 
 The constructor throws a `RangeError` for a number out of range and a `TypeError` for a `roomId` that isn't numeric. `DEFAULT_OPTIONS` holds the defaults.
 
 `clientParams` and `headers` are the way around a TikTok change before a release fixes it: they override the defaults the library sends.
+
+There is no proxy option yet. The `fetch` option can route the HTTP requests (through an undici `ProxyAgent`, say), but the WebSocket always connects directly.
+
+### Logging
+
+The library logs through the `logger` option: `(level, message, data?) => void`, where `level` is `debug`, `info`, `warn` or `error` and `data` holds details such as ids, counts and the `error`. The default, `consoleLogger`, prints warnings and errors to the console. `createConsoleLogger` prints from another level on, to the console or to one you give it:
+
+```ts
+import { Console } from "node:console";
+import { createConsoleLogger, TikTokLiveConnection } from "@tokioapp/connector";
+
+const connection = new TikTokLiveConnection("username", {
+  // Connects, reconnects and stops too; "debug" adds every request and frame.
+  logger: createConsoleLogger({ level: "info" }),
+});
+
+// Everything on stderr, stdout left alone:
+const quiet = createConsoleLogger({
+  level: "debug",
+  console: new Console(process.stderr),
+});
+```
+
+Or pass your own function to send entries to your app's logger.
 
 ## Reconnecting
 

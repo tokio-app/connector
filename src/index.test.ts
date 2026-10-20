@@ -29,6 +29,7 @@ describe("public API", () => {
         "TypedEmitter",
         "WebSocketError",
         "consoleLogger",
+        "createConsoleLogger",
         "isConnectorError",
         "isStreakEnd",
         "isStreakable",

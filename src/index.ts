@@ -67,7 +67,13 @@ export type {
   WebcastEventMap,
 } from "./events.js";
 export { isStreakEnd, isStreakable } from "./gifts.js";
-export { consoleLogger, type Logger, type LogLevel } from "./logger.js";
+export {
+  consoleLogger,
+  createConsoleLogger,
+  type ConsoleLoggerOptions,
+  type Logger,
+  type LogLevel,
+} from "./logger.js";
 export {
   DEFAULT_OPTIONS,
   normalizeUsername,
