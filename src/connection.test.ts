@@ -475,6 +475,17 @@ describe("connect()", () => {
       },
     );
 
+    it("wraps an unexpected failure as INTERNAL", async () => {
+      const failure = new TypeError("lookup bug");
+      vi.mocked(resolveRoomId).mockRejectedValue(failure);
+      const { connection } = create();
+      await expect(connection.connect()).rejects.toMatchObject({
+        code: "INTERNAL",
+        message: "lookup bug",
+        cause: failure,
+      });
+    });
+
     it("times out a signer that doesn't answer", async () => {
       signer.hold = new Promise(() => {});
       const { connection } = create({ requestTimeoutMs: 100 });

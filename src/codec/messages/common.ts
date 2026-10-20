@@ -35,13 +35,12 @@ export const CommonSchema = defineSchema<Common>("CommonMessageData", {
 });
 
 /** `webcast.model.base.user.CombineBadgeStruct`. */
-export const CombineBadgeSchema = defineSchema<CombineBadge>(
-  "CombineBadgeStruct",
-  { icon: f.message(2, ImageSchema) },
-);
+const CombineBadgeSchema = defineSchema<CombineBadge>("CombineBadgeStruct", {
+  icon: f.message(2, ImageSchema),
+});
 
 /** `webcast.model.base.user.PrivilegeLogExtra`. */
-export const PrivilegeLogExtraSchema = defineSchema<PrivilegeLogExtra>(
+const PrivilegeLogExtraSchema = defineSchema<PrivilegeLogExtra>(
   "PrivilegeLogExtra",
   { level: f.string(5) },
 );

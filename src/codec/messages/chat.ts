@@ -10,13 +10,13 @@ import {
 } from "./common.js";
 
 /** `webcast.model.base.emoji.EmoteModel`. */
-export const EmoteSchema = defineSchema<Emote>("EmoteModel", {
+const EmoteSchema = defineSchema<Emote>("EmoteModel", {
   emoteId: f.string(1),
   image: f.message(2, ImageSchema),
 });
 
 /** `webcast.model.base.emoji.EmoteWithIndex`. */
-export const ChatEmoteSchema = defineSchema<ChatEmote>("EmoteWithIndex", {
+const ChatEmoteSchema = defineSchema<ChatEmote>("EmoteWithIndex", {
   index: f.int32(1),
   emote: f.message(2, EmoteSchema),
 });

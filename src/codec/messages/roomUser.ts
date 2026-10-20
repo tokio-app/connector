@@ -5,7 +5,7 @@ import { defineSchema, f } from "../schema.js";
 import { CommonSchema, UserSchema } from "./common.js";
 
 /** `webcast.model.message.Contributor`: one top viewer. */
-export const RoomUserRankSchema = defineSchema<RoomUserRank>("Contributor", {
+const RoomUserRankSchema = defineSchema<RoomUserRank>("Contributor", {
   score: f.count(1),
   user: f.message(2, UserSchema),
   rank: f.count(3),

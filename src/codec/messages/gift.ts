@@ -5,7 +5,7 @@ import { defineSchema, f } from "../schema.js";
 import { CommonSchema, ImageSchema, UserSchema } from "./common.js";
 
 /** `webcast.model.Gift`: the gift a gift message is about. */
-export const GiftDetailsSchema = defineSchema<GiftDetails>("Gift", {
+const GiftDetailsSchema = defineSchema<GiftDetails>("Gift", {
   image: f.message(1, ImageSchema),
   id: f.id(5),
   type: f.int32(11),

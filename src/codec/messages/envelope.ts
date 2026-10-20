@@ -5,10 +5,9 @@ import { defineSchema, f } from "../schema.js";
 import { CommonSchema } from "./common.js";
 
 /** `webcast.model.message.redenvelope.MessageRedEnvelopInfo`. */
-export const EnvelopeInfoSchema = defineSchema<EnvelopeInfo>(
-  "MessageRedEnvelopInfo",
-  { businessType: f.enum(2) },
-);
+const EnvelopeInfoSchema = defineSchema<EnvelopeInfo>("MessageRedEnvelopInfo", {
+  businessType: f.enum(2),
+});
 
 /** `WebcastEnvelopeMessage`. */
 export const EnvelopeMessageSchema = defineSchema<EnvelopeMessage>(

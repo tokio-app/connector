@@ -37,7 +37,7 @@ export interface RouteParam {
 }
 
 /** An entry of a `map<string, string>` field: key 1, value 2. */
-export const RouteParamSchema = defineSchema<RouteParam>("RouteParamsEntry", {
+const RouteParamSchema = defineSchema<RouteParam>("RouteParamsEntry", {
   key: f.string(1),
   value: f.string(2),
 });

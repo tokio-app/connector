@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  ChatMessageSchema,
-  SCHEMAS,
-  decodeMessage,
-  getSchema,
-  type MessageSchema,
-  type SchemaName,
-} from "./index.js";
+import { decodeMessage } from "./decode.js";
+import { SCHEMAS, getSchema, type SchemaName } from "./index.js";
+import { ChatMessageSchema } from "./messages/chat.js";
+import type { MessageSchema } from "./schema.js";
 
 describe("SCHEMAS", () => {
   it("keys every schema by its protobuf message name", () => {
