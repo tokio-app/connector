@@ -1,6 +1,11 @@
 {
   "$schema": "./node_modules/fallow/schema.json",
-  "entry": ["src/index.ts", "scripts/*/index.ts", "vitest.config.ts"],
+  "entry": [
+    "src/index.ts",
+    "scripts/*/index.ts",
+    "examples/*.ts",
+    "vitest.config.ts"
+  ],
   "ignorePatterns": ["reference/**"],
   "ignoreDependencies": ["@typescript/typescript6"],
   "duplicates": {

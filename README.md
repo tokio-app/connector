@@ -338,7 +338,15 @@ connection.on("raw", ({ method, msgId, payload }) => {
 
 ## Scripts
 
-Two scripts in this repository (not in the package) check the library against real LIVEs. Both need the network and a user who is LIVE now, and take an Euler Stream API key from `EULER_API_KEY` (or `--api-key`). `--help` lists every flag.
+To see the library in action, clone the repository and watch a LIVE from the terminal:
+
+```sh
+yarn example <username> [seconds]
+```
+
+It is [`examples/live.ts`](examples/live.ts): a listener per event, printed as one line each. Set `EULER_API_KEY` to sign with your own key.
+
+Two more scripts in this repository (not in the package) check the library against real LIVEs. Both need the network and a user who is LIVE now, and take an Euler Stream API key from `EULER_API_KEY` (or `--api-key`). `--help` lists every flag.
 
 ```sh
 yarn smoke <username> --seconds 30 --drop-after 10 --gifts

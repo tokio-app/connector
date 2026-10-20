@@ -19,6 +19,7 @@ yarn typecheck         # tsc --noEmit over src/, test/, scripts/ and vitest.conf
 yarn lint              # oxlint --type-aware
 yarn format            # prettier --write . (yarn format:check only checks)
 yarn reference         # download the MIT reference copies into reference/ (needs network)
+yarn example <user>    # watch a LIVE from the terminal (examples/live.ts; opt-in, needs network)
 yarn smoke <user>      # connect to a real LIVE, print what happens, exit 0 when it works (opt-in, needs network)
 yarn capture <user>    # record a LIVE's raw messages into a fixture (opt-in, needs network)
 ```

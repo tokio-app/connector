@@ -37,6 +37,7 @@
     "reference": "tsx scripts/reference/index.ts",
     "capture": "tsx scripts/capture/index.ts",
     "smoke": "tsx scripts/smoke/index.ts",
+    "example": "tsx examples/live.ts",
     "prepublishOnly": "yarn build",
     "prepare": "husky"
   },
