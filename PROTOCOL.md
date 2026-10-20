@@ -833,30 +833,98 @@ The tail (`link/tail.ts`), each with `common` (1):
 `total` is the viewers watching now, `total_user` the viewers so far (how Tokio reads them). Not read: `pop_str` (4), `seats` (5), `popularity` (6), `anonymous` (8).
 `webcast.model.message.Contributor`: `score` (1, int64) → `score`, count; `user` (2, `User`) → `user`, message; `rank` (3, int64) → `rank`, count. Not read: `delta` (4).
 
-`WebcastControlMessage` (`room/control.ts`)
+`WebcastControlMessage` [proto: webcast/model/message/messages.proto, line 1186] (`room/control.ts`)
 
-| No. | Proto field | Type                            | Property | Kind |
-| --- | ----------- | ------------------------------- | -------- | ---- |
-| 2   | `action`    | `webcast.im.ControlAction` enum | `action` | enum |
+| No. | Proto field   | Type                            | Property     | Kind    |
+| --- | ------------- | ------------------------------- | ------------ | ------- |
+| 2   | `action`      | `webcast.im.ControlAction` enum | `action`     | enum    |
+| 3   | `tips`        | string                          | `tips`       | string  |
+| 4   | `extra`       | `Extra`                         | `extra`      | message |
+| 7   | `punish_info` | `PunishEventInfo`               | `punishInfo` | message |
 
-`ControlAction` [proto: webcast/synthetic_enums.proto]: `CONTROL_ACTION_FALLBACK_UNKNOWN` 0, `CONTROL_ACTION_STREAM_PAUSED` 1, `CONTROL_ACTION_STREAM_UNPAUSED` 2, **`CONTROL_ACTION_STREAM_ENDED` 3**, **`CONTROL_ACTION_STREAM_SUSPENDED` 4**; exported as `ControlAction` (`UNKNOWN`, `PAUSED`, `UNPAUSED`, `STREAM_ENDED`, `STREAM_SUSPENDED`). 2.4.0's legacy client spells out 3 as ended by the host and 4 as ended by a moderator (a ban) [TLC: src/lib/client/legacy/index.ts].
+`ControlAction` [proto: webcast/synthetic_enums.proto, line 22]: `CONTROL_ACTION_FALLBACK_UNKNOWN` 0, `CONTROL_ACTION_STREAM_PAUSED` 1, `CONTROL_ACTION_STREAM_UNPAUSED` 2, **`CONTROL_ACTION_STREAM_ENDED` 3**, **`CONTROL_ACTION_STREAM_SUSPENDED` 4**; exported as `ControlAction` (`UNKNOWN`, `PAUSED`, `UNPAUSED`, `STREAM_ENDED`, `STREAM_SUSPENDED`). 2.4.0's legacy client spells out 3 as ended by the host and 4 as ended by a moderator (a ban) [TLC: src/lib/client/legacy/index.ts]. Not read: `perception_dialog` (5), `perception_audience_text` (6), `float_text` (8), `float_style` (9).
+`webcast.model.message.Extra` [proto: webcast/model/message/messages.proto, line 368] (`ControlExtraSchema`, the `ControlExtra` type): `title` (3, `Text`) → `title`, message; `violation_reason` (4, `Text`) → `violationReason`, message; `content` (5, `Text`) → `content`, message. Not read: `ban_info_url` (1), `reason_no` (2), `got_it_button` (6) and the rest.
 
-`WebcastPerceptionMessage` (`room/perception.ts`): pending.
-`WebcastRankUpdateMessage` (`room/rankUpdate.ts`): pending.
-`WebcastRankTextMessage` (`room/rankText.ts`): pending.
-`WebcastGameRankNotifyMessage` (`room/tail.ts`): pending.
-`WebcastPollMessage` (`room/poll.ts`): pending.
-`WebcastOecLiveShoppingMessage` [proto: webcast/model/message/ext.proto] (`room/oecLiveShopping.ts`): pending.
-`WebcastCapsuleMessage` (`room/tail.ts`): pending.
-`WebcastMarqueeAnnouncementMessage` (`room/tail.ts`): pending.
-`WebcastSpeakerMessage` (`room/tail.ts`): pending.
-`WebcastInRoomBannerMessage` (`room/tail.ts`): pending.
-`WebcastAccessControlMessage` (`room/tail.ts`): pending.
-`WebcastAccessRecallMessage` [proto: webcast/model/game.proto] (`room/tail.ts`): pending.
-`WebcastPartnershipDropsUpdateMessage` (`room/tail.ts`): pending.
-`WebcastPartnershipGameOfflineMessage` (`room/tail.ts`): pending.
-`WebcastPartnershipPunishMessage` (`room/tail.ts`): pending.
-`WebcastLiveGameIntroMessage` (`room/tail.ts`): pending.
+`WebcastPerceptionMessage` [proto: webcast/model/message/messages.proto, line 1700] (`room/perception.ts`)
+
+| No. | Proto field   | Type                   | Property     | Kind    |
+| --- | ------------- | ---------------------- | ------------ | ------- |
+| 2   | `dialog`      | `PerceptionDialogInfo` | `dialog`     | message |
+| 3   | `punish_info` | `PunishEventInfo`      | `punishInfo` | message |
+
+Not read: `end_time` (4), `show_violation_warning` (5), `toast` (6), `float_style` (7), `float_text` (8), `sheet` (9), `float_icon_type` (10).
+`webcast.model.message.PerceptionDialogInfo` [proto: webcast/model/message/invite_top_host_info.proto, line 21] (`PerceptionDialogSchema`): `icon_type` (1, `webcast.model.data.PerceptionDialogIconType`) → `iconType`, enum; `title` (2, `Text`) → `title`, message; `sub_title` (3, `Text`) → `subTitle`, message; `scene` (7, int32) → `scene`, int32. Not read: `advice_action_text` (4), `default_action_text` (5), `violation_detail_url` (6), `target_user_id` (8), `target_room_id` (9), `count_down_time` (10), and the rest.
+`PerceptionDialogIconType` [proto: webcast/model/data/messages.proto, line 560]: `ICON_TYPE_NONE` 0, `ICON_TYPE_WARNING` 1, `ICON_TYPE_LINKMIC` 2, `ICON_TYPE_GUEST_LINKMIC` 3, `ICON_TYPE_LIVE` 4, `ICON_TYPE_TREASURE_BOX` 5, `ICON_TYPE_MUTE` 6, `ICON_GAMEPAD_ACCESS_REVOKED` 7, `ICON_TYPE_BAN_REPORT_LIVE_SINGLE_ROOM` 8, `ICON_TYPE_BAN_REPORT_LIVE_ALL_ROOM` 9, `ICON_TYPE_BAN_REPORT_LIVE_GREEN_SCREEN` 10, `ICON_TYPE_GIFT` 11, `ICON_TYPE_APPEAL_SUCCESS` 12, `ICON_TYPE_MATCH` 13, `ICON_TYPE_LIVE_GOAL` 14, `ICON_TYPE_SUBSCRIPTION` 15, `ICON_TYPE_STAR_COMMENT` 16, `ICON_TYPE_RANKING` 17, `ICON_TYPE_COMMON` 18; exported as `PerceptionIconType` without the prefixes.
+
+`WebcastRankUpdateMessage` [proto: webcast/model/message/messages.proto, line 1754] (`room/rankUpdate.ts`)
+
+| No. | Proto field | Type                     | Property  | Kind             |
+| --- | ----------- | ------------------------ | --------- | ---------------- |
+| 2   | `updates`   | repeated `RankUpdate`    | `updates` | repeated message |
+| 4   | `op_type`   | `webcast.im.OpType` enum | `opType`  | enum             |
+
+Not read: `group_type` (3), `rank_priority` (5), `tabs` (6), `is_animation_loop_play` (7), `animation_loop_for_off` (8), `union_animation` (9), `tab_info` (10), `valid_ranks` (11).
+`webcast.model.message.RankUpdate` [proto: webcast/model/message/messages.proto, line 759] (`RankUpdateSchema`): `rank_type` (1, `webcast.model.data.ProfitRankType`) → `rankType`, enum; `own_rank` (2, int64) → `ownRank`, count; `default_content` (3, `Text`) → `defaultContent`, message; `class_info` (14, `webcast.model.rank.ClassInfo`) → `classInfo`, message; `current_score` (15, int64) → `currentScore`, count. Not read: `prompt` (4), `show_entrance_animation` (5), `countdown` (6), `animation_info` (7), `belong_type` (8), `request_first_show_type` (9), `supported_version` (10), `owneronrank` (11), `entranceicon` (12), `affiliated_info` (13), `list_schema` (16).
+`webcast.model.rank.ClassInfo` [proto: webcast/model/rank.proto, line 8] (`ClassInfoSchema`): `class_type` (1, `webcast.model.data.ClassType`) → `classType`, enum; `star_count` (2, int64) → `starCount`, count.
+`OpType` [proto: webcast/im.proto, line 275]: `OP_TYPE_DEFAULT` 0, `ADD` 1, `REMOVE` 2, `RELOAD` 3, `BASIC_EFFECT` 4; exported as `RankOpType` (`DEFAULT` for 0). `ProfitRankType` [proto: webcast/model/data/messages.proto, line 627]: 27 values from `TYPE_HOURLY_RANK` 0, `TYPE_WEEKLY_RANK` 1 … `TYPE_CLASS_RANK` 16, `TYPE_DAILY_GAME_PUB_G` 20 … `TYPE_WEEKLY_E_COMMERCE_WOMEN_WEAR_UNDERWEAR` 28 to `TYPE_CAMPAIGN_LEAGUEMATCH_RANK` 101; exported as `ProfitRankType` without the `TYPE_` prefix. `ClassType` [proto: webcast/model/data/messages.proto, line 146]: `NONE` 0, `D_5` 100, `D_4` 200 … `A_1` 2000, `S` 2100 (one every 100); exported as `ClassType`.
+
+`WebcastRankTextMessage` [proto: webcast/model/message/messages.proto, line 1736] (`room/rankText.ts`)
+
+| No. | Proto field               | Type                                                   | Property         | Kind    |
+| --- | ------------------------- | ------------------------------------------------------ | ---------------- | ------- |
+| 2   | `scene`                   | `webcast.im.RankTextMessage_RankTestMessageScene` enum | `scene`          | enum    |
+| 3   | `owner_idx_before_update` | int64                                                  | `ownerIdxBefore` | count   |
+| 4   | `owner_idx_after_update`  | int64                                                  | `ownerIdxAfter`  | count   |
+| 7   | `cur_user_id`             | int64                                                  | `curUserId`      | id      |
+| 9   | `content`                 | `Text`                                                 | `content`        | message |
+| 10  | `rank_type`               | `webcast.model.data.ProfitRankType` enum               | `rankType`       | enum    |
+
+Not read: `self_get_badge_msg` (5), `other_get_badge_msg` (6), `left_icon` (8), `user_enigma_info` (11), `public_area_msg_common` (12).
+`RankTextMessage_RankTestMessageScene` [proto: webcast/im.proto, line 317]: `RANK_TEXT_MESSAGE_RANK_TEST_MESSAGE_SCENE_UNKNOWN` 0, `ONLINE_AUDIENCE_TOP_N_UPDATE_PUBLIC_SCREEN` 1, `MID_PEAK_MOTIVATION_PUBLIC_SCREEN_TOP` 2, `MID_PEAK_MOTIVATION_PUBLIC_SCREEN_ENTER` 3, `TILE_REWARD_GUIDE` 4; exported as `RankTextScene` (`UNKNOWN` for 0).
+
+`WebcastPollMessage` [proto: webcast/model/message/messages.proto, line 1715] (`room/poll.ts`)
+
+| No. | Proto field            | Type                               | Property             | Kind    |
+| --- | ---------------------- | ---------------------------------- | -------------------- | ------- |
+| 2   | `message_type`         | int64                              | `messageType`        | count   |
+| 3   | `poll_id`              | int64                              | `pollId`             | id      |
+| 4   | `start_content`        | `PollStartContent`                 | `startContent`       | message |
+| 5   | `end_content`          | `PollEndContent`                   | `endContent`         | message |
+| 6   | `update_votes_content` | `PollUpdateVotesContent`           | `updateVotesContent` | message |
+| 7   | `poll_kind`            | `webcast.model.data.PollKind` enum | `pollKind`           | enum    |
+
+`message_type` is an int64 on the wire, not an enum; which values mean a start, a votes update and an end is [Open items](#open-items) 51, and the content that is set tells them apart meanwhile. Not read: `poll_basic_info` (8), `template_content` (9).
+`webcast.model.message.PollStartContent` [proto: webcast/model/message/messages.proto, line 663] (`PollStartContentSchema`): `start_time` (1, int64) → `startTime`, id; `end_time` (2, int64) → `endTime`, id; `option_list` (3, repeated `PollOptionInfo`) → `optionList`, repeated message; `title` (4, string) → `title`, string; `operator` (5, `User`) → `operator`, message.
+`webcast.model.message.PollEndContent` [line 649] (`PollEndContentSchema`): `end_type` (1, `webcast.model.data.PollEndType`) → `endType`, enum; `option_list` (2, repeated `PollOptionInfo`) → `optionList`, repeated message. Not read: `operator` (3).
+`webcast.model.message.PollUpdateVotesContent` [line 671] (`PollUpdateVotesContentSchema`): `option_list` (2, repeated `PollOptionInfo`) → `optionList`, repeated message. Not read: `operator` (3).
+`webcast.model.message.PollOptionInfo` [line 656] (`PollOptionSchema`): `votes` (1, int64) → `votes`, count; `display_content` (2, string) → `displayContent`, string; `option_idx` (3, int32) → `optionIdx`, int32. Not read: `vote_user_list` (4).
+`PollKind` [proto: webcast/model/data/messages.proto, line 605]: `POLL_KIND_NORMAL` 0, `POLL_KIND_GIFT` 1, `CUSTOMIZABLE` 2, `CUSTOMIZABLE_GIFT` 3, `QUICK_GIFT` 4, `EMOTE` 5; exported as `PollKind` (`NORMAL`, `GIFT` for the first two). `PollEndType` [line 598]: `POLL_END_BY_TIME` 0, `POLL_END_BY_OWNER` 1, `POLL_END_BY_OTHER` 2, `POLL_END_BY_ADMIN` 3; exported as `PollEndType` without the prefix.
+
+`WebcastOecLiveShoppingMessage` [proto: webcast/model/message/ext.proto, line 34, package `webcast.model.message.ext`] (`room/oecLiveShopping.ts`)
+
+| No. | Proto field           | Type                                    | Property            | Kind    |
+| --- | --------------------- | --------------------------------------- | ------------------- | ------- |
+| 2   | `action_type`         | int32                                   | `actionType`        | int32   |
+| 3   | `live_product_number` | int32                                   | `liveProductNumber` | int32   |
+| 4   | `pop_product`         | `PopProduct`                            | `popProduct`        | message |
+| 9   | `product_snap_shot`   | `webcast.model.message.ProductSnapShot` | `productSnapShot`   | message |
+
+Not read: `trace_info` (5), `hot_tags` (6), `atmosphere_tag_info` (7), `live_permission_info` (8), `pin_card_delay_time` (10), 11–21, `oec_live_shopping_message_v2` (100).
+`webcast.model.message.ext.PopProduct` [proto: webcast/model/message/ext.proto, line 14] (`PopProductSchema`): `title` (1, string) → `title`; `price` (2, string) → `price`; `image_url` (3, string) → `imageUrl`; `product_id` (6, int64) → `productId`, id. Not read: `open_url` (4), `product_type` (5), `source` (7), `source_from` (8), `schema` (9), `platform` (10), `product_status` (11).
+`webcast.model.message.ProductSnapShot` [proto: webcast/model/message/messages.proto, line 694] (`ProductSnapShotSchema`): `product_id` (1, string) → `productId`, string (a string here, an int64 in `PopProduct`); `title` (2, string) → `title`. Not read: `cover` (3), `stock_type` (4), `timestamp` (5), `add_to_cart_button` (6).
+
+The tail (`room/tail.ts`), each with `common` (1) [proto: webcast/model/message/messages.proto unless noted]:
+
+- `WebcastGameRankNotifyMessage` [line 1209] (`GameRankNotifyMessageSchema`): `msg_type` (2, `webcast.im.GameRankNotifyMessage_MsgType`) → `msgType`, enum; `notify_text` (3, `Text`) → `notifyText`, message. `GameRankNotifyMessage_MsgType` [proto: webcast/im.proto, line 126]: `MSG_TYPE_RANK_IN_OUT` 0, `MSG_TYPE_RANK_CHANGE` 1, `MSG_TYPE_ANCHOR_ENCOURAGE` 2, **`MSG_TYPE_UN_KNOW` 255**; exported as `GameRankMsgType` (`UNKNOWN` for 255, not 0).
+- `WebcastCapsuleMessage` [line 1125] (`CapsuleMessageSchema`): `desc` (3, `Text`) → `desc`, message; `type` (6, int32) → `type`, int32; `scene` (7, string) → `scene`; `sub_scene` (9, string) → `subScene`. Not read: `icon` (2), `button_text` (4), `schema` (5), `biz_params` (8), `style` (10), `skip_fc` (11), `public_area_message_common` (12), `report_action` (13).
+- `WebcastMarqueeAnnouncementMessage` [line 1600] (`MarqueeAnnouncementMessageSchema`): `message_scene` (2, string) → `messageScene`. Not read: `message_entity` (3).
+- `WebcastSpeakerMessage` [line 1865] (`SpeakerMessageSchema`) and `WebcastInRoomBannerMessage` [line 1342] (`InRoomBannerMessageSchema`): only `common` (1); the 0.2.3 protos give them no other field ([Open items](#open-items) 55).
+- `WebcastAccessControlMessage` [line 1053] (`AccessControlMessageSchema`): `captcha` (2, `AccessControlCaptcha`) → `captcha`, message. `AccessControlCaptcha` [line 42] (`AccessControlCaptchaSchema`): `captcha_record_id` (1, int64) → `captchaRecordId`, id; `room_id` (2, int64) → `roomId`, id; `verify_duration_in_sec` (3, int64) → `verifyDurationInSec`, count.
+- `WebcastAccessRecallMessage` [proto: webcast/model/game.proto, line 9, package `webcast.model.game`] (`AccessRecallMessageSchema`): `status` (2, int32) → `status`, int32; `duration` (3, int64) → `duration`, count; `end_time` (4, int64) → `endTime`, id; `scene` (5, string) → `scene`; `notice` (6, `Text`) → `notice`, message; `content` (7, `Text`) → `content`, message; `punish_info` (8, `PunishEventInfo`) → `punishInfo`, message.
+- `WebcastPartnershipDropsUpdateMessage` [line 1677] (`PartnershipDropsUpdateMessageSchema`): `change_mode` (2, `webcast.im.PartnershipDropsUpdateMessage_ChangeMode`) → `changeMode`, enum; `drops_id` (3), `task_id` (4), `event_id` (5), strings → `dropsId`, `taskId`, `eventId`; `anchor_uid` (6, int64) → `anchorUid`, id. `PartnershipDropsUpdateMessage_ChangeMode` [proto: webcast/im.proto, line 283]: `CHANGE_MODE_SHOW` 0, `CHANGE_MODE_UPDATE` 1, `CHANGE_MODE_CLOSE` 2; exported as `PartnershipChangeMode` without the prefix.
+- `WebcastPartnershipGameOfflineMessage` [line 1688] (`PartnershipGameOfflineMessageSchema`): `offline_game_list` (2, repeated `OfflineGameInfo`) → `offlineGameList`, repeated message. `OfflineGameInfo` [line 606] (`OfflineGameInfoSchema`): `task_id` (1, string) → `taskId`; `toast_text` (2, string) → `toastText`; `offline_type` (4, `webcast.im.PartnershipGameOfflineMessage_OfflineGameInfo_OfflineType`) → `offlineType`, enum; `game_id` (6, string) → `gameId`. Not read: `task_list_len` (3), `toast_title` (5), `task_type` (7). `PartnershipGameOfflineMessage_OfflineGameInfo_OfflineType` [proto: webcast/im.proto, line 289]: `TASK_OFFLINE` 0, `EVENT_OFFLINE` 1, `DROPS_OFFLINE` 2; exported as `OfflineType`.
+- `WebcastPartnershipPunishMessage` [line 1694] (`PartnershipPunishMessageSchema`): `punish_info` (2, `PunishEventInfo`) → `punishInfo`, message.
+- `WebcastLiveGameIntroMessage` [line 1581] (`LiveGameIntroMessageSchema`): `content` (2, `Text`) → `content`, message; `has_rank_info` (3, bool) → `hasRankInfo`, bool.
 
 ## Routing
 
@@ -899,10 +967,26 @@ Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table
 
 ### Room, ranks, polls, shopping and system
 
-| Message                     | Events      | Rule                                                                                                                                                                                                                            |
-| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WebcastRoomUserSeqMessage` | `roomUser`  | always                                                                                                                                                                                                                          |
-| `WebcastControlMessage`     | `streamEnd` | `action` 3 → `streamEnd` `{ action: "ended" }`, 4 → `{ action: "suspended" }`, then disconnect (reason `streamEnd`) without reconnecting; other actions: nothing (`controlMessage`, before it and for every action, is pending) |
+| Message                                | Events                        | Rule                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WebcastRoomUserSeqMessage`            | `roomUser`                    | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastControlMessage`                | `controlMessage`, `streamEnd` | `controlMessage` first, for every action (pauses and resumes included). The message is decoded without a listener (the only `always` route: the connection must see the LIVE end), so the route emits `controlMessage` only when someone listens. Then `action` 3 → `streamEnd` `{ action: "ended" }`, 4 → `{ action: "suspended" }` and disconnect (reason `streamEnd`) without reconnecting |
+| `WebcastPerceptionMessage`             | `perception`                  | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastRankUpdateMessage`             | `rankUpdate`                  | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastRankTextMessage`               | `rankText`                    | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastGameRankNotifyMessage`         | `gameRankNotify`              | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastPollMessage`                   | `pollMessage`                 | always, whatever `messageType`: the content that is set says what happened                                                                                                                                                                                                                                                                                                                    |
+| `WebcastOecLiveShoppingMessage`        | `oecLiveShopping`             | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastCapsuleMessage`                | `capsule`                     | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastMarqueeAnnouncementMessage`    | `marqueeAnnouncement`         | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastSpeakerMessage`                | `speaker`                     | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastInRoomBannerMessage`           | `inRoomBanner`                | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastAccessControlMessage`          | `accessControl`               | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastAccessRecallMessage`           | `accessRecall`                | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastPartnershipDropsUpdateMessage` | `partnershipDropsUpdate`      | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastPartnershipGameOfflineMessage` | `partnershipGameOffline`      | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastPartnershipPunishMessage`      | `partnershipPunish`           | always                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WebcastLiveGameIntroMessage`          | `liveGameIntro`               | always                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ## Reconnects
 
@@ -1014,3 +1098,13 @@ What the references and docs can't settle. `yarn capture` on the user's own LIVE
 43. **Enums whose 0 means something.** `BattleResult_Result` (`WIN` 0), `MuteStatus` (`MUTE` 0), `GuestMicCameraManageOp` (`OPEN_MIC` 0), `BattleTaskMessageType` (`START` 0), `BattleTaskSettle_Result` (`SUCCEED` 0) and `LinkMicBattlePunishFinish_Reason` (`TIME_UP` 0) give 0 a meaning. Proto3 never writes a field at 0, so these values always arrive as a missing field, and a field TikTok really left unset reads the same: a battle result without `result` is a win, a mute without `mute_status` a mute. A capture of a battle that ends (with a loss or a draw) and of a guest being muted and unmuted checks that the payloads read right.
 44. **Names in the link layer.** `WebcastLinkLayerMessage` and `WebcastLinkStateMessage` carry `Player`s (a room id and a user id), no names. The names are in `WebcastLinkLayerMessage.business_content` (200, `chatroom.model.multiguestv3.BusinessContent`), several levels deep and skipped. If apps need them, a later version reads the part that holds them; a capture shows how often it is set and how big it is.
 45. **`WebcastLinkMicBattleItemCard`.** The 0.2.3 protos have the message, but 2.4.0 has no route for it [TLC: src/types/events.ts], so its `method` (the message's name, as for every other message) and when it comes are unconfirmed. `award_reason` (16) has no enum, and the card contents (4–15) aren't read: `msg_type` says which card.
+
+**Room, ranks, polls, shopping and system** (items 50–59):
+
+50. **Control messages besides the end.** `ControlAction` has `PAUSED` 1 and `UNPAUSED` 2, and `WebcastControlMessage` carries `tips`, `extra` and `punish_info`; the only control message seen so far is the end of a LIVE (action 3, in the smoke runs' fixtures). Whether an audience connection gets 1 and 2 when the host pauses, and what `tips`, `extra` and `punish_info` hold on a 3 or a 4 (the ban notice is the host's, most likely), needs a capture of a LIVE that pauses and one that ends. `controlMessage` is emitted for every action regardless.
+51. **`WebcastPollMessage.message_type`.** An int64 in the 0.2.3 protos, with no enum naming its values. The content that is set (`start_content`, `update_votes_content`, `end_content`) says what happened; a capture of a LIVE with a poll tells which `message_type` goes with each, and whether `poll_kind` 1 (gift polls) comes with `start_content.option_list` votes already set.
+52. **Rank updates in traffic.** `WebcastRankUpdateMessage` was declared from the protos only: which `op_type` values come (the hourly rank's `ADD`/`REMOVE`/`RELOAD`), which `rank_type` values a typical LIVE sees, whether `class_info` comes outside class ranks (`rank_type` 16), and whether `current_score` is coins. `WebcastRankTextMessage`'s `scene` values and `cur_user_id` (the viewer a top-N notice is about, or the host) are open too.
+53. **Shopping messages.** `WebcastOecLiveShoppingMessage.action_type` is an int32 with no enum; which values mean a pin, an unpin and a product count change, and whether `pop_product.product_id` (an int64) and `product_snap_shot.product_id` (a string) name the same product, need a capture of a LIVE that sells.
+54. **Host-side messages.** `WebcastPerceptionMessage` (violation notices), `WebcastAccessControlMessage` (captchas), `WebcastAccessRecallMessage`, `WebcastPartnershipPunishMessage` and the partnership messages look addressed to the host's own client. Whether an audience connection ever receives them is unknown; the events exist so an app that connects as the host (with a session) can see them.
+55. **`WebcastSpeakerMessage` and `WebcastInRoomBannerMessage`.** The 0.2.3 protos give them only `common`. If traffic holds more (a payload longer than its `common`, which `raw` shows), a later version of the reference may name the fields; until then they are skipped.
+56. **`GameRankNotifyMessage_MsgType` 255.** The proto's unknown value is 255 (`MSG_TYPE_UN_KNOW`), not 0 (`MSG_TYPE_RANK_IN_OUT`): a message that leaves `msg_type` out reads as 0, "entered or left the rank". Whether TikTok ever sends 255, or leaves the field out, is unchecked.

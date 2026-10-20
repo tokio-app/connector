@@ -21,12 +21,28 @@ export const ControlAction = Object.freeze({
   STREAM_SUSPENDED: 4,
 } as const);
 
+/** The notice TikTok shows the host with a control message, such as why the LIVE was suspended. */
+export interface ControlExtra {
+  /** The notice's title. */
+  title?: Text;
+  /** The violation behind it, when there is one. */
+  violationReason?: Text;
+  /** The notice's text. */
+  content?: Text;
+}
+
 /** A change to the LIVE's state, such as a pause or the LIVE ending (`controlMessage` event; the end is also `streamEnd`). */
 export interface ControlMessage {
   /** Data every message carries. */
   common?: Common;
   /** What happened: `1` paused, `2` resumed, `3` ended, `4` suspended ({@link ControlAction}). */
   action: number;
+  /** A short text TikTok shows for the change, when there is one. */
+  tips: string;
+  /** The notice shown to the host, when there is one. */
+  extra?: ControlExtra;
+  /** The punishment behind the change, when there is one. */
+  punishInfo?: PunishEventInfo;
 }
 
 /** A top viewer, in a {@link RoomUserMessage}. */
@@ -227,9 +243,8 @@ export const PollEndType = Object.freeze({
 } as const);
 
 /**
- * The values of a perception dialog's icon TikTok defines
- * (`webcast.model.data.PerceptionDialogIconType`,
- * `PerceptionDialogInfo.icon_type` in the proto; not decoded yet).
+ * The values of {@link PerceptionDialog.iconType} TikTok defines
+ * (`webcast.model.data.PerceptionDialogIconType`).
  */
 export const PerceptionIconType = Object.freeze({
   /** No icon. */
@@ -282,6 +297,11 @@ export const OfflineType = Object.freeze({
 
 /** A dialog TikTok shows the host about a violation. */
 export interface PerceptionDialog {
+  /**
+   * The dialog's icon: `1` a warning, `6` mute ({@link PerceptionIconType}).
+   * Other values may come: it stays a number.
+   */
+  iconType: number;
   /** The dialog's title. */
   title?: Text;
   /** The dialog's subtitle. */

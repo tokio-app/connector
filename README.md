@@ -137,26 +137,26 @@ A LIVE message is decoded only when one of the events it leads to has a listener
 
 ### Room, ranks, polls, shopping and system
 
-| Event                    | Fires when                                            | Payload                         | Fields you'll use                                     |
-| ------------------------ | ----------------------------------------------------- | ------------------------------- | ----------------------------------------------------- |
-| `controlMessage`         | The LIVE's state changed: paused, resumed, ended      | `ControlMessage`                | pending                                               |
-| `roomUser`               | Viewer counts and the top viewers                     | `RoomUserMessage`               | `total` (watching now), `totalUser` (so far), `ranks` |
-| `perception`             | A violation notice to the host                        | `PerceptionMessage`             | pending                                               |
-| `rankUpdate`             | The host's ranks changed                              | `RankUpdateMessage`             | pending                                               |
-| `rankText`               | A rank notice shown in the chat                       | `RankTextMessage`               | pending                                               |
-| `gameRankNotify`         | A game rank notice                                    | `GameRankNotifyMessage`         | pending                                               |
-| `pollMessage`            | A poll started, changed or ended                      | `PollMessage`                   | pending                                               |
-| `oecLiveShopping`        | A shopping event: a product pinned, the product count | `OecLiveShoppingMessage`        | pending                                               |
-| `capsule`                | A capsule (a small prompt) TikTok shows               | `CapsuleMessage`                | pending                                               |
-| `marqueeAnnouncement`    | A marquee announcement                                | `MarqueeAnnouncementMessage`    | pending                                               |
-| `speaker`                | A speaker message                                     | `SpeakerMessage`                | pending                                               |
-| `inRoomBanner`           | An in-room banner                                     | `InRoomBannerMessage`           | pending                                               |
-| `accessControl`          | An access control, such as a captcha                  | `AccessControlMessage`          | pending                                               |
-| `accessRecall`           | Access was revoked or restored                        | `AccessRecallMessage`           | pending                                               |
-| `partnershipDropsUpdate` | A game partnership's drops changed                    | `PartnershipDropsUpdateMessage` | pending                                               |
-| `partnershipGameOffline` | Partnership games went offline                        | `PartnershipGameOfflineMessage` | pending                                               |
-| `partnershipPunish`      | A partnership punishment                              | `PartnershipPunishMessage`      | pending                                               |
-| `liveGameIntro`          | The LIVE's game intro                                 | `LiveGameIntroMessage`          | pending                                               |
+| Event                    | Fires when                                            | Payload                         | Fields you'll use                                                  |
+| ------------------------ | ----------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------ |
+| `controlMessage`         | The LIVE's state changed: paused, resumed, ended      | `ControlMessage`                | `action`, `tips`, `extra`, `punishInfo`                            |
+| `roomUser`               | Viewer counts and the top viewers                     | `RoomUserMessage`               | `total` (watching now), `totalUser` (so far), `ranks`              |
+| `perception`             | A violation notice to the host                        | `PerceptionMessage`             | `dialog`, `punishInfo`                                             |
+| `rankUpdate`             | The host's ranks changed                              | `RankUpdateMessage`             | `updates`, `opType`                                                |
+| `rankText`               | A rank notice shown in the chat                       | `RankTextMessage`               | `content`, `scene`, `rankType`, `curUserId`                        |
+| `gameRankNotify`         | A game rank notice                                    | `GameRankNotifyMessage`         | `msgType`, `notifyText`                                            |
+| `pollMessage`            | A poll started, changed or ended                      | `PollMessage`                   | `pollId`, `startContent`, `updateVotesContent`, `endContent`       |
+| `oecLiveShopping`        | A shopping event: a product pinned, the product count | `OecLiveShoppingMessage`        | `actionType`, `popProduct`, `productSnapShot`, `liveProductNumber` |
+| `capsule`                | A capsule (a small prompt) TikTok shows               | `CapsuleMessage`                | `desc`, `type`, `scene`, `subScene`                                |
+| `marqueeAnnouncement`    | A marquee announcement                                | `MarqueeAnnouncementMessage`    | `messageScene`                                                     |
+| `speaker`                | A speaker message                                     | `SpeakerMessage`                | `common` only                                                      |
+| `inRoomBanner`           | An in-room banner                                     | `InRoomBannerMessage`           | `common` only                                                      |
+| `accessControl`          | An access control, such as a captcha                  | `AccessControlMessage`          | `captcha`                                                          |
+| `accessRecall`           | Access was revoked or restored                        | `AccessRecallMessage`           | `status`, `duration`, `endTime`, `punishInfo`                      |
+| `partnershipDropsUpdate` | A game partnership's drops changed                    | `PartnershipDropsUpdateMessage` | `changeMode`, `dropsId`, `taskId`, `eventId`                       |
+| `partnershipGameOffline` | Partnership games went offline                        | `PartnershipGameOfflineMessage` | `offlineGameList`                                                  |
+| `partnershipPunish`      | A partnership punishment                              | `PartnershipPunishMessage`      | `punishInfo`                                                       |
+| `liveGameIntro`          | The LIVE's game intro                                 | `LiveGameIntroMessage`          | `content`, `hasRankInfo`                                           |
 
 Numeric codes have named constants, so you needn't hard-code them: `MemberAction` (`UNKNOWN` 0, `JOINED` 1, `SUBSCRIBED` 3) for `member.actionId`, `EnvelopeBusinessType` (`UNKNOWN` 0, `SUPER_FAN_BOX` 19) for `envelopeInfo.businessType`, `ControlAction` (`UNKNOWN` 0, `PAUSED` 1, `UNPAUSED` 2, `STREAM_ENDED` 3, `STREAM_SUSPENDED` 4) for the control messages behind `streamEnd`, `BadgeSceneType` for a badge's `sceneType`, and one per enum field of the pending events (`PinAction`, `SubscribeType`, `BattleAction`, `PollKind`…), each documented on its field. The fields stay plain numbers: TikTok may send values the constants don't name.
 
