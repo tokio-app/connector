@@ -2,7 +2,21 @@ import { describe, expect, it } from "vitest";
 import { BarrageMessageSchema } from "../codec/messages/gift/barrage.js";
 import { EnvelopeMessageSchema } from "../codec/messages/gift/envelope.js";
 import { GiftMessageSchema } from "../codec/messages/gift/gift.js";
+import { GiftBroadcastMessageSchema } from "../codec/messages/gift/giftBroadcast.js";
+import { GoalUpdateMessageSchema } from "../codec/messages/gift/goalUpdate.js";
+import { HourlyRankRewardMessageSchema } from "../codec/messages/gift/hourlyRank.js";
 import { MemberMessageSchema } from "../codec/messages/gift/member.js";
+import { RoomNotifyMessageSchema } from "../codec/messages/gift/roomNotify.js";
+import { SubNotifyMessageSchema } from "../codec/messages/gift/subNotify.js";
+import { SubPinEventMessageSchema } from "../codec/messages/gift/subPinEvent.js";
+import {
+  BoostCardMessageSchema,
+  GiftDynamicRestrictionMessageSchema,
+  GiftPanelUpdateMessageSchema,
+  GiftPromptMessageSchema,
+  GuideMessageSchema,
+} from "../codec/messages/gift/tail.js";
+import { ViewerPicksUpdateMessageSchema } from "../codec/messages/gift/viewerPicks.js";
 import { dispatch } from "../dispatch.js";
 import type { EnvelopeMessage } from "../events/index.js";
 import { giftRoutes } from "./gift.js";
@@ -14,7 +28,7 @@ import {
   names,
   payloads,
 } from "../../test/helpers/dispatchContext.js";
-import { SAMPLE_USER } from "../../test/helpers/samples.js";
+import { SAMPLE_USER, sampleCommon } from "../../test/helpers/samples.js";
 
 const envelope = (value: EncodeInput<EnvelopeMessage>) =>
   encoded("WebcastEnvelopeMessage", EnvelopeMessageSchema, value);
@@ -27,6 +41,14 @@ const barrage = (contentKey?: string, commonKey?: string) =>
       commonKey === undefined ? undefined : { key: commonKey },
     user: SAMPLE_USER,
   });
+
+const NOTIFY = {
+  common: sampleCommon("WebcastRoomNotifyMessage"),
+  notifyType: 5,
+  content: "A big gift",
+  user: SAMPLE_USER,
+  fromUserId: "6900000000000000001",
+};
 
 describe("giftRoutes", () => {
   it("routes the gift group's messages to the events they can lead to", () => {
@@ -42,6 +64,18 @@ describe("giftRoutes", () => {
       WebcastMemberMessage: ["member"],
       WebcastEnvelopeMessage: ["superFanBox", "envelope"],
       WebcastBarrageMessage: ["superFanJoin", "superFan"],
+      WebcastSubNotifyMessage: ["subNotify"],
+      WebcastSubPinEventMessage: ["subPinEvent"],
+      WebcastGiftBroadcastMessage: ["giftBroadcast"],
+      WebcastRoomNotifyMessage: ["roomNotify"],
+      WebcastGoalUpdateMessage: ["goalUpdate"],
+      WebcastViewerPicksUpdateMessage: ["viewerPicksUpdate"],
+      WebcastHourlyRankRewardMessage: ["hourlyRank"],
+      WebcastGiftPromptMessage: ["giftPrompt"],
+      WebcastGiftPanelUpdateMessage: ["giftPanelUpdate"],
+      WebcastGiftDynamicRestrictionMessage: ["giftDynamicRestriction"],
+      WebcastGuideMessage: ["guide"],
+      WebcastBoostCardMessage: ["boostCard"],
     });
   });
 
@@ -54,7 +88,46 @@ describe("giftRoutes", () => {
       barrage("ttlive_superfan_commentnotif_superfanjoined"),
       barrage("ttlive_superfan"),
       barrage("other"),
+      encoded("WebcastSubNotifyMessage", SubNotifyMessageSchema, {
+        user: SAMPLE_USER,
+      }),
+      encoded("WebcastSubPinEventMessage", SubPinEventMessageSchema, {
+        actionType: 1,
+      }),
+      encoded("WebcastGiftBroadcastMessage", GiftBroadcastMessageSchema, {
+        notify: NOTIFY,
+      }),
+      encoded("WebcastRoomNotifyMessage", RoomNotifyMessageSchema, NOTIFY),
+      encoded("WebcastGoalUpdateMessage", GoalUpdateMessageSchema, {
+        updateSource: 2,
+      }),
+      encoded(
+        "WebcastViewerPicksUpdateMessage",
+        ViewerPicksUpdateMessageSchema,
+        { updateType: 1 },
+      ),
+      encoded("WebcastHourlyRankRewardMessage", HourlyRankRewardMessageSchema, {
+        winners: [{ userId: "1", notify: NOTIFY }],
+      }),
+      encoded("WebcastGiftPromptMessage", GiftPromptMessageSchema, {
+        title: "t",
+      }),
+      encoded("WebcastGiftPanelUpdateMessage", GiftPanelUpdateMessageSchema, {
+        roomId: "1",
+      }),
+      encoded(
+        "WebcastGiftDynamicRestrictionMessage",
+        GiftDynamicRestrictionMessageSchema,
+        {},
+      ),
+      encoded("WebcastGuideMessage", GuideMessageSchema, { giftId: "5655" }),
+      encoded("WebcastBoostCardMessage", BoostCardMessageSchema, {
+        cards: [{ cardId: "1" }],
+      }),
     ];
+    expect(new Set(samples.map((msg) => msg.method))).toEqual(
+      new Set(Object.keys(giftRoutes)),
+    );
     for (const msg of samples) {
       const route = giftRoutes[msg.method]!;
       const { context, emitted, ended } = fakeContext({ listen: route.events });
@@ -102,6 +175,116 @@ describe("giftRoutes", () => {
       event: "member",
       payload: new Uint8Array(0),
       expected: { actionId: 0 },
+    },
+    {
+      method: "WebcastSubNotifyMessage",
+      event: "subNotify",
+      payload: encodeMessage(SubNotifyMessageSchema, {
+        user: SAMPLE_USER,
+        subMonth: 3,
+        messageType: 0,
+      }),
+      expected: { user: SAMPLE_USER, subMonth: 3, messageType: 0 },
+    },
+    {
+      method: "WebcastSubPinEventMessage",
+      event: "subPinEvent",
+      payload: encodeMessage(SubPinEventMessageSchema, {
+        actionType: 1,
+        card: { type: 2, goalPinCard: { goalId: "9", target: 10 } },
+      }),
+      expected: {
+        actionType: 1,
+        card: { type: 2, goalPinCard: { goalId: "9", target: 10 } },
+      },
+    },
+    {
+      method: "WebcastGiftBroadcastMessage",
+      event: "giftBroadcast",
+      payload: encodeMessage(GiftBroadcastMessageSchema, {
+        fromUserId: "6900000000000000001",
+        notify: NOTIFY,
+      }),
+      expected: { fromUserId: "6900000000000000001", notify: NOTIFY },
+    },
+    {
+      method: "WebcastRoomNotifyMessage",
+      event: "roomNotify",
+      payload: encodeMessage(RoomNotifyMessageSchema, NOTIFY),
+      expected: NOTIFY,
+    },
+    {
+      method: "WebcastGoalUpdateMessage",
+      event: "goalUpdate",
+      payload: encodeMessage(GoalUpdateMessageSchema, {
+        goal: { id: "7", description: "Goal" },
+        contributorDisplayId: "nick.name",
+        updateSource: 2,
+      }),
+      expected: {
+        goal: { id: "7", description: "Goal" },
+        contributorDisplayId: "nick.name",
+        updateSource: 2,
+      },
+    },
+    {
+      method: "WebcastViewerPicksUpdateMessage",
+      event: "viewerPicksUpdate",
+      payload: encodeMessage(ViewerPicksUpdateMessageSchema, {
+        updateType: 1,
+        info: { viewerPicksId: "9", status: 1 },
+      }),
+      expected: { updateType: 1, info: { viewerPicksId: "9", status: 1 } },
+    },
+    {
+      method: "WebcastHourlyRankRewardMessage",
+      event: "hourlyRank",
+      payload: encodeMessage(HourlyRankRewardMessageSchema, {
+        winners: [{ userId: "1", assetId: "2" }],
+      }),
+      expected: { winners: [{ userId: "1", assetId: "2" }] },
+    },
+    {
+      method: "WebcastGiftPromptMessage",
+      event: "giftPrompt",
+      payload: encodeMessage(GiftPromptMessageSchema, {
+        title: "Take a break",
+        blockNumDays: 1,
+      }),
+      expected: { title: "Take a break", blockNumDays: 1 },
+    },
+    {
+      method: "WebcastGiftPanelUpdateMessage",
+      event: "giftPanelUpdate",
+      payload: encodeMessage(GiftPanelUpdateMessageSchema, { roomId: "7" }),
+      expected: { roomId: "7" },
+    },
+    {
+      method: "WebcastGiftDynamicRestrictionMessage",
+      event: "giftDynamicRestriction",
+      payload: encodeMessage(GiftDynamicRestrictionMessageSchema, {
+        common: sampleCommon("WebcastGiftDynamicRestrictionMessage"),
+      }),
+      expected: {
+        common: { method: "WebcastGiftDynamicRestrictionMessage" },
+      },
+    },
+    {
+      method: "WebcastGuideMessage",
+      event: "guide",
+      payload: encodeMessage(GuideMessageSchema, {
+        giftId: "5655",
+        description: "Send a Rose",
+      }),
+      expected: { giftId: "5655", description: "Send a Rose" },
+    },
+    {
+      method: "WebcastBoostCardMessage",
+      event: "boostCard",
+      payload: encodeMessage(BoostCardMessageSchema, {
+        cards: [{ cardId: "1", taskSource: 2 }],
+      }),
+      expected: { cards: [{ cardId: "1", taskSource: 2 }] },
     },
   ] as const)("$method", ({ method, event, payload, expected }) => {
     it(`is always a ${event}`, () => {
@@ -161,6 +344,15 @@ describe("giftRoutes", () => {
       });
       expect(names(emitted)).toEqual(["superFanBox", "envelope"]);
     });
+
+    it("is decoded with a listener on superFanBox alone", () => {
+      // The route emits both events; the connection's emitter drops the
+      // ones nobody listens to.
+      const { context, emitted } = fakeContext({ listen: ["superFanBox"] });
+      dispatch(context, envelope({ envelopeInfo: { businessType: 1 } }));
+      dispatch(context, envelope({ envelopeInfo: { businessType: 19 } }));
+      expect(names(emitted)).toEqual(["envelope", "superFanBox", "envelope"]);
+    });
   });
 
   describe("WebcastBarrageMessage", () => {
@@ -204,6 +396,26 @@ describe("giftRoutes", () => {
       expect(route()).toEqual([]);
       expect(route("", "")).toEqual([]);
       expect(route("pm_mt_gift_gallery", "ttlive_superfa")).toEqual([]);
+    });
+  });
+
+  describe("WebcastGiftBroadcastMessage", () => {
+    it("doesn't emit the nested notify as a roomNotify", () => {
+      const { context, emitted } = fakeContext({
+        listen: ["giftBroadcast", "roomNotify"],
+      });
+      dispatch(
+        context,
+        encoded("WebcastGiftBroadcastMessage", GiftBroadcastMessageSchema, {
+          fromUserId: "7",
+          notify: NOTIFY,
+        }),
+      );
+      expect(names(emitted)).toEqual(["giftBroadcast"]);
+      expect(payloads(emitted, "giftBroadcast")[0]).toMatchObject({
+        fromUserId: "7",
+        notify: { content: "A big gift" },
+      });
     });
   });
 

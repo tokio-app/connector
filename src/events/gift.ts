@@ -1,6 +1,13 @@
 // The gift group: gifts, money and membership. The tables are in
 // src/codec/messages/gift/, the routes in src/routes/gift.ts.
-import type { Common, GiftDetails, Text, User } from "./shared.js";
+import type {
+  Common,
+  GiftDetails,
+  MsgFilter,
+  Text,
+  User,
+  UserIdentity,
+} from "./shared.js";
 
 /**
  * A gift (`gift` event). Streakable gifts arrive several times: once per
@@ -12,6 +19,8 @@ export interface GiftMessage {
   common?: Common;
   /** Who sent the gift. */
   user?: User;
+  /** Who received the gift, when it isn't the host (a guest in a link). */
+  toUser?: User;
   /** The gift id. */
   giftId: string;
   /** How many of the gift were sent so far in this streak. */
@@ -24,6 +33,16 @@ export interface GiftMessage {
   groupId: string;
   /** The gift. */
   gift?: GiftDetails;
+  /** Whether this is the sender's first gift to the host. */
+  isFirstSent: boolean;
+  /** What the sender is to the host, for filtering the chat area. */
+  msgFilter?: MsgFilter;
+  /** How the sender relates to the host. */
+  userIdentity?: UserIdentity;
+  /** The id of the member the gift went to, as TikTok spells it (a string field). */
+  toMemberId: string;
+  /** The display name of the member the gift went to. */
+  toMemberNickname: string;
 }
 
 /**
@@ -51,29 +70,83 @@ export interface MemberMessage {
   common?: Common;
   /** The member. */
   user?: User;
+  /** How many viewers are in the LIVE, when TikTok sends it. */
+  memberCount: number;
+  /** Who made the change, for moderator actions. */
+  operator?: User;
+  /** The member was made a moderator. */
+  isSetToAdmin: boolean;
+  /** The member is one of the LIVE's top viewers. */
+  isTopUser: boolean;
+  /** The member's place among the top viewers, when `isTopUser`. */
+  topUserNo: number;
   /**
    * What happened: `1` joined, `3` subscribed, `0` unknown ({@link MemberAction}).
    * Other values may come: it stays a number.
    */
   actionId: number;
+  /** How the member shared the LIVE, as TikTok names it. */
+  userShareType: string;
+  /** TikTok's code for where a kick came from. */
+  kickSource: number;
 }
 
 /**
- * Values of {@link EnvelopeInfo.businessType} (`webcast.model.data.EnvelopeBusinessType`)
- * the library acts on. The other values TikTok uses are kinds of diamond,
- * platform and campaign chests.
+ * The values of {@link EnvelopeInfo.businessType} TikTok defines
+ * (`webcast.model.data.EnvelopeBusinessType`): what kind of treasure chest
+ * it is. The library acts on `SUPER_FAN_BOX`.
  */
 export const EnvelopeBusinessType = Object.freeze({
   /** TikTok didn't say. */
   UNKNOWN: 0,
+  /** A chest of coins a viewer sent. */
+  USER_DIAMOND: 1,
+  /** A chest of coins from TikTok. */
+  PLATFORM_DIAMOND: 2,
+  /** A chest of shells from TikTok. */
+  PLATFORM_SHELL: 3,
+  /** A portal. */
+  PORTAL: 4,
+  /** A merchandise chest from TikTok. */
+  PLATFORM_MERCH: 5,
+  /** An end-of-year coin chest. */
+  EOY_DIAMOND: 6,
+  /** A fan club campaign chest. */
+  FANCLUB_GTM: 7,
+  /** A portal from TikTok. */
+  PLATFORM_PORTAL: 9,
+  /** An end-of-year campaign popularity ticket. */
+  EOY_GTM_POPULARITY_TICKET: 10,
+  /** An end-of-year campaign revenue coin chest. */
+  EOY_GTM_REVENUE_DIAMOND: 11,
+  /** An end-of-year campaign game coin chest. */
+  EOY_GTM_GAME_DIAMOND: 12,
+  /** A creator league promotion chest. */
+  CREATOR_LEAGUE_PROMOTION_GTM: 13,
+  /** A month-of-year campaign popularity ticket. */
+  MOY_GTM_POPULARITY_TICKET: 14,
   /** A super fan box: the envelope is also a `superFanBox` event. */
   SUPER_FAN_BOX: 19,
 } as const);
 
 /** Details of a treasure chest. */
 export interface EnvelopeInfo {
+  /** The chest id. */
+  envelopeId: string;
   /** What kind of chest: `19` is a super fan box ({@link EnvelopeBusinessType}). */
   businessType: number;
+  /** The display name of who sent it. */
+  sendUserName: string;
+  /** How many coins it holds. */
+  diamondCount: number;
+  /** How many viewers can open it. */
+  peopleCount: number;
+  /** When it opens, in seconds since the epoch. */
+  unpackAt: number;
+  /** The id of who sent it, as TikTok spells it (a string field). */
+  sendUserId: string;
+  /** How many super fans it is for, for super fan boxes. */
+  superFanCount: number;
 }
 
 /** A treasure chest (`envelope` event; also `superFanBox` for super fan boxes). */
@@ -84,22 +157,9 @@ export interface EnvelopeMessage {
   envelopeInfo?: EnvelopeInfo;
 }
 
-/** A banner message (`barrage` event; also `superFan` or `superFanJoin` for super fans). */
-export interface BarrageMessage {
-  /** Data every message carries. */
-  common?: Common;
-  /** The user the banner is about. */
-  user?: User;
-  /** The banner text. Routing reads its `key`. */
-  content?: Text;
-  /** The banner's common text. Routing reads its `key` too. */
-  commonBarrageContent?: Text;
-}
-
 /**
- * The values of a banner's type TikTok defines
- * (`webcast.im.BarrageMessage_BarrageType`, `WebcastBarrageMessage.msg_type`
- * in the proto; not decoded yet).
+ * The values of {@link BarrageMessage.msgType} TikTok defines
+ * (`webcast.im.BarrageMessage_BarrageType`): what a banner is about.
  */
 export const BarrageType = Object.freeze({
   /** TikTok didn't say. */
@@ -137,6 +197,49 @@ export const BarrageType = Object.freeze({
   /** A common banner. */
   COMMON_BARRAGE: 100,
 } as const);
+
+/** The grade a banner is about: a gifter level or a fan level. */
+export interface BarrageGradeParam {
+  /** The level reached. */
+  currentGrade: number;
+  /** Whose level it is. */
+  user?: User;
+}
+
+/** The gifted subscriptions a banner is about. */
+export interface BarrageSubscribeGiftParam {
+  /** How many subscriptions were gifted. */
+  giftSubCount: number;
+  /**
+   * Who paid them: `1` TikTok, `2` a user ({@link SubGiftSource}). Other
+   * values may come: it stays a number.
+   */
+  giftSource: number;
+}
+
+/** A banner message (`barrage` event; also `superFan` or `superFanJoin` for super fans). */
+export interface BarrageMessage {
+  /** Data every message carries. */
+  common?: Common;
+  /** The user the banner is about. */
+  user?: User;
+  /**
+   * What the banner is about: `3` normal, `4` a subscription, `8` a user
+   * grade upgrade ({@link BarrageType}). Other values may come: it stays a
+   * number.
+   */
+  msgType: number;
+  /** The banner text. Routing reads its `key`. */
+  content?: Text;
+  /** The banner's common text. Routing reads its `key` too. */
+  commonBarrageContent?: Text;
+  /** The gifter level, for user grade banners. */
+  userGradeParam?: BarrageGradeParam;
+  /** The fan level, for fan level banners. */
+  fansLevelParam?: BarrageGradeParam;
+  /** The gifted subscriptions, for gifted subscription banners. */
+  subscribeGiftParam?: BarrageSubscribeGiftParam;
+}
 
 /**
  * The values of {@link SubNotifyMessage.subscribeType} TikTok defines
@@ -227,7 +330,8 @@ export const SubNotifyMessageType = Object.freeze({
 } as const);
 
 /**
- * The values of {@link SubNotifyMessage.giftSource} TikTok defines
+ * The values of {@link SubNotifyMessage.giftSource} and
+ * {@link BarrageSubscribeGiftParam.giftSource} TikTok defines
  * (`webcast.im.GiftSource`): who paid a gifted subscription. Named apart
  * from the `GiftSource` of `fetchGifts()`.
  */
@@ -300,9 +404,8 @@ export const GoalMessageSource = Object.freeze({
 } as const);
 
 /**
- * The values of a subscription notice's exhibition type TikTok defines
- * (`webcast.im.ExhibitionType`, `WebcastSubNotifyMessage.exhibition_type` in
- * the proto; not decoded yet).
+ * The values of {@link SubNotifyMessage.exhibitionType} TikTok defines
+ * (`webcast.im.ExhibitionType`): how the notice is shown.
  */
 export const ExhibitionType = Object.freeze({
   /** TikTok's default. */
@@ -337,6 +440,11 @@ export interface SubNotifyMessage {
   common?: Common;
   /** Who subscribed. */
   user?: User;
+  /**
+   * How the notice is shown: `1` folded, `2` on the public screen
+   * ({@link ExhibitionType}). Other values may come: it stays a number.
+   */
+  exhibitionType: number;
   /** How many months the user has subscribed. */
   subMonth: number;
   /**
@@ -370,7 +478,7 @@ export interface SubNotifyMessage {
 
 /** A text of a subscription pin card: its content, in a given form. */
 export interface SubPinCardText {
-  /** TikTok's text type code. */
+  /** How to read `content`: `1` the text itself, `2` a translation key. Other values may come: it stays a number. */
   type: number;
   /** The text. */
   content: string;
@@ -380,6 +488,8 @@ export interface SubPinCardText {
 export interface SubGoalPinCard {
   /** The goal id. */
   goalId: string;
+  /** The goal's description. */
+  desc?: SubPinCardText;
   /** The target. */
   target: number;
   /** The progress so far. */
@@ -549,6 +659,8 @@ export interface HourlyRankRewardInfo {
   userId: string;
   /** The reward asset. */
   assetId: string;
+  /** The notice TikTok shows for the win. */
+  notify?: RoomNotifyMessage;
 }
 
 /** The hourly rank's rewards (`hourlyRank` event). */

@@ -8,6 +8,18 @@ describe("giftSchemas", () => {
       "WebcastMemberMessage",
       "WebcastEnvelopeMessage",
       "WebcastBarrageMessage",
+      "WebcastSubNotifyMessage",
+      "WebcastSubPinEventMessage",
+      "WebcastGiftBroadcastMessage",
+      "WebcastRoomNotifyMessage",
+      "WebcastGoalUpdateMessage",
+      "WebcastViewerPicksUpdateMessage",
+      "WebcastHourlyRankRewardMessage",
+      "WebcastGiftPromptMessage",
+      "WebcastGiftPanelUpdateMessage",
+      "WebcastGiftDynamicRestrictionMessage",
+      "WebcastGuideMessage",
+      "WebcastBoostCardMessage",
     ]);
     for (const [name, schema] of Object.entries(giftSchemas)) {
       expect(schema.name).toBe(name);
