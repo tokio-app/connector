@@ -10,6 +10,7 @@ import {
   normalizeUsername,
   type ConnectOptions,
   type Logger,
+  type TikTokLiveConnection,
 } from "../../src/index.js";
 import { describeError } from "./format.js";
 
@@ -244,6 +245,35 @@ export async function within(
 }
 
 function ignore(): void {}
+
+/** A connect that {@link startConnect} started. */
+export interface Connecting {
+  /** Settles with `true` once connected, `false` when `connect()` failed. */
+  connecting: Promise<boolean>;
+  /** Settles like `connecting`, or with `false` as soon as `stopped` settles. */
+  connected: Promise<boolean>;
+}
+
+/**
+ * Starts `connection.connect()`, calling `onFailure` with what it rejects
+ * with. `stopped` (Ctrl-C) ends the wait for `connected` early; the connect
+ * goes on until a `disconnect()` cancels it.
+ */
+export function startConnect(
+  connection: TikTokLiveConnection,
+  stopped: Promise<void>,
+  onFailure: (error: unknown) => void,
+): Connecting {
+  const connecting = connection.connect().then(
+    () => true,
+    (error: unknown) => {
+      onFailure(error);
+      return false;
+    },
+  );
+  const connected = Promise.race([connecting, stopped.then(() => false)]);
+  return { connecting, connected };
+}
 
 /**
  * Calls `stop` on the first Ctrl-C, so the script can disconnect and report.

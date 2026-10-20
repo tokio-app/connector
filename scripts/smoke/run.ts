@@ -4,7 +4,7 @@
 // real connection's options and the console; run.test.ts with the offline
 // fakes. The bookkeeping lives in summary.ts.
 import { TikTokLiveConnection, type ConnectOptions } from "../../src/index.js";
-import { within, type Clock } from "../lib/cli.js";
+import { startConnect, within, type Clock } from "../lib/cli.js";
 import { describeError, stamp } from "../lib/format.js";
 import type { SmokeArgs } from "./args.js";
 import {
@@ -91,21 +91,18 @@ class SmokeRun {
   async run(): Promise<SmokeOutcome> {
     const room = this.#args.roomId ? ` (room ${this.#args.roomId})` : "";
     this.#print(`connecting to @${this.#connection.username}${room}`);
-    const connecting = this.#connection.connect().then(
-      () => true,
-      (error: unknown) => {
-        this.#report(this.#recorder.connectFailed(error));
-        return false;
-      },
+    const start = startConnect(
+      this.#connection,
+      this.#stopped.promise,
+      (error) => this.#report(this.#recorder.connectFailed(error)),
     );
-    const connected = await Promise.race([
-      connecting,
-      this.#stopped.promise.then(() => false),
-    ]);
+    const connected = await start.connected;
     if (connected) await this.#watch();
     // A connect still running (Ctrl-C while connecting) is canceled by
     // disconnect(). After a failed connect there is nothing to disconnect.
-    if (connected || this.#interrupted) await this.#disconnect(connecting);
+    if (connected || this.#interrupted) {
+      await this.#disconnect(start.connecting);
+    }
 
     const summary = this.#recorder.summarize(this.#now(), {
       interrupted: this.#interrupted,

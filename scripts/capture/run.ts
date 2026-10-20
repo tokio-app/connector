@@ -4,7 +4,7 @@
 // connection and the file system; run.test.ts with the offline fakes. The
 // fixture format lives in fixture.ts.
 import { TikTokLiveConnection, type ConnectOptions } from "../../src/index.js";
-import { within, type Clock } from "../lib/cli.js";
+import { startConnect, within, type Clock } from "../lib/cli.js";
 import {
   describeConnected,
   describeDisconnected,
@@ -111,17 +111,13 @@ class CaptureRun {
   async run(): Promise<CaptureOutcome> {
     if (this.#args.anonymize) this.#io.warn(`${ANONYMIZE_WARNING}\n`);
     this.#print(`connecting to @${this.#connection.username}`);
-    const connecting = this.#connection.connect().then(
-      () => true,
-      (error: unknown) => {
-        this.#print(labeled("connect failed", describeError(error)));
-        return false;
-      },
-    );
-    const connected = await Promise.race([
-      connecting,
-      this.#stopped.promise.then(() => false),
-    ]);
+    // A failed connect has nothing to disconnect; disconnect() cancels one
+    // that Ctrl-C interrupted.
+    const connected = await startConnect(
+      this.#connection,
+      this.#stopped.promise,
+      (error) => this.#print(labeled("connect failed", describeError(error))),
+    ).connected;
     if (connected) await this.#record();
     if (connected || this.#interrupted) await this.#disconnect();
     return this.#write(connected);
