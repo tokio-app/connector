@@ -257,17 +257,18 @@ function hasListener(
   return events.some((event) => context.listenerCount(event) > 0);
 }
 
-function handle(context: DispatchContext, message: FetchResultMessage): void {
-  if (isDuplicate(context.recentIds, message.msgId)) return;
-  if (context.listenerCount("raw") > 0) {
-    context.emit("raw", toRaw(message, context.decodeOptions));
-  }
-  if (message.isHistory && !context.processInitialData) return;
-  const route = Object.hasOwn(ROUTES, message.method)
-    ? ROUTES[message.method]
-    : undefined;
-  if (route === undefined) return;
-  if (!route.always && !hasListener(context, route.events)) return;
+// The route of a message type. Own keys only: "toString" has no route.
+function routeOf(method: string): AnyRoute | undefined {
+  return Object.hasOwn(ROUTES, method) ? ROUTES[method] : undefined;
+}
+
+// Decodes the message with its route's schema and lets the route emit it. A
+// payload that can't be decoded is reported and dropped.
+function decodeAndEmit(
+  context: DispatchContext,
+  route: AnyRoute,
+  message: FetchResultMessage,
+): void {
   let decoded: unknown;
   try {
     decoded = decodeMessage(
@@ -285,6 +286,18 @@ function handle(context: DispatchContext, message: FetchResultMessage): void {
     return;
   }
   route.emit(decoded, context);
+}
+
+function handle(context: DispatchContext, message: FetchResultMessage): void {
+  if (isDuplicate(context.recentIds, message.msgId)) return;
+  if (context.listenerCount("raw") > 0) {
+    context.emit("raw", toRaw(message, context.decodeOptions));
+  }
+  if (message.isHistory && !context.processInitialData) return;
+  const route = routeOf(message.method);
+  if (route === undefined) return;
+  if (!route.always && !hasListener(context, route.events)) return;
+  decodeAndEmit(context, route, message);
 }
 
 /**
