@@ -96,7 +96,7 @@ A gift of type 1 (`isStreakable(gift)`) can be sent in a streak. Each update of 
 | `reconnect`           | see below           | `Partial<ReconnectOptions>`, or `false` to never reconnect ([Reconnecting](#reconnecting))                                                                      |
 | `heartbeatIntervalMs` | `10000`             | How often to send a heartbeat                                                                                                                                   |
 | `idleTimeoutMs`       | `30000`             | Reconnect when no frame arrives for this long. `0` turns it off                                                                                                 |
-| `connectTimeoutMs`    | `20000`             | How long the WebSocket may take to open                                                                                                                         |
+| `connectTimeoutMs`    | `20000`             | How long the WebSocket may take to open and enter the room                                                                                                      |
 | `requestTimeoutMs`    | `10000`             | How long each HTTP request, to TikTok or the signer, may take                                                                                                   |
 | `dedupeSize`          | `2048`              | How many recent message ids to remember, to drop duplicates. `0` keeps none                                                                                     |
 | `clientParams`        | none                | Query parameters to add to, or replace in, every request to TikTok and the WebSocket URL                                                                        |
@@ -129,24 +129,24 @@ connection.on("reconnecting", ({ attempt, delayMs, reason }) => {
 });
 ```
 
-| `reconnect`            | Default | What it does                                                                                  |
-| ---------------------- | ------- | --------------------------------------------------------------------------------------------- |
-| `maxAttempts`          | `10`    | Attempts before giving up. `Infinity` never gives up                                          |
-| `baseDelayMs`          | `1000`  | The wait ceiling of the first attempt                                                         |
-| `maxDelayMs`           | `30000` | The largest wait ceiling                                                                      |
-| `factor`               | `2`     | How much the ceiling grows per attempt                                                        |
-| `checkLiveBeforeRetry` | `true`  | Check that the room is still LIVE before each attempt. If it isn't, emit `streamEnd` and stop |
+| `reconnect`            | Default | What it does                                                                                         |
+| ---------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
+| `maxAttempts`          | `10`    | Attempts before giving up. `Infinity` never gives up, `0` never reconnects (like `reconnect: false`) |
+| `baseDelayMs`          | `1000`  | The wait ceiling of the first attempt                                                                |
+| `maxDelayMs`           | `30000` | The largest wait ceiling                                                                             |
+| `factor`               | `2`     | How much the ceiling grows per attempt                                                               |
+| `checkLiveBeforeRetry` | `true`  | Check that the room is still LIVE before each attempt. If it isn't, emit `streamEnd` and stop        |
 
 The connection stops for good, with `disconnected` and `willReconnect: false`, for these reasons:
 
-| `reason`                     | When                                                                                                   |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `user`                       | You called `disconnect()`                                                                              |
-| `streamEnd`                  | The LIVE ended or was suspended, or a reconnect's live check found it offline. `streamEnd` comes first |
-| `giveUp`                     | The attempts ran out. `error` is a `ReconnectGiveUpError` whose `cause` is the last attempt's error    |
-| `aborted`                    | The `signal` option aborted                                                                            |
-| `signError`                  | The signer failed in a way retrying can't fix, such as a rejected API key                              |
-| `wsClose`, `wsError`, `idle` | The connection dropped, with `reconnect: false`                                                        |
+| `reason`                     | When                                                                                                                                                        |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user`                       | You called `disconnect()`                                                                                                                                   |
+| `streamEnd`                  | The LIVE ended or was suspended, or a reconnect's live check found it offline. `streamEnd` comes first                                                      |
+| `giveUp`                     | The attempts ran out. `error` is a `ReconnectGiveUpError` whose `cause` is the last attempt's error                                                         |
+| `aborted`                    | The `signal` option aborted                                                                                                                                 |
+| `signError`                  | A reconnect attempt failed before the socket opened, in a way retrying can't fix: the signer (a rejected API key, say), the room lookup or the signed batch |
+| `wsClose`, `wsError`, `idle` | The connection dropped, with `reconnect: false` or `maxAttempts: 0`                                                                                         |
 
 The first `connect()` is never retried. It rejects, and you decide: an `OfflineError` means waiting for the user to go LIVE, a `RateLimitError` says how long to wait.
 

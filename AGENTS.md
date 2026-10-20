@@ -60,9 +60,12 @@ src/
   util/               backoff, random, gzip, cookies
 test/
   setup.ts            runs before every test file
-  helpers/            encoder.ts (builds fixture bytes from the schemas), fakeSigner.ts, fakeTikTok.ts (a local ws server)
-  fixtures/           recorded frames and pages, replayed by tests
+  helpers/            encoder.ts (builds fixture bytes from the schemas), samples.ts (sample LIVE message values, unknown fields),
+                      fetchStub.ts (a stubbed fetch that records requests), fakeSigner.ts (a Signer without network),
+                      fakeTikTok.ts (a local ws server standing in for TikTok's push server)
+  fixtures/           recorded pages and captures, replayed by tests
 scripts/              reference/, capture/, smoke/: each an index.ts run with tsx
+  lib/                shared by capture and smoke: cli.ts (flags, connection options, logger, entry point), format.ts (errors, tables)
 reference/            gitignored: the MIT reference copies `yarn reference` downloads (see Licensing)
 ```
 

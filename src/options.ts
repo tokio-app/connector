@@ -22,7 +22,11 @@ export interface SessionCookies {
  * after each successful reconnect.
  */
 export interface ReconnectOptions {
-  /** Attempts before giving up (`disconnected` with reason `giveUp`). `Infinity` never gives up. Default `10`. */
+  /**
+   * Attempts before giving up (`disconnected` with reason `giveUp`). `Infinity`
+   * never gives up; `0` turns reconnecting off, like `reconnect: false`.
+   * Default `10`.
+   */
   maxAttempts: number;
   /** The wait ceiling of the first attempt, in milliseconds. Default `1000`. */
   baseDelayMs: number;
@@ -55,11 +59,11 @@ export interface ConnectOptions {
   /** How often to send a heartbeat on the WebSocket, in milliseconds. Default `10000`. */
   heartbeatIntervalMs?: number;
   /**
-   * Reconnect when no frame arrives for this long, in milliseconds. `0`
-   * disables the check. Default `30000`.
+   * Reconnect when no frame (pings included) arrives for this long once in the
+   * room, in milliseconds. `0` disables the check. Default `30000`.
    */
   idleTimeoutMs?: number;
-  /** How long the WebSocket may take to open, in milliseconds. Default `20000`. */
+  /** How long the WebSocket may take to open and enter the room, in milliseconds. Default `20000`. */
   connectTimeoutMs?: number;
   /** How long each HTTP request (to TikTok or the signer) may take, in milliseconds. Default `10000`. */
   requestTimeoutMs?: number;

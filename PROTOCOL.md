@@ -21,6 +21,7 @@ TikTok doesn't document any of it. Everything here was learned by reading the MI
 - [Batches](#batches)
 - [Field numbers](#field-numbers)
 - [Routing](#routing)
+- [Reconnects](#reconnects)
 - [Gift list](#gift-list)
 - [Errors](#errors)
 - [What replaces 2.4.0's globals and environment variables](#what-replaces-240s-globals-and-environment-variables)
@@ -28,7 +29,7 @@ TikTok doesn't document any of it. Everything here was learned by reading the MI
 
 ## Overview
 
-A connection goes through these steps; a reconnect starts again at step 3 (at step 2 after a `RoomNotFoundError` or a 4xx from the signer), carrying the last cursor.
+A connection goes through these steps; a reconnect starts again at step 3 (at step 2 after a `RoomNotFoundError` or a 4xx from the signer), carrying the last cursor ([Reconnects](#reconnects)).
 
 1. Normalize the username ([Username](#username)).
 2. Resolve the room id, unless the `roomId` option gives it ([Room id](#room-id)).
@@ -55,9 +56,12 @@ A connection goes through these steps; a reconnect starts again at step 3 (at st
 
 Every request goes to `https://www.tiktok.com` or `https://webcast.tiktok.com` with the client params as its query string, the headers below, and the cookie jar. 2.4.0 built `http://` URLs for these hosts by accident (its secure-host check is inverted, so only loopback hosts got `https`) [TLC: src/lib/web/lib/http-client.ts, `isSecure`, `getBaseUrl`]; we always use `https`.
 
-Each request must finish within `requestTimeoutMs` (default 10 000 ms, 2.4.0's `TIKTOK_CLIENT_TIMEOUT`), else `TimeoutError` with phase `request`. A request that fails before any response is a `ConnectorError` with code `NETWORK`; an unexpected status is an `HttpError`.
+Each request must finish within `requestTimeoutMs` (default 10 000 ms, 2.4.0's `TIKTOK_CLIENT_TIMEOUT`), else `TimeoutError` with phase `request`. A request that fails before any response is a `ConnectorError` with code `NETWORK` (retryable). A status other than 2xx is an `HttpError` whose message quotes the first 200 characters of the body and the URL without its query; a 2xx body that should be JSON and isn't is an `HttpError` too, not retryable. URLs are never logged or quoted with their query (it holds the device id).
 
-The `clientParams` option adds to, or replaces, the query parameters, and `headers` the headers, of every request and of the WebSocket (the hotfix path). Header names are merged case-insensitively: `user-agent` replaces `User-Agent`. All defaults live in `src/http/params.ts`.
+The `clientParams` option adds to, or replaces, the query parameters, and `headers` the headers, of every request and of the WebSocket (the hotfix path). Header names are merged case-insensitively: `user-agent` replaces `User-Agent`. All defaults live in `src/http/params.ts`. The order, later winning:
+
+- Query: the defaults with `device_id`, then `clientParams`, then the request's own parameters (`room_id`, `uniqueId`, `sourceType`), so `clientParams` can't change which room or user a request is about.
+- Headers: the defaults and `Cookie` (the jar), then `headers`, then the request's own (`Accept` of the region gift list). A `Cookie` in `headers` replaces the jar on HTTP requests.
 
 ### Client params
 
@@ -123,16 +127,16 @@ The HTTP client keeps one cookie jar per connection, like 2.4.0's [TLC: src/lib/
 - `tt-target-idc=useast1a` (the default `Cookie` header in 2.4.0), and
 - when a session is set: `sessionid`, `sessionid_ss`, `sid_tt` and `sid_guard`, all set to the session id, and `tt-target-idc` set to the session's (default `useast1a`) [TLC: cookie-jar.ts, `serializeCookieSessionBundle`; defaults.ts, `SESSION_COOKIE_NAMES`]. A real browser's `sid_guard` holds more than the id; 2.4.0 sent the id, and so do we.
 
-Every `Set-Cookie` header TikTok answers with updates the jar (its name and value; attributes ignored), and so do the signer's cookies ([Signer](#signer)). The jar is serialized as `name=value` pairs joined by `; `, names and values percent-encoded as in 2.4.0 [TLC: cookie-jar.ts, `serializeCookieObject`]. The `Cookie` header of every request and of the WebSocket is the whole jar.
+Every `Set-Cookie` header TikTok answers with updates the jar (its name and value; attributes ignored), and so do the signer's cookies ([Signer](#signer)). The jar is serialized as `name=value` pairs joined by `; `. Values go back as they were set, like a browser sends them; only what a cookie can't hold is percent-encoded: in values, anything outside RFC 6265's cookie-octets plus `"` (spaces, `;`, `,`, `\`, control and non-ASCII characters), and in names anything that isn't a token character. 2.4.0 decoded every value and percent-encoded every name and value [TLC: cookie-jar.ts, `processSetCookieHeader`, `serializeCookieObject`], which changes base64 values such as `msToken` (`=`, `+`, `/`). The `Cookie` header of every request and of the WebSocket is the whole jar; a `Cookie` in the `headers` option replaces it.
 
 The session never goes to the signer: see `SignRequest.sessionCookies` below.
 
 ## Room id
 
-The first step that answers wins; each runs within `requestTimeoutMs` [TLC: src/lib/web/routes/composite/fetch-room-id.ts]. When none answers, `RoomNotFoundError` with the steps' errors as `cause`.
+The first step that answers wins; each runs within `requestTimeoutMs` [TLC: src/lib/web/routes/composite/fetch-room-id.ts]. When none answers, `RoomNotFoundError` with the steps' errors as `cause` (an array, in step order); it is retryable when a step failed for a reason that can pass (a retryable `ConnectorError`: network, timeout, 429 or 5xx). A room id is a decimal string other than `0`, or a positive safe integer.
 
-1. **The LIVE page.** `GET https://www.tiktok.com/@{username}/live?{client params}` (2.4.0 sent the client params on this page request too) with the headers. Extract the first match of `/<script id="SIGI_STATE" type="application\/json">(.*?)<\/script>/` (2.4.0's pattern; we add the `s` flag so a line break inside can't defeat it), `JSON.parse` it, and read `LiveRoom.liveRoomUserInfo.user.roomId`. A missing tag, invalid JSON or a missing or empty room id fails the step [TLC: src/lib/web/routes/base/fetch-room-info-html.ts]. The same object holds `LiveRoom.liveRoomUserInfo.liveRoom.status` (2 = LIVE, 4 = ended) [TLC: test/lib/fixtures.ts].
-2. **The API.** `GET https://www.tiktok.com/api-live/user/room/?{client params}&uniqueId={username}&sourceType=54`. JSON: `statusCode` must be `0` (anything else fails the step, `message` says why), then `data.user.roomId` [TLC: src/lib/web/routes/base/fetch-room-info-api-live.ts]. `data.liveRoom.status` has the same meaning as above.
+1. **The LIVE page.** `GET https://www.tiktok.com/@{username}/live?{client params}` (2.4.0 sent the client params on this page request too) with the headers. Extract the first match of `/<script id="SIGI_STATE" type="application\/json">(.*?)<\/script>/` (2.4.0's pattern; we add the `s` flag so a line break inside can't defeat it), `JSON.parse` it, and read `LiveRoom.liveRoomUserInfo.user.roomId` [TLC: src/lib/web/routes/base/fetch-room-info-html.ts]. When that is missing, the state is searched breadth first (to depth 16, at most 50 000 nodes) for a `liveRoomUserInfo.user.roomId`, or for an object whose `uniqueId` is the username (any letter case) and that has a `roomId`. When `SIGI_STATE` is missing, isn't JSON or holds no room id, the same is tried with the page's `<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__">` (attributes in any order), whose layout on LIVE pages isn't known yet (see [Open items](#open-items)). Nothing found fails the step. The `SIGI_STATE` object also holds `LiveRoom.liveRoomUserInfo.liveRoom.status` (2 = LIVE, 4 = ended) [TLC: test/lib/fixtures.ts].
+2. **The API.** `GET https://www.tiktok.com/api-live/user/room/?{client params}&uniqueId={username}&sourceType=54`. JSON: a `statusCode` other than `0` fails the step (`message` says why); a missing one passes, as in 2.4.0. Then `data.user.roomId` [TLC: src/lib/web/routes/base/fetch-room-info-api-live.ts]. `data.liveRoom.status` has the same meaning as above.
 3. **The signer.** `signer.resolveRoomId(username)`; `null` fails the step. Euler Stream's route is below.
 
 The signed connect may name a different room in `x-room-id`; that one replaces the resolved id.
@@ -142,27 +146,31 @@ The signed connect may name a different room in `x-room-id`; that one replaces t
 Before signing, and before each reconnect attempt when `reconnect.checkLiveBeforeRetry` is on:
 
 1. `GET https://webcast.tiktok.com/webcast/room/info/?{client params}&room_id={roomId}`, unsigned [TLC: src/lib/web/routes/base/fetch-room-info.ts]. JSON: `data.status === 4` means the LIVE ended; any other status counts as LIVE (2.4.0's rule: only 4 is offline) [TLC: src/lib/client/index.ts, `_connect`; src/lib/web/routes/composite/fetch-is-live.ts].
-2. If that request fails or has no `data.status`: `signer.fetchRoomInfo(roomId)`, `{ isLive }`.
+2. If that request fails or has no numeric `data.status`: `signer.fetchRoomInfo(roomId)`, `{ isLive }`.
 
-Offline on connect: `OfflineError`. Offline before a reconnect: `streamEnd` (`ended`), then `disconnected` with reason `streamEnd`. When neither source answers, the check is inconclusive and the connect goes on (the signer or the socket fails if the room is gone).
+Offline on connect: `OfflineError`. Offline before a reconnect: `streamEnd` (`ended`), then `disconnected` with reason `streamEnd`. When neither source answers, the check is inconclusive and the connect goes on (the signer or the socket fails if the room is gone). The check itself only fails when the connection stops (`AbortError`); the sources' failures are logged at `debug`.
 
 2.4.0 also had a username-based check (`fetchIsLive`: the LIVE page's status, the API's `data.liveRoom.status`, then Euler Stream's `is_live`) that its connect didn't use [TLC: fetch-is-live.ts].
 
 ## Signer
 
-The `Signer` interface (`src/signer/types.ts`) has one required method, `fetchConnect`, and three optional fallbacks: `resolveRoomId`, `fetchRoomInfo` and `fetchGifts`. Each gets a `SignContext`: the `fetch` to use, an abort `signal` (disconnect or the `signal` option), `timeoutMs` (`requestTimeoutMs`), the User-Agent and the logger. A signer throws `TimeoutError` with phase `sign` when `timeoutMs` runs out, and `AbortError` when the signal aborts.
+The `Signer` interface (`src/signer/types.ts`) has one required method, `fetchConnect`, and three optional fallbacks: `resolveRoomId`, `fetchRoomInfo` and `fetchGifts`. Each gets a `SignContext`: the `fetch` to use, an abort `signal` (disconnect or the `signal` option), `timeoutMs` (`requestTimeoutMs`), the User-Agent and the logger.
 
-`fetchConnect({ roomId, cursor, sessionCookies? })` returns `{ body, cookies, roomId?, requestId?, agentId? }`: `body` is the protobuf `ProtoMessageFetchResult` ([Batches](#batches)), `cookies` are `name=value` pairs for the jar. `cursor` is `""` on the first connect and the last cursor seen on reconnects. `sessionCookies` carries the session cookies when a session is set; whoever receives them can act as that TikTok account, so a signer must only forward them to a third party when its user explicitly asks. `EulerSigner` never forwards them (2.4.0 required an `authenticateWs` option and a `WHITELIST_AUTHENTICATED_SESSION_ID_HOST` environment variable matching the sign host before sending them [TLC: src/lib/web/routes/euler/fetch-signed-websocket-euler.ts]).
+The library runs every signer call within `timeoutMs` and the signal itself (`src/signer/call.ts`): a call still running when `timeoutMs` runs out fails with `TimeoutError` (phase `sign`), and one running when the signal aborts with `AbortError`, whether the signer watches them or not. A signer should still pass `signal` to `fetch`, so that a stop cancels its request. Whatever a signer throws that isn't a `ConnectorError` is converted before the library acts on it: an error named `AbortError` (what `fetch` throws when its signal aborts) becomes an `AbortError`; one named `TimeoutError` (what `fetch` throws for an `AbortSignal.timeout()`) a `TimeoutError` with phase `sign`; anything else (a `TypeError` for a network failure, a bug) a retryable `SignError` without a status, with the original as `cause`. So a signer lets `fetch`'s errors through and only throws for the service's answers: `RateLimitError`, `PremiumFeatureError`, or `SignError` with the `status` (a 4xx status makes the connection look the room id up again, [Reconnects](#reconnects)).
+
+`fetchConnect({ roomId, cursor, sessionCookies? })` returns `{ body, cookies, roomId?, requestId?, agentId? }`: `body` is the protobuf `ProtoMessageFetchResult` ([Batches](#batches)), `cookies` are `name=value` pairs for the jar. An answer whose `body` isn't bytes or whose `cookies` isn't a list of strings is a `ProtocolError`. `cursor` is `""` on the first connect and the last cursor seen on reconnects. `sessionCookies` carries the session cookies when a session is set; whoever receives them can act as that TikTok account, so a signer must only forward them to a third party when its user explicitly asks. `EulerSigner` never forwards them (2.4.0 required an `authenticateWs` option and a `WHITELIST_AUTHENTICATED_SESSION_ID_HOST` environment variable matching the sign host before sending them [TLC: src/lib/web/routes/euler/fetch-signed-websocket-euler.ts]).
 
 ### Euler Stream
 
 `EulerSigner` is written from Euler Stream's public docs. 2.4.0 used Euler Stream's SDK (`tiktok-live-api-sdk`), which isn't among the references, so its exact requests are only known through how 2.4.0 called it.
 
-**Hosts.** The docs list four servers [Euler: API reference, server list]: `https://tiktok.eulerstream.com` (listed first, no description; the docs' own rate-limit widget calls it), `https://api.eulerstream.com` ("Public Server (Community & Pro)"), `https://tiktok.enterprise.eulerstream.com` ("Enterprise Server") and `https://api.staging.eulerstream.com` ("Staging Server (Private Use)"). `EulerSigner` defaults to `https://tiktok.eulerstream.com`; the `host` option changes it. 2.4.0 defaulted to `https://api.eulerstream.com`, overridable with `SIGN_API_URL` [TLC: src/lib/web/routes/euler/config.ts].
+**Hosts.** The docs list four servers [Euler: API reference, server list]: `https://tiktok.eulerstream.com` (listed first, no description; the docs' own rate-limit widget calls it), `https://api.eulerstream.com` ("Public Server (Community & Pro)"), `https://tiktok.enterprise.eulerstream.com` ("Enterprise Server") and `https://api.staging.eulerstream.com` ("Staging Server (Private Use)"). `EulerSigner` defaults to `https://tiktok.eulerstream.com`; the `host` option changes it (trailing slashes are dropped, and a `host` that isn't a URL makes the constructor throw a `TypeError`). 2.4.0 defaulted to `https://api.eulerstream.com`, overridable with `SIGN_API_URL` [TLC: src/lib/web/routes/euler/config.ts].
 
-**API key.** The OpenAPI data behind the docs lets a key travel as an `x-api-key` header, an `apiKey` query parameter or an `x-jwt-key` header (a JWT) [Euler: the generated client in the docs' pages sets all three]. `EulerSigner` only ever sends `x-api-key`, so a key never lands in a URL, a log line or a proxy's access log. Without a key, the anonymous limits apply.
+**API key.** The OpenAPI data behind the docs lets a key travel as an `x-api-key` header, an `apiKey` query parameter or an `x-jwt-key` header (a JWT) [Euler: the generated client in the docs' pages sets all three]. `EulerSigner` only ever sends `x-api-key`, so a key never lands in a URL, a log line or a proxy's access log. Without a key (or with an empty one), the anonymous limits apply.
 
-**Requests.** `EulerSigner` names itself in its own `User-Agent` header to Euler Stream (2.4.0 sent `tiktok-live-connector/<version> <platform>` [TLC: euler/config.ts]); the TikTok User-Agent goes in the `user_agent` query parameter.
+**Requests.** `EulerSigner` sends only `Accept` and, with a key, `x-api-key`. The docs ask for no User-Agent, so `fetch`'s default goes (2.4.0 sent `tiktok-live-connector/<version> <platform>` [TLC: euler/config.ts]); the `client` query parameter names the library, and the TikTok User-Agent goes in the `user_agent` query parameter.
+
+**Fallback routes.** The room id, room info and room gifts routes answer `null` on any 4xx but 429 (the plan lacks the route, or Euler Stream has no answer, such as a 404 for a user who isn't LIVE). A 429 throws `RateLimitError`, a 5xx `SignError`, and a 2xx body that isn't JSON `ProtocolError`.
 
 #### Connect
 
@@ -181,7 +189,7 @@ The `Signer` interface (`src/signer/types.ts`) has one required method, `fetchCo
 Answers:
 
 - **200**: the body is a protobuf `ProtoMessageFetchResult`. The headers carry what the WebSocket needs (from 2.4.0; the docs don't list response headers) [TLC: fetch-signed-websocket-euler.ts]:
-  - `x-set-tt-cookie`: cookies for TikTok, required. Missing: `ProtocolError` (2.4.0 failed the same way). 2.4.0 kept only the first `name=value` of it, as if it were one `Set-Cookie` line [TLC: cookie-jar.ts, `processSetCookieHeader`]. We read every `name=value` pair separated by `;` and drop `Set-Cookie` attributes (`Path`, `Domain`, `Expires`, `Max-Age`, `HttpOnly`, `Secure`, `SameSite`, `Priority`, `Partitioned`) (see [Open items](#open-items)).
+  - `x-set-tt-cookie`: cookies for TikTok, required. Missing: `ProtocolError` (2.4.0 failed the same way). 2.4.0 kept only the first `name=value` of it, as if it were one `Set-Cookie` line [TLC: cookie-jar.ts, `processSetCookieHeader`]. We read every `name=value` pair separated by `;` and drop `Set-Cookie` attributes (`Path`, `Domain`, `Expires`, `Max-Age`, `SameSite`, `Priority`, any letter case) and value-less flags (`HttpOnly`, `Secure`, `Partitioned`) (see [Open items](#open-items)). A comma followed by `name=` also starts a new pair, so `Set-Cookie` lines joined by `, ` parse too (an `Expires` date's comma doesn't split). A header without any pair is a `ProtocolError`, like a missing one, and so is an empty body. Values are kept as sent. `EulerSigner` logs the cookies' names (never their values) at `debug`.
   - `x-room-id`: the room the server connected to; replaces the requested one.
   - `x-request-id`, `x-agent-id`: for support requests; kept in `SignedConnect` and in `SignError.requestId`.
 - **429**: rate limited. JSON `{ code: 429, message }` [Euler: every route documents it]; 2.4.0 also read a `limit_label`. `RateLimitError`, `retryAfterMs` from, in order: `retry-after` (seconds or an HTTP date), `ratelimit-reset` (seconds, the header Euler Stream's public endpoints send, see below), `x-ratelimit-reset` (2.4.0 read it as a Unix time in seconds [TLC: src/types/errors.ts, `SignatureRateLimitError`]). 2.4.0 passed the response body where the response was expected, so a 429 surfaced as a `TypeError`.
@@ -203,9 +211,9 @@ Answers:
 
 #### Room gifts
 
-`GET {host}/webcast/rooms/{room_id}/gifts?webcast_language={language}` [Euler: TikTok LIVE Rooms, "Retrieve room gifts"; scope `WEBCAST_PREMIUM`]. JSON: `{ code, message, response }` where `response` is `{ room_id, page_gifts: number[], gift_overrides: { [gift id]: { is_displayed_on_panel, is_gallery_gift, gift_sponsor_info } }, panel_refresh_data }`: the room's gift ids in panel order and per-room overrides, **not** names, prices or images. So this route alone can't make a `Gift`. `fetchGifts` returns `null` (the chain moves on) unless `response` also carries gift objects with `id`, `name`, `diamond_count` and `image` (undocumented; see [Open items](#open-items)). 2.4.0 called the same route [TLC: src/lib/web/routes/euler/fetch-room-gifts-euler.ts].
+`GET {host}/webcast/rooms/{room_id}/gifts` [Euler: TikTok LIVE Rooms, "Retrieve room gifts"; scope `WEBCAST_PREMIUM`]. The route takes an optional `webcast_language`; `EulerSigner` doesn't send it, since `Signer.fetchGifts(roomId, context)` has no language (an optional third parameter could add one without breaking signers). JSON: `{ code, message, response }` where `response` is `{ room_id, page_gifts: number[], gift_overrides: { [gift id]: { is_displayed_on_panel, is_gallery_gift, gift_sponsor_info } }, panel_refresh_data }`: the room's gift ids in panel order and per-room overrides, **not** names, prices or images. So this route alone can't make a `Gift`. `fetchGifts` returns `null` (the chain moves on) unless `response` also carries gift objects with `id`, a `name` and a `diamond_count` (undocumented; see [Open items](#open-items)). 2.4.0 called the same route [TLC: src/lib/web/routes/euler/fetch-room-gifts-euler.ts].
 
-Euler Stream also has `GET {host}/webcast/gifts?region={country}&webcast_language=en&redirect=false` (scope `PUBLIC`), answering `{ code, message, url }`: a URL of the gift list for a region [Euler: Gifts]. The library doesn't use it.
+Euler Stream also has `GET {host}/webcast/gifts?region={country}&webcast_language=en&redirect=false` (scope `PUBLIC`), answering `{ code, message, url }`: a URL of the gift list for a region [Euler: Gifts]. The library doesn't use it. Its Gifts section also lists a gift catalog (`GET /webcast/gifts/catalog`, paginated, `GET /webcast/gifts/catalog/{gift_id}` and `POST /webcast/gifts/catalog/search`, which "do not count toward rate limits"), and the room gifts page now says to combine `page_gifts` with `/webcast/gift_info` for the full gifts [Euler, read on 2026-10-19]; see [Open items](#open-items).
 
 ## WebSocket
 
@@ -248,11 +256,11 @@ The URL is the batch's `pushServer`, `?`, the query string, then the literal `&v
 
 `version_code` is sent twice (`180800` first, `270000` last), as 2.4.0 did. `clientParams` overrides apply to the params before `compress`.
 
-Headers: `User-Agent` and `Cookie` (the jar, signer cookies included [TLC: src/lib/client/index.ts, `setupWebsocket`]); `headers` overrides apply. The socket uses the `ws` package (Node's built-in `WebSocket` can't set these headers). 2.4.0 opened it with `autoPong: false` (no automatic replies to pings) [TLC: ws-client.ts]; we do the same.
+Headers: `User-Agent` and `Cookie` (the jar, signer cookies included [TLC: src/lib/client/index.ts, `setupWebsocket`]); `headers` overrides apply. The socket uses the `ws` package (Node's built-in `WebSocket` can't set these headers) with its defaults otherwise, so it answers the server's pings. 2.4.0 opened it with `autoPong: false` (no automatic replies to pings) [TLC: ws-client.ts] without saying why. We keep the replies: RFC 6455 requires a pong for every ping, browsers (TikTok's own web client among them) always send one, and when the server doesn't ping, the setting does nothing. The first ping a socket gets is logged at `debug`, so a smoke run shows whether TikTok pings at all (see [Open items](#open-items)).
 
-The socket must open within `connectTimeoutMs` (default 20 000 ms, 2.4.0's `WS_CONNECT_TIMEOUT_MS`), else `TimeoutError` with phase `connect`. To close, send a close frame (code 1000) and terminate the socket if it hasn't closed 2 s later (2.4.0's `WS_DISCONNECT_TIMEOUT_MS`) [TLC: src/lib/client/index.ts, `disconnect`].
+The socket must open and enter the room (an `im_enter_room_resp` frame, or the first `msg` frame, whichever comes first) within `connectTimeoutMs` (default 20 000 ms, 2.4.0's `WS_CONNECT_TIMEOUT_MS`), else `TimeoutError` with phase `connect`. 2.4.0 only waited for the socket to open. To close, send a close frame (code 1000) and terminate the socket if it hasn't closed 2 s later (2.4.0's `WS_DISCONNECT_TIMEOUT_MS`) [TLC: src/lib/client/index.ts, `disconnect`].
 
-While connected, any frame resets the idle timer; with no frame for `idleTimeoutMs` (default 30 000 ms, `0` turns it off) the socket is terminated and the connection reconnects (reason `idle`). 2.4.0 had no such check.
+Once in the room, any frame (pings included) resets the idle timer; with no frame for `idleTimeoutMs` (default 30 000 ms, `0` turns it off) the socket is terminated and the connection reconnects (reason `idle`). 2.4.0 had no such check.
 
 ## Frames
 
@@ -300,7 +308,7 @@ Every `heartbeatIntervalMs` (default 10 000 ms, 2.4.0's `DEFAULT_WS_PING_INTERVA
 
 A frame with `payloadType` `msg` and `payloadEncoding` `pb` carries a batch: when its payload starts with `1f 8b 08` (gzip, deflate method) it is gunzipped first [TLC: proto-utils.ts, `deserializeWebSocketMessage`], then decoded as a `ProtoMessageFetchResult` ([Batches](#batches)). A payload that can't be gunzipped or decoded is a `ProtocolError`, reported through `error`; the socket stays open.
 
-`im_enter_room_resp` confirms the entry; other payload types are logged (debug) and ignored. 2.4.0 decoded every `pb` payload, whatever its type, as a batch; see [Open items](#open-items).
+`im_enter_room_resp` confirms the entry; other payload types, and `msg` frames with another `payloadEncoding`, are logged (debug, with their type, encoding and size) and ignored. 2.4.0 decoded every `pb` payload, whatever its type, as a batch; see [Open items](#open-items).
 
 ### Ack
 
@@ -314,10 +322,11 @@ When a batch has `needAck` set, the client answers right away with `logId` = the
 
 A `ProtoMessageFetchResult` is both the signed connect's body and every `msg` frame's payload.
 
-- **Cursor.** Every batch's `cursor` replaces the one kept for reconnects; a reconnect sends it to the signer so TikTok resumes from there. 2.4.0 only read the cursor of the signed connect and dropped it on disconnect, so it never resumed [TLC: src/lib/client/index.ts, `_connect`, `setDisconnected`].
+- **Cursor.** Every batch's non-empty `cursor` replaces the one kept for reconnects; a reconnect sends it to the signer so TikTok resumes from there. A new `connect()` starts over from `""`. 2.4.0 only read the cursor of the signed connect and dropped it on disconnect, so it never resumed [TLC: src/lib/client/index.ts, `_connect`, `setDisconnected`].
 - **`internalExt`, `routeParams`, `pushServer`:** from the signed connect, for the WebSocket URL; `internalExt` of each batch for its ack.
-- **Initial batch.** The signed connect's messages are the room's recent backlog. On the first connect they are skipped unless `processInitialData`; on a reconnect they go through dispatch (they may hold what was said during the gap; duplicates are dropped). 2.4.0 processed them by default.
-- **Messages.** Each goes through dispatch in order: dropped when its `msgId` (other than `"0"`) is among the last `dedupeSize` seen (one set per connection, kept across reconnects); `raw` emitted when it has a listener; dropped when `isHistory` is set unless `processInitialData`; then routed ([Routing](#routing)).
+- **Initial batch.** The signed connect's messages are the room's recent backlog. On the first connect they are skipped unless `processInitialData` (their ids still count as seen, so a reconnect's backlog doesn't bring them back); on a reconnect they go through dispatch (they may hold what was said during the gap; duplicates are dropped). They are dispatched right after `connected`, before any batch the socket received while it was entering the room. 2.4.0 processed them by default.
+- **Messages.** Each goes through dispatch in order: dropped when its `msgId` (other than `"0"` and `""`, which are never deduplicated) is among the last `dedupeSize` seen (one set per connection, kept across reconnects and new `connect()` calls); `raw` emitted when it has a listener; dropped when `isHistory` is set unless `processInitialData` (its id still counts as seen); then routed ([Routing](#routing)). A message that ends the stream drops the rest of its batch.
+- **Failures.** A payload a route can't decode is dropped and reported through `error` as a `ProtocolError` (`Dropped message <msgId> (<method>): <reason>`). Only payloads that get decoded are checked: a malformed message whose events have no listener goes unnoticed (`raw` only reads its `common`, and an unreadable one gives `createTime` `"0"` without a report). Anything else that fails inside dispatch is reported as a `ConnectorError` with code `INTERNAL`; dispatch never throws.
 
 A batch message has no creation time of its own (`BaseProtoMessage` has no such field): `raw.createTime` is read from the payload's `common.createTime` (field 1, then field 4; every LIVE message starts with its `common`), or `"0"`.
 
@@ -537,7 +546,7 @@ Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `ta
 | 2   | `user`      | `User`                                | `user`     | message |
 | 10  | `action`    | `webcast.im.MemberMessageAction` enum | `actionId` | enum    |
 
-`MemberMessageAction` [proto: webcast/synthetic_enums.proto]: `UNKNOWN` 0, `JOINED` 1, `SUBSCRIBED` 3. The property keeps the name older protos gave field 10, `actionId` [reference/src/TikTok-Webcast-Protobuf/src/slim/v1/webcast.proto]. Not read: `member_count` (3), `operator` (4), `enter_type` (9), `user_id` (12), and the rest.
+`MemberMessageAction` [proto: webcast/synthetic_enums.proto]: `MEMBER_MESSAGE_ACTION_UNKNOWN` 0, `MEMBER_MESSAGE_ACTION_JOINED` 1, `MEMBER_MESSAGE_ACTION_SUBSCRIBED` 3; exported as `MemberAction` (`UNKNOWN`, `JOINED`, `SUBSCRIBED`). The property keeps the name older protos gave field 10, `actionId` [reference/src/TikTok-Webcast-Protobuf/src/slim/v1/webcast.proto]. Not read: `member_count` (3), `operator` (4), `enter_type` (9), `user_id` (12), and the rest.
 
 `WebcastRoomUserSeqMessage` (`roomUser.ts`)
 
@@ -556,7 +565,7 @@ Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `ta
 | --- | ----------- | ------------------------------- | -------- | ---- |
 | 2   | `action`    | `webcast.im.ControlAction` enum | `action` | enum |
 
-`ControlAction` [proto: webcast/synthetic_enums.proto]: `CONTROL_ACTION_FALLBACK_UNKNOWN` 0, `CONTROL_ACTION_STREAM_PAUSED` 1, `CONTROL_ACTION_STREAM_UNPAUSED` 2, **`CONTROL_ACTION_STREAM_ENDED` 3**, **`CONTROL_ACTION_STREAM_SUSPENDED` 4**. 2.4.0's legacy client spells out 3 as ended by the host and 4 as ended by a moderator (a ban) [TLC: src/lib/client/legacy/index.ts].
+`ControlAction` [proto: webcast/synthetic_enums.proto]: `CONTROL_ACTION_FALLBACK_UNKNOWN` 0, `CONTROL_ACTION_STREAM_PAUSED` 1, `CONTROL_ACTION_STREAM_UNPAUSED` 2, **`CONTROL_ACTION_STREAM_ENDED` 3**, **`CONTROL_ACTION_STREAM_SUSPENDED` 4**; exported as `ControlAction` (`UNKNOWN`, `PAUSED`, `UNPAUSED`, `STREAM_ENDED`, `STREAM_SUSPENDED`). 2.4.0's legacy client spells out 3 as ended by the host and 4 as ended by a moderator (a ban) [TLC: src/lib/client/legacy/index.ts].
 
 `WebcastEnvelopeMessage` [proto: webcast/model/message/redenvelope.proto, package `webcast.model.message.redenvelope`] (`envelope.ts`)
 
@@ -565,7 +574,7 @@ Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `ta
 | 2   | `envelope_info` | `MessageRedEnvelopInfo` | `envelopeInfo` | message |
 
 `MessageRedEnvelopInfo` (same file): `business_type` (2, `webcast.model.data.EnvelopeBusinessType` enum) → `businessType`, enum. Not read: `envelope_id` (1), `send_user_name` (4), `diamond_count` (5), `people_count` (6), `unpack_at` (7), and the rest.
-`EnvelopeBusinessType` [proto: webcast/model/data/messages.proto]: 0 unknown, 1 user diamond, 2 platform diamond, 3 platform shell, 4 portal, 5 platform merch, 6, 7 and 9–14 event and campaign types, **`SUPER_FAN_BOX` 19**.
+`EnvelopeBusinessType` [proto: webcast/model/data/messages.proto]: 0 unknown, 1 user diamond, 2 platform diamond, 3 platform shell, 4 portal, 5 platform merch, 6, 7 and 9–14 event and campaign types, **`SUPER_FAN_BOX` 19**. Exported as `EnvelopeBusinessType` with the values the library uses: `UNKNOWN` 0 and `SUPER_FAN_BOX` 19.
 
 `WebcastBarrageMessage` (`barrage.ts`)
 
@@ -596,15 +605,25 @@ Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`]. A message
 
 `raw` comes first, for every message that survives the duplicate check, history included.
 
+## Reconnects
+
+How the connection (`src/connection.ts`) gets back into the room after a drop. 2.4.0 had no reconnect of its own; this is the library's design.
+
+- **Drops.** Once connected, the connection reconnects when the socket closes (`wsClose`), errors (`wsError`) or goes quiet for `idleTimeoutMs` (`idle`): `disconnected` with that reason and `willReconnect: true`, then one `reconnecting` per attempt. With `reconnect: false` or `maxAttempts: 0`, a drop stops the connection with that reason instead.
+- **Waits.** Before attempt `n` (from 1) it waits a random time from 0 to `min(maxDelayMs, baseDelayMs * factor ** (n - 1))` ("full jitter"), and at least the `retryAfterMs` of a `RateLimitError` from the attempt before. The count starts over after each successful reconnect.
+- **Attempts.** An attempt runs steps 3 to 5 of the [Overview](#overview) with the last cursor: the live check (when `reconnect.checkLiveBeforeRetry` is on), the signed connect, the socket. Each failed attempt is reported through `error`, and its reason (below) is the next `reconnecting` event's. A `RoomNotFoundError`, or a `SignError` with a 4xx status other than 429, makes the next attempt look the room id up again first (step 2), once per drop. The signer's `x-room-id` replaces the room id only when it is numeric; otherwise a warning is logged.
+- **Stops.** Otherwise, and once the room id was looked up again, a failure that isn't `retryable` stops the connection: `disconnected` with the failure as `error`, and the reason `signError` when the attempt failed before the socket (the signer, the room lookup or the signed batch) or `wsError` / `wsClose` when the socket failed. A live check that finds the room offline emits `streamEnd` (`ended`) and stops with reason `streamEnd`, without an `error`. Running out of attempts stops it with reason `giveUp` and a `ReconnectGiveUpError` (`cause`: the last failure), also emitted as `error`. `disconnect()` and the `signal` option stop it at any point (`user`, `aborted`), canceling the wait or the attempt in progress.
+- **New starts.** A `connect()` after a stop starts over: the cursor is `""` and the room id is looked up again, unless the `roomId` option is set. Only the duplicate check's memory carries over.
+
 ## Gift list
 
 `fetchGifts({ region?, language? })` tries, in order, until one returns gifts; each step runs within `requestTimeoutMs`, and a step that fails or returns no gift fails over to the next. Without a room id (no `connect()` yet and no `roomId` option), only step 3 runs. Every source is parsed the same way, then deduplicated by id (first wins). All steps failing: `ConnectorError` with code `GIFTS_UNAVAILABLE`, the steps' errors as `cause`.
 
 1. **Room** (`source: "room"`): `GET https://webcast.tiktok.com/webcast/gift/list/?{client params}&room_id={roomId}` with the headers and the cookie jar, unsigned.
 2. **Signer** (`source: "signer"`): `signer.fetchGifts(roomId)` ([Room gifts](#room-gifts) for Euler Stream).
-3. **Region** (`source: "region"`): `GET https://webcast.tiktok.com/webcast/gift/list/?aid=1988&app_language={language}&region={region}&sys_region={region}` with only `Accept: application/json` and the User-Agent: the request Tokio makes today, which works without a room. Defaults `US` and `en-US` (Tokio's fallbacks when its geo-IP lookup fails).
+3. **Region** (`source: "region"`): `GET https://webcast.tiktok.com/webcast/gift/list/?aid=1988&app_language={language}&region={region}&sys_region={region}` with only `Accept: application/json` and the User-Agent (the `headers` option's, when it sets one), and no cookies: the request Tokio makes today, which works without a room. Neither the default client params nor `clientParams` apply. Defaults `US` and `en-US` (Tokio's fallbacks when its geo-IP lookup fails).
 
-Parsing: the gift array is `data.gifts`, else `data.giftList`, else `data.pages[0].gifts` (Tokio's rule). Each gift maps `id` → `id` (as a string), `name` → `name`, `diamond_count` → `diamondCount`, `image.url_list` / `image.uri` → `image.urlList` / `image.uri` (absent without `image`).
+Parsing: the gift array is the first non-empty one of `data.gifts`, `data.giftList` and `data.pages[0].gifts` (Tokio's rule took the first present one, even empty). Entries without a usable id (a positive number or a decimal string) are skipped; a missing `name` gives `""` and a missing `diamond_count` `0`. Each gift maps `id` → `id` (as a string), `name` → `name`, `diamond_count` → `diamondCount`, `image.url_list` / `image.uri` → `image.urlList` / `image.uri` (absent without `image`).
 
 **What 2.4.0 did.** Its room gift list made the same request as step 1 (client params plus `room_id`, read `data.gifts`), but **signed** it: the request ran with `signRequest: true`, which sent the full URL (minus any `X-Bogus`, `X-Gnarly` and `msToken`) to the signer's sign-URL route with the method, the User-Agent and, when the jar had both, `sessionid` and `tt-target-idc`, then fetched the signed URL it got back (and its User-Agent, if any) [TLC: src/lib/web/routes/base/fetch-room-gifts.ts, "Request must now be signed from TikTok to work"; src/lib/web/lib/http-client.ts, `request`; src/lib/web/routes/euler/fetch-webcast-signature-euler.ts]. That route is `POST /tiktok/signing/encrypt/sign_url` (`client` query, `{ url, method, userAgent, sessionId, ttTargetIdc, … }` body), which the docs say is "NOT available to customers in any public package" [Euler: TikTok Signing]. So 2.4.0's room list only worked for accounts Euler Stream approved; the library tries the request unsigned and falls back. Whether TikTok answers it unsigned is an open item.
 
@@ -618,7 +637,7 @@ Parsing: the gift array is `data.gifts`, else `data.giftList`, else `data.pages[
 | `OfflineError`         | `OFFLINE`           | the live check on connect                                                                                         |
 | `ConnectorError`       | `NETWORK`           | an HTTP request to TikTok without a response                                                                      |
 | `HttpError`            | `HTTP`              | an unexpected status or body from TikTok                                                                          |
-| `SignError`            | `SIGN_FAILED`       | the signer: 401/403 (not retryable), 5xx and others, no answer                                                    |
+| `SignError`            | `SIGN_FAILED`       | the signer: 401/403 (not retryable), 5xx and others, no answer, anything else a signer throws                     |
 | `RateLimitError`       | `RATE_LIMITED`      | the signer: 429                                                                                                   |
 | `PremiumFeatureError`  | `PREMIUM_REQUIRED`  | the signer: 402                                                                                                   |
 | `TimeoutError`         | `TIMEOUT`           | phase `request`, `sign`, `connect` or `idle`                                                                      |
@@ -660,18 +679,22 @@ Parsing: the gift array is `data.gifts`, else `data.giftList`, else `data.pages[
 
 ## Open items
 
-What the references and docs can't settle. `yarn capture` on the user's own LIVE and `yarn smoke` answer most of them (Phase 2).
+What the references and docs can't settle. `yarn capture` on the user's own LIVE and `yarn smoke` (with `-v` for the `debug` logs) answer most of them.
 
 1. **Unsigned room gift list.** 2.4.0 said TikTok needs the `webcast/gift/list/?room_id=` request signed. If the smoke test shows `source: "region"`, the room step is dead weight; keep it only if TikTok answers it for some rooms.
-2. **Euler Stream's room gifts.** The documented answer holds gift ids and overrides, not gifts, and needs `WEBCAST_PREMIUM`. With such a key, check what `response` really holds. If it is ids only, `EulerSigner.fetchGifts` stays `null`, or could join `page_gifts` with the region list to give a room-ordered list.
-3. **`x-set-tt-cookie`.** Its format isn't documented; 2.4.0 kept only its first pair. Log it (redacted) in a smoke run to see whether it holds one cookie or several.
-4. **Received payload types.** Which `payloadType` values the server sends besides `msg` and `im_enter_room_resp` (heartbeat replies? a `close`?), and whether any other carries a batch (2.4.0 decoded every `pb` payload as one). The capture records every frame.
+2. **Euler Stream's room gifts.** The documented answer holds gift ids and overrides, not gifts, and needs `WEBCAST_PREMIUM`. With such a key, check what `response` really holds. If it is ids only, `EulerSigner.fetchGifts` stays `null`, or could join `page_gifts` with Euler Stream's gift catalog (which doesn't count toward rate limits) or the region list to give a room-ordered list.
+3. **`x-set-tt-cookie`.** Its format isn't documented; 2.4.0 kept only its first pair. `EulerSigner` logs the names of the cookies it read at `debug`: a smoke run shows whether it holds one cookie or several.
+4. **Received payload types.** Which `payloadType` values the server sends besides `msg` and `im_enter_room_resp` (heartbeat replies? a `close`?), and whether any other carries a batch (2.4.0 decoded every `pb` payload as one). The session logs every other type at `debug`. A capture only holds the messages inside `msg` frames.
 5. **History after a reconnect.** Whether messages sent during a reconnect's gap come back marked `is_history` (dropped unless `processInitialData`).
 6. **`common.createTime` unit.** Assumed milliseconds since the epoch, as `now` is.
 7. **Super fan keys.** `ttlive_superfanbox`, `ttlive_superfan_commentnotif_superfanjoined`, `ttlive_superfan` and business type 19 come from 2.4.0 and the 0.2.3 protos; confirm with a capture of a LIVE with super fans.
 8. **Euler Stream `client`.** The docs say it only feeds metrics (default `ttlive-other`); 2.4.0 sent `ttlive-node`, and `EulerSigner` does too by default. Decide whether to identify as this library instead.
 9. **402 from the connect route.** Kept from 2.4.0; the docs list only 200, 429, 500 and 503.
 10. **Euler Stream host.** `tiktok.eulerstream.com` (the docs' first server) versus `api.eulerstream.com` (2.4.0's default, "Community & Pro"): confirm both serve the connect route the same way for free use.
-11. **`autoPong: false`.** 2.4.0 turned off `ws`'s automatic pong without saying why; keep it unless a capture shows pings going unanswered.
+11. **Pings.** 2.4.0 turned off `ws`'s automatic pong without saying why; the library answers pings like a browser. The first ping is logged at `debug`: a smoke run shows whether TikTok sends any.
 12. **`version_code` twice.** Kept as 2.4.0 sends it; nothing says which one TikTok reads.
-13. **The LIVE page markup.** If TikTok drops `SIGI_STATE` from the LIVE page, step 1 of the room id lookup fails and steps 2 and 3 take over until the pattern is updated.
+13. **The LIVE page markup.** Whether TikTok still serves `SIGI_STATE` on the LIVE page, and where `__UNIVERSAL_DATA_FOR_REHYDRATION__` keeps the room id if not. If both fail, step 1 of the room id lookup fails and steps 2 and 3 take over until the lookup is updated.
+14. **Anonymous signing.** The connect route's docs page now groups `x-oauth-token` and `x-cookie-header` under "One authentication header required", and calls `x-cookie-header` "Raw TikTok cookies for direct authentication" (the OpenAPI data still marks both optional). If anonymous connects start failing with 401 or 403, this is why.
+15. **`ratelimit-reset`.** Read as seconds from now (the IETF draft); a value of 10⁹ or more is read as a Unix time in seconds, 10¹² or more in milliseconds. Confirm with a 429 from Euler Stream.
+16. **Entering the room.** Whether TikTok answers `im_enter_room` with `im_enter_room_resp`. Without it, entering waits for the first `msg` frame, and a quiet room would hit `connectTimeoutMs`.
+17. **Quiet rooms.** Whether a quiet LIVE still sends a frame (a batch, a heartbeat reply or a ping) at least every 30 s, so the idle check (`idleTimeoutMs`) never fires on a healthy socket.

@@ -26,7 +26,8 @@ export type ConnectionState =
  * - `wsClose`: the WebSocket closed (TikTok or the network closed it).
  * - `wsError`: the WebSocket errored.
  * - `idle`: no frame arrived for `idleTimeoutMs`.
- * - `signError`: the signer failed while reconnecting (see the error).
+ * - `signError`: a reconnect attempt failed before the socket opened, in a way retrying can't
+ *   fix: the signer, the room lookup or the signed batch (see the error).
  * - `giveUp`: the reconnect attempts ran out (`reconnect.maxAttempts`).
  * - `aborted`: the `signal` option aborted.
  */

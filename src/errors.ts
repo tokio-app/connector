@@ -272,8 +272,8 @@ export class PremiumFeatureError extends SignError {
  * Where a {@link TimeoutError} happened:
  *
  * - `request`: an HTTP request to TikTok took longer than `requestTimeoutMs`.
- * - `sign`: a request to the signer took longer than `requestTimeoutMs`.
- * - `connect`: the WebSocket didn't open within `connectTimeoutMs`.
+ * - `sign`: a signer call took longer than `requestTimeoutMs`.
+ * - `connect`: the WebSocket didn't open and enter the room within `connectTimeoutMs`.
  * - `idle`: no frame arrived for `idleTimeoutMs` while connected.
  */
 export type TimeoutPhase = "request" | "sign" | "connect" | "idle";
