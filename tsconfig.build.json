@@ -6,7 +6,10 @@
     "rootDir": "src",
     // The package doesn't ship src/, so maps would point at missing files.
     "sourceMap": false,
-    "declarationMap": false
+    "declarationMap": false,
+    // Members marked @internal (TikTokLiveConnection._terminateSocket, for
+    // `yarn smoke --drop-after`) stay in the JavaScript but out of the types.
+    "stripInternal": true
   },
   "include": ["src"],
   "exclude": ["src/**/*.test.ts"]
