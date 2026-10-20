@@ -1,5 +1,5 @@
-// Owned by T3 (Phase 1). Implemented in Phase 0B because T2 (device_id in the
-// client params) and T3 (the enter room message) both use it.
+// Random values TikTok's web client makes: the device id, the enter room
+// message's id and the WebSocket's last_rtt.
 import { randomBytes } from "node:crypto";
 
 /** Returns a random number in [0, 1), like `Math.random`. */

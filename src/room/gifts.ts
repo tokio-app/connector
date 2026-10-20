@@ -1,6 +1,6 @@
-// Owned by T2 (Phase 1): the gift list chain, room → signer → region
-// (PROTOCOL.md, "Gift list"). The connection's fetchGifts() (T3) calls it:
-// keep its signature. src/gifts.ts holds the streak helpers.
+// The gift list chain, room → signer → region (PROTOCOL.md, "Gift list"),
+// behind the connection's fetchGifts(). src/gifts.ts holds the streak
+// helpers.
 import { ConnectorError, isConnectorError } from "../errors.js";
 import type { Gift, GiftList, GiftSource, Image } from "../events.js";
 import {

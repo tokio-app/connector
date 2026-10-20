@@ -1,6 +1,5 @@
-// Owned by T2 (Phase 1): username → room id, and the live check
-// (PROTOCOL.md, "Room id" and "Is the room LIVE?"). connection.ts (T3) calls
-// both: keep their signatures.
+// Username → room id, and the live check (PROTOCOL.md, "Room id" and "Is
+// the room LIVE?"), for the connection's connects and reconnects.
 import {
   AbortError,
   ProtocolError,

@@ -1,7 +1,6 @@
-// Owned by T2 (Phase 1): fetch with timeouts, the client params and headers,
-// and a cookie jar (PROTOCOL.md, "HTTP requests to TikTok"). connection.ts
-// (T3) uses the constructor, userAgent, cookieHeader(), sessionCookieHeader()
-// and addCookies(): keep their signatures.
+// The library's HTTP requests to TikTok: fetch with timeouts, the client
+// params and headers, and a cookie jar (PROTOCOL.md, "HTTP requests to
+// TikTok"). One client per connection: one cookie jar and device id.
 import {
   AbortError,
   ConnectorError,

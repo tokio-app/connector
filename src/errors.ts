@@ -19,8 +19,6 @@ export const ERROR_CODES = [
   "RECONNECT_GAVE_UP",
   "GIFTS_UNAVAILABLE",
   "INTERNAL",
-  // Temporary: the Phase 0B stubs throw it. Removed in Phase 2.
-  "NOT_IMPLEMENTED",
 ] as const;
 
 /**
@@ -42,7 +40,6 @@ export const ERROR_CODES = [
  * - `RECONNECT_GAVE_UP`: every reconnect attempt failed ({@link ReconnectGiveUpError}).
  * - `GIFTS_UNAVAILABLE`: every gift list source failed (`fetchGifts()`).
  * - `INTERNAL`: an unexpected failure inside the library (a bug: please report it).
- * - `NOT_IMPLEMENTED`: temporary, for code that isn't written yet.
  */
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

@@ -1,9 +1,8 @@
-// Owned by T2 (Phase 1). Implemented in Phase 0B because T2 (HTTP requests)
-// and T3 (the WebSocket) both build on it. Every query parameter and header
-// the library sends to TikTok by default lives here, so the `clientParams`
-// and `headers` options can override any of them (PROTOCOL.md, "Client
-// params and headers" and "WebSocket URL"). The values are the defaults of
-// tiktok-live-connector 2.4.0, the release Tokio used before this library.
+// Every query parameter and header the library sends to TikTok by default
+// lives here, so the `clientParams` and `headers` options can override any of
+// them (PROTOCOL.md, "Client params", "Headers" and "WebSocket"). The values
+// are the defaults of tiktok-live-connector 2.4.0, the release Tokio used
+// before this library.
 import { randomLastRtt } from "../util/random.js";
 
 /** The User-Agent of every request to TikTok and of the WebSocket, and the signer's `user_agent`. */

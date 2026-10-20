@@ -1,6 +1,6 @@
-// The connection's state machine (PROTOCOL.md, "Overview"): connect, keep the
-// stream going across drops, stop for good. The public signature and its
-// JSDoc are frozen since Phase 0B (Tokio and other apps build on them).
+// The connection's state machine (PROTOCOL.md, "Overview" and "Reconnects"):
+// connect, keep the stream going across drops, stop for good. Its public
+// signature and JSDoc are public API: Tokio and other apps build on them.
 //
 //   idle ─connect()→ connecting ─ok→ connected ─drop→ reconnecting ─ok→ connected
 //                         │                │                │

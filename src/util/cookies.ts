@@ -1,7 +1,7 @@
-// Owned by T2 (Phase 1): cookie parsing and serializing for the HTTP client's
-// jar and the signer's cookies (PROTOCOL.md, "Cookies"). A cookie here is a
-// name and a value: TikTok's cookies are sent everywhere, so domain, path
-// and expiry are ignored.
+// Cookie parsing and serializing for the HTTP client's jar and the signer's
+// cookies (PROTOCOL.md, "Cookies"). A cookie here is a name and a value:
+// TikTok's cookies are sent everywhere, so domain, path and expiry are
+// ignored.
 import { SESSION_COOKIE_NAMES } from "../http/params.js";
 import type { SessionCookies } from "../options.js";
 

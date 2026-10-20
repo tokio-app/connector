@@ -1,6 +1,6 @@
-// Owned by T2 (Phase 1): the Euler Stream signer, from Euler Stream's public
-// docs (PROTOCOL.md, "Signer"). EulerSigner and EulerSignerOptions are public
-// API, frozen in Phase 0B: keep their signatures.
+// The Euler Stream signer, written from Euler Stream's public docs
+// (PROTOCOL.md, "Signer"). EulerSigner and EulerSignerOptions are public API:
+// keep their signatures.
 import {
   PremiumFeatureError,
   ProtocolError,

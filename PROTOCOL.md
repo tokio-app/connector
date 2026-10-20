@@ -648,8 +648,6 @@ Parsing: the gift array is the first non-empty one of `data.gifts`, `data.giftLi
 | `ConnectorError`       | `GIFTS_UNAVAILABLE` | `fetchGifts()`, when every source fails                                                                           |
 | `ConnectorError`       | `INTERNAL`          | an unexpected exception inside the library                                                                        |
 
-`NOT_IMPLEMENTED` exists only while Phase 1 is in progress and goes away in Phase 2.
-
 ## What replaces 2.4.0's globals and environment variables
 
 2.4.0 read these at import or call time [TLC: `grep -rn process.env src`; src/lib/web/config.ts, `RouteConfig`]. The library reads no environment variable and has no global state: everything is per connection.
