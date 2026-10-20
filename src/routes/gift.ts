@@ -1,14 +1,24 @@
 // The routes of the gift group: gifts, money and membership. The rules are
 // PROTOCOL.md's "Routing". A new message type gets its route here and its
 // table in src/codec/messages/gift/.
-//
-// `barrage` is declared in WebcastEventMap and GIFT_EVENTS, but not emitted
-// yet: emitting it before `superFanJoin`/`superFan` is Phase 1 work of this
-// group.
 import { BarrageMessageSchema } from "../codec/messages/gift/barrage.js";
 import { EnvelopeMessageSchema } from "../codec/messages/gift/envelope.js";
 import { GiftMessageSchema } from "../codec/messages/gift/gift.js";
+import { GiftBroadcastMessageSchema } from "../codec/messages/gift/giftBroadcast.js";
+import { GoalUpdateMessageSchema } from "../codec/messages/gift/goalUpdate.js";
+import { HourlyRankRewardMessageSchema } from "../codec/messages/gift/hourlyRank.js";
 import { MemberMessageSchema } from "../codec/messages/gift/member.js";
+import { RoomNotifyMessageSchema } from "../codec/messages/gift/roomNotify.js";
+import { SubNotifyMessageSchema } from "../codec/messages/gift/subNotify.js";
+import { SubPinEventMessageSchema } from "../codec/messages/gift/subPinEvent.js";
+import {
+  BoostCardMessageSchema,
+  GiftDynamicRestrictionMessageSchema,
+  GiftPanelUpdateMessageSchema,
+  GiftPromptMessageSchema,
+  GuideMessageSchema,
+} from "../codec/messages/gift/tail.js";
+import { ViewerPicksUpdateMessageSchema } from "../codec/messages/gift/viewerPicks.js";
 import {
   EnvelopeBusinessType,
   type BarrageMessage,
@@ -49,6 +59,8 @@ function superFanEvent(
 export const giftRoutes: Readonly<Record<string, AnyRoute>> = Object.freeze({
   WebcastGiftMessage: forward("gift", GiftMessageSchema),
   WebcastMemberMessage: forward("member", MemberMessageSchema),
+  // Every envelope is an `envelope`; a super fan box is a `superFanBox`
+  // first (the order 0.1.0 had, kept).
   WebcastEnvelopeMessage: defineRoute({
     schema: EnvelopeMessageSchema,
     events: ["superFanBox", "envelope"],
@@ -57,12 +69,43 @@ export const giftRoutes: Readonly<Record<string, AnyRoute>> = Object.freeze({
       context.emit("envelope", message);
     },
   }),
+  // Every banner is a `barrage`; a super fan banner is then a
+  // `superFanJoin` or `superFan` (base events before derived ones).
   WebcastBarrageMessage: defineRoute({
     schema: BarrageMessageSchema,
-    events: ["superFanJoin", "superFan"],
+    events: ["barrage", "superFanJoin", "superFan"],
     emit(message, context) {
+      context.emit("barrage", message);
       const event = superFanEvent(message);
       if (event !== undefined) context.emit(event, message);
     },
   }),
+  WebcastSubNotifyMessage: forward("subNotify", SubNotifyMessageSchema),
+  WebcastSubPinEventMessage: forward("subPinEvent", SubPinEventMessageSchema),
+  // The notify inside a gift broadcast is not emitted again as a `roomNotify`.
+  WebcastGiftBroadcastMessage: forward(
+    "giftBroadcast",
+    GiftBroadcastMessageSchema,
+  ),
+  WebcastRoomNotifyMessage: forward("roomNotify", RoomNotifyMessageSchema),
+  WebcastGoalUpdateMessage: forward("goalUpdate", GoalUpdateMessageSchema),
+  WebcastViewerPicksUpdateMessage: forward(
+    "viewerPicksUpdate",
+    ViewerPicksUpdateMessageSchema,
+  ),
+  WebcastHourlyRankRewardMessage: forward(
+    "hourlyRank",
+    HourlyRankRewardMessageSchema,
+  ),
+  WebcastGiftPromptMessage: forward("giftPrompt", GiftPromptMessageSchema),
+  WebcastGiftPanelUpdateMessage: forward(
+    "giftPanelUpdate",
+    GiftPanelUpdateMessageSchema,
+  ),
+  WebcastGiftDynamicRestrictionMessage: forward(
+    "giftDynamicRestriction",
+    GiftDynamicRestrictionMessageSchema,
+  ),
+  WebcastGuideMessage: forward("guide", GuideMessageSchema),
+  WebcastBoostCardMessage: forward("boostCard", BoostCardMessageSchema),
 });

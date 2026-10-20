@@ -563,19 +563,25 @@ Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `ta
 
 #### Gifts, money and membership (`messages/gift/`)
 
-`WebcastGiftMessage` (`gift/gift.ts`)
+`WebcastGiftMessage` [proto: webcast/model/message/messages.proto, line 1231] (`gift/gift.ts`)
 
-| No. | Proto field    | Type                 | Property      | Kind    |
-| --- | -------------- | -------------------- | ------------- | ------- |
-| 2   | `gift_id`      | int64                | `giftId`      | id      |
-| 5   | `repeat_count` | int32                | `repeatCount` | int32   |
-| 6   | `combo_count`  | int32                | `comboCount`  | int32   |
-| 7   | `user`         | `User`               | `user`        | message |
-| 9   | `repeat_end`   | int32                | `repeatEnd`   | bool    |
-| 11  | `group_id`     | int64                | `groupId`     | id      |
-| 15  | `gift`         | `webcast.model.Gift` | `gift`        | message |
+| No. | Proto field          | Type                              | Property           | Kind    |
+| --- | -------------------- | --------------------------------- | ------------------ | ------- |
+| 2   | `gift_id`            | int64                             | `giftId`           | id      |
+| 5   | `repeat_count`       | int32                             | `repeatCount`      | int32   |
+| 6   | `combo_count`        | int32                             | `comboCount`       | int32   |
+| 7   | `user`               | `User`                            | `user`             | message |
+| 8   | `to_user`            | `User`                            | `toUser`           | message |
+| 9   | `repeat_end`         | int32                             | `repeatEnd`        | bool    |
+| 11  | `group_id`           | int64                             | `groupId`          | id      |
+| 15  | `gift`               | `webcast.model.Gift`              | `gift`             | message |
+| 25  | `is_first_sent`      | bool                              | `isFirstSent`      | bool    |
+| 30  | `msg_filter`         | `webcast.model.data.MsgFilter`    | `msgFilter`        | message |
+| 32  | `user_identity`      | `webcast.model.data.UserIdentity` | `userIdentity`     | message |
+| 45  | `to_member_id`       | string                            | `toMemberId`       | string  |
+| 47  | `to_member_nickname` | string                            | `toMemberNickname` | string  |
 
-`repeat_end` is an int32 on the wire; non-zero is `true`. Not read: `fan_ticket_count` (3), `group_count` (4), `to_user` (8), `user_identity` (32), and the rest.
+`repeat_end` is an int32 on the wire; non-zero is `true`. `to_member_id` is a string in the proto; `to_member_id_int` (46) holds the same id as an int64 and isn't read. `MsgFilter` and `UserIdentity` are the shared tables above. Not read: `fan_ticket_count` (3), `group_count` (4), `text_effect` (10), `priority` (14), `log_id` (16), `send_type` (17), `tray_display_text` (19), `color_id` (24), `display_text_for_anchor` (26), `display_text_for_audience` (27), `order_id` (28), `gifts_in_box` (29), `to_member_id_int` (46), and the rest (to `gift_effect`, 100).
 
 `webcast.model.Gift` [proto: webcast/model/gift.proto, line 10] (`GiftDetailsSchema`)
 
@@ -590,48 +596,234 @@ Not read: `follow_count` (6), `share_display_style` (7), `follow_type` (13), `ta
 | 16  | `name`          | string       | `name`         | string  |
 | 21  | `icon`          | `ImageModel` | `icon`         | message |
 
-`type` 1 marks a gift sent in streaks: `isStreakable()`. During a streak each update arrives as its own gift message with a growing `repeat_count`, and the streak ends with one more message with `repeat_end` set, even for a single gift; a gift of another type arrives once [TLC: README.md, the gift event's notes].
+`type` 1 marks a gift sent in streaks: `isStreakable()`. During a streak each update arrives as its own gift message with a growing `repeat_count`, and the streak ends with one more message with `repeat_end` set, even for a single gift; a gift of another type arrives once [TLC: README.md, the gift event's notes]. Not read: `duration` (4), `for_linkmic` (7), `is_displayed_on_panel` (13), `primary_effect_id` (14), `gift_label_icon` (15), `gold_effect` (24), and the rest.
 
-`WebcastMemberMessage` (`gift/member.ts`)
+`WebcastMemberMessage` [proto: webcast/model/message/messages.proto, line 1607] (`gift/member.ts`)
 
-| No. | Proto field | Type                                  | Property   | Kind    |
-| --- | ----------- | ------------------------------------- | ---------- | ------- |
-| 2   | `user`      | `User`                                | `user`     | message |
-| 10  | `action`    | `webcast.im.MemberMessageAction` enum | `actionId` | enum    |
+| No. | Proto field       | Type                                  | Property        | Kind    |
+| --- | ----------------- | ------------------------------------- | --------------- | ------- |
+| 2   | `user`            | `User`                                | `user`          | message |
+| 3   | `member_count`    | int32                                 | `memberCount`   | int32   |
+| 4   | `operator`        | `User`                                | `operator`      | message |
+| 5   | `is_set_to_admin` | bool                                  | `isSetToAdmin`  | bool    |
+| 6   | `is_top_user`     | bool                                  | `isTopUser`     | bool    |
+| 8   | `top_user_no`     | int32                                 | `topUserNo`     | int32   |
+| 10  | `action`          | `webcast.im.MemberMessageAction` enum | `actionId`      | enum    |
+| 23  | `user_share_type` | string                                | `userShareType` | string  |
+| 26  | `kick_source`     | int32                                 | `kickSource`    | int32   |
 
-`MemberMessageAction` [proto: webcast/synthetic_enums.proto]: `MEMBER_MESSAGE_ACTION_UNKNOWN` 0, `MEMBER_MESSAGE_ACTION_JOINED` 1, `MEMBER_MESSAGE_ACTION_SUBSCRIBED` 3; exported as `MemberAction` (`UNKNOWN`, `JOINED`, `SUBSCRIBED`). The property keeps the name older protos gave field 10, `actionId` [reference/src/TikTok-Webcast-Protobuf/src/slim/v1/webcast.proto]. Not read: `member_count` (3), `operator` (4), `enter_type` (9), `user_id` (12), and the rest.
+`MemberMessageAction` [proto: webcast/synthetic_enums.proto, line 5]: `MEMBER_MESSAGE_ACTION_UNKNOWN` 0, `MEMBER_MESSAGE_ACTION_JOINED` 1, `MEMBER_MESSAGE_ACTION_SUBSCRIBED` 3; exported as `MemberAction` (`UNKNOWN`, `JOINED`, `SUBSCRIBED`). The property keeps the name older protos gave field 10, `actionId` [reference/src/TikTok-Webcast-Protobuf/src/slim/v1/webcast.proto]. Not read: `rank_score` (7), `enter_type` (9), `action_description` (11), `user_id` (12), `effect_config` (13), `pop_str` (14), `enter_effect_config` (15), `anchor_display_text` (18), `client_enter_source` (19), `action_duration` (22), `display_style` (24), `admin_permissions` (25, a map), and the rest (to `hit_ab_status`, 35).
 
-`WebcastEnvelopeMessage` [proto: webcast/model/message/redenvelope.proto, package `webcast.model.message.redenvelope`] (`gift/envelope.ts`)
+`WebcastEnvelopeMessage` [proto: webcast/model/message/redenvelope.proto, line 33, package `webcast.model.message.redenvelope`] (`gift/envelope.ts`)
 
 | No. | Proto field     | Type                    | Property       | Kind    |
 | --- | --------------- | ----------------------- | -------------- | ------- |
 | 2   | `envelope_info` | `MessageRedEnvelopInfo` | `envelopeInfo` | message |
 
-`MessageRedEnvelopInfo` (same file): `business_type` (2, `webcast.model.data.EnvelopeBusinessType` enum) → `businessType`, enum. Not read: `envelope_id` (1), `send_user_name` (4), `diamond_count` (5), `people_count` (6), `unpack_at` (7), and the rest.
-`EnvelopeBusinessType` [proto: webcast/model/data/messages.proto]: 0 unknown, 1 user diamond, 2 platform diamond, 3 platform shell, 4 portal, 5 platform merch, 6, 7 and 9–14 event and campaign types, **`SUPER_FAN_BOX` 19**. Exported as `EnvelopeBusinessType` with the values the library uses: `UNKNOWN` 0 and `SUPER_FAN_BOX` 19.
+Not read: `display` (3, `webcast.model.data.EnvelopeDisplay`), `public_area_msg_common` (4).
 
-`WebcastBarrageMessage` (`gift/barrage.ts`)
+`MessageRedEnvelopInfo` [proto: webcast/model/message/redenvelope.proto, line 11] (`EnvelopeInfoSchema`)
 
-| No. | Proto field              | Type                                | Property               | Kind    |
-| --- | ------------------------ | ----------------------------------- | ---------------------- | ------- |
-| 5   | `content`                | `webcast.model.message.common.Text` | `content`              | message |
-| 24  | `common_barrage_content` | `webcast.model.message.common.Text` | `commonBarrageContent` | message |
-| 50  | `user`                   | `User`                              | `user`                 | message |
+| No. | Proto field       | Type                                      | Property        | Kind   |
+| --- | ----------------- | ----------------------------------------- | --------------- | ------ |
+| 1   | `envelope_id`     | string                                    | `envelopeId`    | string |
+| 2   | `business_type`   | `webcast.model.data.EnvelopeBusinessType` | `businessType`  | enum   |
+| 4   | `send_user_name`  | string                                    | `sendUserName`  | string |
+| 5   | `diamond_count`   | int32                                     | `diamondCount`  | int32  |
+| 6   | `people_count`    | int32                                     | `peopleCount`   | int32  |
+| 7   | `unpack_at`       | int32                                     | `unpackAt`      | int32  |
+| 8   | `send_user_id`    | string                                    | `sendUserId`    | string |
+| 16  | `super_fan_count` | int32                                     | `superFanCount` | int32  |
 
-Not read: `msg_type` (3, `BarrageMessage_BarrageType`), `icon` (4), and the rest.
+`envelope_id` and `send_user_id` are strings in the proto; `unpack_at` is an int32, read as seconds since the epoch (item 33). Not read: `envelope_idc` (3), `send_user_avatar` (9), `create_at` (10), `room_id` (11), `follow_show_status` (12), `skin_id` (13), `vote_count` (14), `sender_enigma_info` (15).
 
-`WebcastSubNotifyMessage` (`gift/subNotify.ts`): pending.
-`WebcastSubPinEventMessage` (`gift/subPinEvent.ts`): pending.
-`WebcastGiftBroadcastMessage` (`gift/giftBroadcast.ts`): pending.
-`WebcastRoomNotifyMessage` (`gift/roomNotify.ts`): pending.
-`WebcastGoalUpdateMessage` [proto: webcast/model/gift/model_webcast_goal_update_message.proto] (`gift/goalUpdate.ts`): pending.
-`WebcastViewerPicksUpdateMessage` (`gift/viewerPicks.ts`): pending.
-`WebcastHourlyRankRewardMessage` (`gift/hourlyRank.ts`): pending.
-`WebcastGiftPromptMessage` (`gift/tail.ts`): pending.
-`WebcastGiftPanelUpdateMessage` (`gift/tail.ts`): pending.
-`WebcastGiftDynamicRestrictionMessage` (`gift/tail.ts`): pending.
-`WebcastGuideMessage` (`gift/tail.ts`): pending.
-`WebcastBoostCardMessage` (`gift/tail.ts`): pending.
+`EnvelopeBusinessType` [proto: webcast/model/data/messages.proto, line 298]: `BUSINESS_TYPE_UNKNOWN` 0, `BUSINESS_TYPE_USER_DIAMOND` 1, `BUSINESS_TYPE_PLATFORM_DIAMOND` 2, `BUSINESS_TYPE_PLATFORM_SHELL` 3, `BUSINESS_TYPE_PORTAL` 4, `BUSINESS_TYPE_PLATFORM_MER_CH` 5, `BUSINESS_TYPE_E_OY_DIAMOND` 6, `BUSINESS_TYPE_FANCLUB_GT_M` 7, `BUSINESS_TYPE_PLATFORM_PORTAL` 9, `BUSINESS_TYPE_EO_YG_TM_POPULARITY_TICKET` 10, `BUSINESS_TYPE_EO_YG_TM_REVENUE_DIAMOND` 11, `BUSINESS_TYPE_EO_YG_TM_GAME_DIAMOND` 12, `BUSINESS_TYPE_CREATOR_LEAGUE_PROMOTION_GT_M` 13, `BUSINESS_TYPE_MOY_GT_M_POPULARITY_TICKET` 14, **`SUPER_FAN_BOX` 19**. Exported as `EnvelopeBusinessType` without the prefix and with the words the proto generator split joined again (`PLATFORM_MERCH`, `EOY_DIAMOND`, `FANCLUB_GTM`, `EOY_GTM_POPULARITY_TICKET`, `EOY_GTM_REVENUE_DIAMOND`, `EOY_GTM_GAME_DIAMOND`, `CREATOR_LEAGUE_PROMOTION_GTM`, `MOY_GTM_POPULARITY_TICKET`).
+
+`WebcastBarrageMessage` [proto: webcast/model/message/messages.proto, line 1059] (`gift/barrage.ts`)
+
+| No. | Proto field              | Type                                    | Property               | Kind    |
+| --- | ------------------------ | --------------------------------------- | ---------------------- | ------- |
+| 3   | `msg_type`               | `webcast.im.BarrageMessage_BarrageType` | `msgType`              | enum    |
+| 5   | `content`                | `webcast.model.message.common.Text`     | `content`              | message |
+| 24  | `common_barrage_content` | `webcast.model.message.common.Text`     | `commonBarrageContent` | message |
+| 50  | `user`                   | `User`                                  | `user`                 | message |
+| 100 | `user_grade_param`       | `BarrageTypeUserGradeParam`             | `userGradeParam`       | message |
+| 101 | `fans_level_param`       | `BarrageTypeFansLevelParam`             | `fansLevelParam`       | message |
+| 102 | `subscribe_gift_param`   | `BarrageTypeSubscribeGiftParam`         | `subscribeGiftParam`   | message |
+
+Not read: `event` (2), `icon` (4), `duration` (6), `background` (7), `right_icon` (8), `display_config` (9), `gallery_gift_id` (10), `scene` (11), `show_type` (15), `badge` (16), `sub_type` (23), `privilege_log_extra` (103), `gift_gallery_params` (104), `public_area_message_common` (105), `ecom_live_param` (106), and the rest.
+
+`BarrageTypeUserGradeParam` [proto: webcast/model/message/messages.proto, line 140] (`UserGradeParamSchema`) and `BarrageTypeFansLevelParam` [same file, line 122] (`FansLevelParamSchema`), both read as `BarrageGradeParam`: `current_grade` (1, int32) → `currentGrade`, int32; `user` (4, `User`) → `user`, message. Not read: `display_config` (2), and the grade param's `user_id` (3, a string).
+`BarrageTypeSubscribeGiftParam` [same file, line 133] (`SubscribeGiftParamSchema`): `gift_sub_count` (1, int64) → `giftSubCount`, count; `gift_source` (3, `webcast.im.GiftSource`) → `giftSource`, enum (`SubGiftSource`, below). Not read: `show_gift_sub_count` (2).
+
+`BarrageMessage_BarrageType` [proto: webcast/im.proto, line 19]: `UNKNOWN` 0, `E_COM_ORDERING` 1, `E_COM_BUYING` 2, `NORMAL` 3, `SUBSCRIBE` 4, `EVENT_VIEW` 5, `EVENT_REGISTERED` 6, `SUBSCRIBE_GIFT` 7, `USER_UPGRADE` 8, `GRADE_USER_ENTRANCE_NOTIFICATION` 9, `FANS_LEVEL_UPGRADE` 10, `FANS_LEVEL_ENTRANCE` 11, `GAME_PARTNERSHIP` 12, `GIFT_GALLERY` 13, `E_COM_BOUGHT` 14, `ENIGMA_ENTRANCE` 15, `COMMON_BARRAGE` 100; exported as `BarrageType`. Which type each param comes with is item 30.
+
+`WebcastSubNotifyMessage` [proto: webcast/model/message/messages.proto, line 1870] (`gift/subNotify.ts`)
+
+| No. | Proto field            | Type                            | Property             | Kind    |
+| --- | ---------------------- | ------------------------------- | -------------------- | ------- |
+| 2   | `user`                 | `User`                          | `user`               | message |
+| 3   | `exhibition_type`      | `webcast.im.ExhibitionType`     | `exhibitionType`     | enum    |
+| 4   | `sub_month`            | int64                           | `subMonth`           | count   |
+| 5   | `subscribe_type`       | `webcast.im.SubscribeType`      | `subscribeType`      | enum    |
+| 6   | `old_subscribe_status` | `webcast.im.OldSubscribeStatus` | `oldSubscribeStatus` | enum    |
+| 7   | `message_type`         | `webcast.im.MessageType`        | `messageType`        | enum    |
+| 8   | `subscribing_status`   | `webcast.im.SubscribingStatus`  | `subscribingStatus`  | enum    |
+| 9   | `is_send`              | bool                            | `isSend`             | bool    |
+| 11  | `gift_source`          | `webcast.im.GiftSource`         | `giftSource`         | enum    |
+
+Not read: `is_custom` (10), `message_display_style` (12), `public_area_message_common` (13), `package_id` (14), `event_tracking` (15).
+
+The enums are in webcast/im.proto, exported without their prefixes:
+
+- `ExhibitionType` [line 113]: `EXHIBITION_TYPE_DEFAULT` 0, `FOLD` 1, `PUBLIC_SCREEN` 2 → `ExhibitionType` (`DEFAULT` for 0).
+- `SubscribeType` [line 342]: `ONCE` 0, `AUTO` 1, `SUBSCRIBE_TYPE_DEFAULT` 100 → `SubscribeType` (`DEFAULT` for 100).
+- `OldSubscribeStatus` [line 267]: `FIRST` 0, `RESUB` 1, `SUB_IN_GRACE_PERIOD` 2, `SUB_NOT_IN_GRACE_PERIOD` 3, `OLD_SUBSCRIBE_STATUS_DEFAULT` 100 → `OldSubscribeStatus` (`DEFAULT` for 100).
+- `MessageType` [line 244]: `SUB_SUCCESS` 0, `ANCHOR_REMINDER` 1, `ENTER_ROOM_EXPIRE_SOON` 2, `SUB_GOAL_CREATE_TO_ANCHOR` 3, `SUB_GOAL_COMPLETE_TO_AUDIENCE` 4, `SUB_GOAL_COMPLETE_TO_ANCHOR` 5, `SUB_GIFT_TIKTOK_2_USER_NOTICE` 6, `SUB_GIFT_TIKTOK_2_ANCHOR_NOTICE` 7, `SUB_GIFT_T_RECEIVES_END_NOTICE` 8, `SUB_GIFTS_END_SUCCEED_ROOM_MESSAGE` 9, `SUB_GIFTS_END_SUCCEED_ANCHOR_NOTICE` 10, `SUB_GIFT_LOW_VERSION_UPGRADE_NOTICE` 11, `SUB_GIFT_USER_BUY_AU_TH_NOTICE` 12, `SUB_COMMON_TEXT_NOTICE` 13, `SUB_MODERATOR_PIN_PERK` 14 → `SubNotifyMessageType`.
+- `SubscribingStatus` [line 348]: `SUBSCRIBING_STATUS_UNKNOWN` 0, `SUBSCRIBING_STATUS_ONCE` 1, `CIRCLE` 2, `CIRCLE_CANCEL` 3, `REFUND` 4, `IN_GRACE_PERIOD` 5, `NOT_IN_GRACE_PERIOD` 6 → `SubscribingStatus` (`UNKNOWN`, `ONCE`, …).
+- `GiftSource` [line 145]: `GIFT_SOURCE_UNKNOWN` 0, `PLATFORM` 1, `USER_BUY_RANDOM` 2, `USER_BUY_SPECIFIC` 3 → `SubGiftSource` (`UNKNOWN` for 0), since the package's `GiftSource` names where `fetchGifts()` got the list.
+
+`WebcastSubPinEventMessage` [proto: webcast/model/message/messages.proto, line 1896] (`gift/subPinEvent.ts`)
+
+| No. | Proto field        | Type                                       | Property         | Kind    |
+| --- | ------------------ | ------------------------------------------ | ---------------- | ------- |
+| 2   | `action_type`      | `webcast.im.SubPinEventMessage_ActionType` | `actionType`     | enum    |
+| 3   | `card`             | `webcast.chatroom.api.SubPinCard`          | `card`           | message |
+| 4   | `operator_user_id` | int64                                      | `operatorUserId` | id      |
+
+`webcast.chatroom.api.SubPinCard` [proto: webcast/chatroom/api.proto, line 53] (`SubPinCardSchema`)
+
+| No. | Proto field     | Type                             | Property      | Kind    |
+| --- | --------------- | -------------------------------- | ------------- | ------- |
+| 2   | `title`         | `webcast.chatroom.api.Text`      | `title`       | message |
+| 3   | `desc`          | `webcast.chatroom.api.Text`      | `desc`        | message |
+| 5   | `type`          | `webcast.model.data.PinCardType` | `type`        | enum    |
+| 8   | `goal_pin_card` | `SubGoalPinCard`                 | `goalPinCard` | message |
+
+Not read: `time_to_live` (1), `image` (4), `id` (6), `template_id` (7), `action_schema` (9), `last_pin_timestamp` (10), `extra_info` (11), `highlight_text_num` (12), `icons` (13), `pin_source` (14).
+
+`webcast.chatroom.api.SubGoalPinCard` [same file, line 34] (`SubGoalPinCardSchema`): `goal_id` (1, int64) → `goalId`, id; `desc` (3, `SubPinCardText`) → `desc`, message; `target` (4, int64) → `target`, count; `progress` (5, int64) → `progress`, count. Not read: `time_to_live` (2).
+`webcast.chatroom.api.Text` [same file, line 81] and `SubPinCardText` [line 75] have the same two fields, read by one table (`SubPinCardTextSchema`, payload type `SubPinCardText`): `type` (1, enum) → `type`, enum; `content` (2, string) → `content`, string. Their enums [proto: webcast/model/data/messages.proto, `SubPinCard_Text_TextType` line 742, `SubPinCardText_TextType` line 736] have the same values: 0 unknown, 1 the original text, 2 a translation (starling) key. No constant is exported for them.
+
+`SubPinEventMessage_ActionType` [proto: webcast/im.proto, line 336]: `SUB_PIN_EVENT_MESSAGE_ACTION_TYPE_UNKNOWN` 0, `SUB_PIN_EVENT_MESSAGE_ACTION_TYPE_PIN` 1, `UNPIN` 2 → `SubPinAction` (`UNKNOWN`, `PIN`, `UNPIN`).
+`PinCardType` [proto: webcast/model/data/messages.proto, line 582]: `UNKNOWN_PIN_CARD_TYPE` 0, `CUSTOMIZED_BENEFIT_E_NUM` 1, `SUB_GOAL_E_NUM` 2, `UP_SELL_DM` 3, `UP_SELL_LEAD_SGEN` 4, `SMB_SUB_PLAN` 5, `SMB_COURSE` 6 → `PinCardType` (`UNKNOWN` for 0).
+
+`WebcastGiftBroadcastMessage` [proto: webcast/model/message/messages.proto, line 1217] (`gift/giftBroadcast.ts`)
+
+| No. | Proto field    | Type                       | Property     | Kind    |
+| --- | -------------- | -------------------------- | ------------ | ------- |
+| 2   | `from_user_id` | int64                      | `fromUserId` | id      |
+| 4   | `notify`       | `WebcastRoomNotifyMessage` | `notify`     | message |
+
+`notify` is read with the `WebcastRoomNotifyMessage` table below, and isn't emitted again as a `roomNotify`. Not read: `left_icon` (3).
+
+`WebcastRoomNotifyMessage` [proto: webcast/model/message/messages.proto, line 1788] (`gift/roomNotify.ts`), also nested in gift broadcasts and hourly rank rewards
+
+| No. | Proto field    | Type   | Property     | Kind    |
+| --- | -------------- | ------ | ------------ | ------- |
+| 3   | `notify_type`  | int64  | `notifyType` | count   |
+| 4   | `content`      | string | `content`    | string  |
+| 5   | `user`         | `User` | `user`       | message |
+| 10  | `from_user_id` | int64  | `fromUserId` | id      |
+| 12  | `to_anchor_id` | int64  | `toAnchorId` | id      |
+
+`notify_type` has no enum in the proto (item 36). Not read: `schema` (2), `extra` (6), `notify_class` (7), `flex_setting` (8, packed), `source` (9), `privilege_log_extra` (11), `event_tracking` (13).
+
+`WebcastGoalUpdateMessage` [proto: webcast/model/gift/model_webcast_goal_update_message.proto, line 11, package `webcast.model.gift.model`] (`gift/goalUpdate.ts`)
+
+| No. | Proto field              | Type                                   | Property               | Kind    |
+| --- | ------------------------ | -------------------------------------- | ---------------------- | ------- |
+| 3   | `goal`                   | `LiveStreamGoal`                       | `goal`                 | message |
+| 4   | `contributor_id`         | int64                                  | `contributorId`        | id      |
+| 6   | `contributor_display_id` | string                                 | `contributorDisplayId` | string  |
+| 9   | `contribute_count`       | int64                                  | `contributeCount`      | count   |
+| 10  | `contribute_score`       | int64                                  | `contributeScore`      | count   |
+| 16  | `update_source`          | `webcast.model.data.GoalMessageSource` | `updateSource`         | enum    |
+
+Not read: `indicator` (2), `contributor_avatar` (5), `contribute_subgoal` (7), `gift_repeat_count` (11), `contributor_id_str` (12), `pin_info` (15), `goal_extra` (17).
+
+`LiveStreamGoal` [proto: webcast/model/gift/model.proto, line 97] (`LiveStreamGoalSchema`)
+
+| No. | Proto field   | Type                           | Property      | Kind             |
+| --- | ------------- | ------------------------------ | ------------- | ---------------- |
+| 1   | `id`          | int64                          | `id`          | id               |
+| 2   | `type`        | int32                          | `type`        | int32            |
+| 3   | `status`      | int32                          | `status`      | int32            |
+| 4   | `sub_goals`   | repeated `LiveStreamSubGoal`   | `subGoals`    | repeated message |
+| 5   | `description` | string                         | `description` | string           |
+| 15  | `stats`       | `webcast.model.goal.GoalStats` | `stats`       | message          |
+
+`type` and `status` have no enum in the proto (item 37). Not read: `audit_status` (6), `cycle_type` (7), `start_time` (8), `expire_time` (9), `real_finish_time` (10), `contributors` (11), `contributors_length` (12), `id_str` (13), `audit_description` (14), and the rest (to `create_source`, 23).
+
+`LiveStreamSubGoal` [same file, line 141] (`SubGoalSchema`): `progress` (3, int64) → `progress`, count; `target` (4, int64) → `target`, count; `gift` (5, `LiveStreamSubGoalGift`) → `gift`, message. Not read: `type` (1), `id` (2), `id_str` (6), `pin_info` (7), `source` (8), `recommended_text` (9), `recommended_header` (10).
+`LiveStreamSubGoalGift` [same file, line 154] (`SubGoalGiftSchema`): `name` (1, string) → `name`, string; `diamond_count` (3, int64) → `diamondCount`, count. Not read: `icon` (2), `type` (4).
+`webcast.model.goal.GoalStats` [proto: webcast/model/goal.proto, line 25] (`GoalStatsSchema`): `total_coins` (1, int64) → `totalCoins`, count; `total_contributor` (2, int64) → `totalContributor`, count. Not read: `comparison` (3), `total_new_fans` (4).
+
+`GoalMessageSource` [proto: webcast/model/data/messages.proto, line 370]: `GOAL_MESSAGE_SOURCE_UNKNOWN` 0, `COMMIT` 1, `PROGRESS_UPDATE` 2, `PIN` 3, `UNPIN` 4, `REVIEW_CALLBACK` 5, `SUSPEND` 6, `CHALLENGE_PROMPT` 7 → `GoalMessageSource` (`UNKNOWN` for 0).
+
+`WebcastViewerPicksUpdateMessage` [proto: webcast/model/message/messages.proto, line 1923] (`gift/viewerPicks.ts`)
+
+| No. | Proto field   | Type                                         | Property     | Kind    |
+| --- | ------------- | -------------------------------------------- | ------------ | ------- |
+| 2   | `update_type` | int32                                        | `updateType` | int32   |
+| 3   | `info`        | `webcast.model.viewer_picks.ViewerPicksInfo` | `info`       | message |
+
+`ViewerPicksInfo` [proto: webcast/model/viewer_picks.proto, line 131] (`ViewerPicksInfoSchema`): `viewer_picks_id` (1, int64) → `viewerPicksId`, id; `gift_pick_list` (2, repeated `GiftPickWithScore`) → `giftPickList`, repeated message; `status` (3, int32) → `status`, int32. Not read: `round_duration_sec` (4), `start_time_ms` (5), `end_time_ms` (6), `has_duration` (7), `has_score` (8), and the rest (to `started_from_auto_start`, 17).
+`GiftPickWithScore` [same file, line 60] (`GiftPickWithScoreSchema`): `gift_pick` (1, `GiftPick`) → `giftPick`, message; `score` (2, int64) → `score`, count.
+`GiftPick` [same file, line 17] (`GiftPickSchema`): `gift_id` (1, int64) → `giftId`, id; `customized_desc` (2, string) → `customizedDesc`, string; `gift_price` (4, int64) → `giftPrice`, count. Not read: `gift_icon` (3), `gift_pick_id` (5), `gift_pick_id_str` (6), `is_priority_request` (7), `desc_source` (8), `extra` (9).
+
+`update_type` and `status` have no enum in the proto (item 38).
+
+`WebcastHourlyRankRewardMessage` [proto: webcast/model/message/messages.proto, line 1329] (`gift/hourlyRank.ts`)
+
+| No. | Proto field | Type                            | Property  | Kind             |
+| --- | ----------- | ------------------------------- | --------- | ---------------- |
+| 2   | `winners`   | repeated `HourlyRankRewardInfo` | `winners` | repeated message |
+
+`HourlyRankRewardInfo` [same file, line 480] (`HourlyRankRewardInfoSchema`): `user_id` (1, int64) → `userId`, id; `asset_id` (2, int64) → `assetId`, id; `notify` (3, `WebcastRoomNotifyMessage`) → `notify`, message (not emitted as a `roomNotify`). Not read: `avatar_border` (4).
+
+The tail (`gift/tail.ts`): `common` and a few scalars each, all in webcast/model/message/messages.proto.
+
+`WebcastGiftPromptMessage` [line 1306]
+
+| No. | Proto field      | Type   | Property       | Kind   |
+| --- | ---------------- | ------ | -------------- | ------ |
+| 2   | `title`          | string | `title`        | string |
+| 3   | `body`           | string | `body`         | string |
+| 4   | `block_num_days` | int32  | `blockNumDays` | int32  |
+| 5   | `order_id`       | string | `orderId`      | string |
+
+Not read: `order_timestamp` (6), `in_user_gifting_addiction_expr` (7), `pop_up_schema` (8).
+
+`WebcastGiftPanelUpdateMessage` [line 1295]
+
+| No. | Proto field | Type  | Property    | Kind |
+| --- | ----------- | ----- | ----------- | ---- |
+| 2   | `room_id`   | int64 | `roomId`    | id   |
+| 3   | `timestamp` | int64 | `timestamp` | id   |
+
+Not read: `gallery_data` (10), `goal_data` (11), `room_based_gift_data` (12), `strategy_context` (100).
+
+`WebcastGiftDynamicRestrictionMessage` [line 1225]: only `common` is read. Not read: `dynamic_restriction` (2, `webcast.model.gift.model.DynamicRestriction`).
+
+`WebcastGuideMessage` [line 1318]
+
+| No. | Proto field   | Type   | Property      | Kind   |
+| --- | ------------- | ------ | ------------- | ------ |
+| 2   | `guide_type`  | int64  | `guideType`   | count  |
+| 3   | `gift_id`     | int64  | `giftId`      | id     |
+| 4   | `description` | string | `description` | string |
+| 7   | `scene`       | string | `scene`       | string |
+
+Not read: `duration` (5), `display_style` (6).
+
+`WebcastBoostCardMessage` [line 1099]
+
+| No. | Proto field | Type                 | Property | Kind             |
+| --- | ----------- | -------------------- | -------- | ---------------- |
+| 3   | `cards`     | repeated `BoostCard` | `cards`  | repeated message |
+
+`BoostCard` [line 167]: `m_card_id` (1, int64) → `cardId`, id; `task_source` (2, int32) → `taskSource`, int32; `task_id` (3, int64) → `taskId`, id. The message has no field 2.
 
 #### Link-mic and battles (`messages/link/`)
 
@@ -942,12 +1134,24 @@ Rules from 2.4.0 [TLC: src/lib/client/index.ts, `processDecodedData`], one table
 
 ### Gifts, money and membership
 
-| Message                  | Events                       | Rule                                                                                                                                                                                                                                                          |
-| ------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WebcastGiftMessage`     | `gift`                       | always                                                                                                                                                                                                                                                        |
-| `WebcastMemberMessage`   | `member`                     | always, whatever `actionId`                                                                                                                                                                                                                                   |
-| `WebcastEnvelopeMessage` | `superFanBox`, `envelope`    | `superFanBox` first when the lowercased `common.displayText.key` contains `ttlive_superfanbox` or `envelopeInfo.businessType` is 19; then `envelope`, always                                                                                                  |
-| `WebcastBarrageMessage`  | `superFanJoin` or `superFan` | over the lowercased, non-empty `content.key` and `commonBarrageContent.key`: one contains `ttlive_superfan_commentnotif_superfanjoined` → `superFanJoin`; else one contains `ttlive_superfan` → `superFan`; else nothing (`barrage`, before them, is pending) |
+| Message                                | Events                                       | Rule                                                                                                                                                                                                                                                         |
+| -------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `WebcastGiftMessage`                   | `gift`                                       | always                                                                                                                                                                                                                                                       |
+| `WebcastMemberMessage`                 | `member`                                     | always, whatever `actionId`                                                                                                                                                                                                                                  |
+| `WebcastSubNotifyMessage`              | `subNotify`                                  | always                                                                                                                                                                                                                                                       |
+| `WebcastSubPinEventMessage`            | `subPinEvent`                                | always                                                                                                                                                                                                                                                       |
+| `WebcastBarrageMessage`                | `barrage`, then `superFanJoin` or `superFan` | `barrage` always, first; then, over the lowercased, non-empty `content.key` and `commonBarrageContent.key`: one contains `ttlive_superfan_commentnotif_superfanjoined` → `superFanJoin`; else one contains `ttlive_superfan` → `superFan`; else nothing more |
+| `WebcastEnvelopeMessage`               | `superFanBox`, `envelope`                    | `superFanBox` first when the lowercased `common.displayText.key` contains `ttlive_superfanbox` or `envelopeInfo.businessType` is 19; then `envelope`, always (0.1.0's order, kept: the one derived event that comes before its base)                         |
+| `WebcastGiftBroadcastMessage`          | `giftBroadcast`                              | always; the nested `notify` is not emitted as a `roomNotify`                                                                                                                                                                                                 |
+| `WebcastRoomNotifyMessage`             | `roomNotify`                                 | always                                                                                                                                                                                                                                                       |
+| `WebcastGoalUpdateMessage`             | `goalUpdate`                                 | always                                                                                                                                                                                                                                                       |
+| `WebcastViewerPicksUpdateMessage`      | `viewerPicksUpdate`                          | always                                                                                                                                                                                                                                                       |
+| `WebcastHourlyRankRewardMessage`       | `hourlyRank`                                 | always; the winners' `notify` is not emitted as a `roomNotify`                                                                                                                                                                                               |
+| `WebcastGiftPromptMessage`             | `giftPrompt`                                 | always                                                                                                                                                                                                                                                       |
+| `WebcastGiftPanelUpdateMessage`        | `giftPanelUpdate`                            | always                                                                                                                                                                                                                                                       |
+| `WebcastGiftDynamicRestrictionMessage` | `giftDynamicRestriction`                     | always                                                                                                                                                                                                                                                       |
+| `WebcastGuideMessage`                  | `guide`                                      | always                                                                                                                                                                                                                                                       |
+| `WebcastBoostCardMessage`              | `boostCard`                                  | always                                                                                                                                                                                                                                                       |
 
 ### Link-mic and battles
 
@@ -1089,6 +1293,19 @@ What the references and docs can't settle. `yarn capture` on the user's own LIVE
 17. **Quiet rooms.** _Most likely settled (the server answered heartbeats in the second smoke run too)._ The server answered the first smoke run's heartbeat with an `hb` frame. If it answers every heartbeat (10 s apart by default), a healthy socket gets a frame well within `idleTimeoutMs` (30 s) even in a LIVE where nothing happens, so the idle check never fires on it. A longer run confirms it: the session logs the first reply at `debug`, and an idle drop shows as `disconnected` with reason `idle`.
 18. **Resuming.** _Settled: TikTok refuses it._ A socket opened from a resumed batch, on the old push server, gets an HTTP `200` instead of a WebSocket, even with the first connect's route params merged in (third smoke run, an empty body). Reconnects sign fresh for their socket, and sign with the cursor only for the gap ([Reconnects](#reconnects), "The gap").
 19. **`Text.pieces`.** A display text's `pieces` (4, repeated `TextPiece`: typed parts such as a user, a gift or a pattern reference) aren't read: `key` and `default_pattern` are enough for routing and for showing the text. Read them if an app needs the parts (the user a text names, say). Items 20–59 are reserved for the groups: chat 20–29, gift 30–39, link 40–49, room 50–59.
+
+**Gifts, money and membership** (items 30–39): what the gift group's `.proto` fields mean on the wire. None of it changes routing, which reads only text keys and business type 19.
+
+30. **Banner types and their params.** Which `BarrageType` values super fan banners carry, and whether `userGradeParam` comes only with `USER_UPGRADE` (8), `fansLevelParam` with `FANS_LEVEL_UPGRADE` (10) and `subscribeGiftParam` with `SUBSCRIBE_GIFT` (7).
+31. **Member messages beyond joins.** Whether TikTok fills `memberCount` on joins, which actions come with `operator` and `isSetToAdmin` (moderator changes), `isTopUser`/`topUserNo`, and the values of `userShareType` and `kickSource`; and whether `actionId` takes values `MemberAction` doesn't name.
+32. **Gifts to guests.** Whether `toUser`, `toMemberId` and `toMemberNickname` are set only for gifts to a guest in a link or multi-guest LIVE (and empty for the host), and whether `toMemberId` (45, a string) or `to_member_id_int` (46, not read) is the one TikTok fills.
+33. **Treasure chest fields.** `unpackAt` (an int32) read as seconds since the epoch; whether `diamondCount` is the chest's coins and `peopleCount` how many can open it; `superFanCount` on super fan boxes; and which `EnvelopeBusinessType` values ordinary chests carry.
+34. **Subscription notices.** Which `messageType`, `subscribeType`, `oldSubscribeStatus`, `subscribingStatus`, `exhibitionType` and `giftSource` values come for a first subscription, a resubscription and a gifted one (`isSend`), and whether a subscription also comes as a `member` event with `actionId` 3.
+35. **Pinned subscription cards.** Whether a card's `title` and `desc` come with `type` 2 (`content` a translation key rather than text), and which `PinCardType` values appear.
+36. **Room notices.** The values of `notifyType` (no enum in the proto), and whether a gift broadcast's `notify` also arrives as a standalone `WebcastRoomNotifyMessage`.
+37. **Goals.** The values of a goal's `type` and `status` (int32s, no enum), the `updateSource` values that come, and whether sub-goal `progress`/`target` and `contributeCount`/`contributeScore` count gifts or coins.
+38. **Viewer picks.** The values of `updateType` and `info.status` (int32s, no enum), and what a pick's `score` counts.
+39. **The rest of the tail.** What an hourly rank winner's `assetId` names; `giftPanelUpdate.timestamp` read as milliseconds; the values of `guide.guideType` and `boostCard.cards[].taskSource`; and whether `giftDynamicRestriction` needs its `dynamic_restriction` (2) read to be useful.
 
 **Link-mic and battles** (items 40–49):
 
