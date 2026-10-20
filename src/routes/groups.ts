@@ -15,26 +15,86 @@ export const CONNECTION_EVENTS = Object.freeze([
 /** The chat group: chat, reactions and moderation. */
 export const CHAT_EVENTS = Object.freeze([
   "chat",
+  "emote",
   "like",
+  "social",
   "follow",
   "share",
+  "imDelete",
+  "roomPin",
+  "questionNew",
+  "captionMessage",
+  "roomMessage",
+  "notice",
+  "system",
+  "liveIntro",
+  "unauthorizedMember",
+  "msgDetect",
+  "toast",
+  "bottomMessage",
+  "roomVerify",
 ] as const);
 
 /** The gift group: gifts, money and membership. */
 export const GIFT_EVENTS = Object.freeze([
   "gift",
   "member",
-  "envelope",
+  "subNotify",
+  "subPinEvent",
+  "barrage",
   "superFan",
   "superFanJoin",
+  "envelope",
   "superFanBox",
+  "giftBroadcast",
+  "roomNotify",
+  "goalUpdate",
+  "viewerPicksUpdate",
+  "hourlyRank",
+  "giftPrompt",
+  "giftPanelUpdate",
+  "giftDynamicRestriction",
+  "guide",
+  "boostCard",
 ] as const);
 
 /** The link group: link-mic and battles. */
-export const LINK_EVENTS = Object.freeze([] as const);
+export const LINK_EVENTS = Object.freeze([
+  "linkMicBattle",
+  "linkMicArmies",
+  "linkMicBattlePunishFinish",
+  "linkMicBattleTask",
+  "linkMicFanTicketMethod",
+  "linkMicMethod",
+  "linkMessage",
+  "linkLayer",
+  "linkState",
+  "linkMicBattleItemCard",
+  "linkMicLayoutState",
+] as const);
 
 /** The room group: the room's state, ranks, polls, shopping and system messages. */
-export const ROOM_EVENTS = Object.freeze(["streamEnd", "roomUser"] as const);
+export const ROOM_EVENTS = Object.freeze([
+  "streamEnd",
+  "controlMessage",
+  "roomUser",
+  "perception",
+  "rankUpdate",
+  "rankText",
+  "gameRankNotify",
+  "pollMessage",
+  "oecLiveShopping",
+  "capsule",
+  "marqueeAnnouncement",
+  "speaker",
+  "inRoomBanner",
+  "accessControl",
+  "accessRecall",
+  "partnershipDropsUpdate",
+  "partnershipGameOffline",
+  "partnershipPunish",
+  "liveGameIntro",
+] as const);
 
 /** The four LIVE groups, in order. */
 export const LIVE_GROUPS = Object.freeze([
