@@ -16,6 +16,7 @@ import {
 import {
   routeParamsToRecord,
   type FetchResult,
+  type RouteParam,
 } from "./codec/messages/fetchResult.js";
 import { RecentIds, dispatch, type DispatchContext } from "./dispatch.js";
 import { TypedEmitter, type EventName } from "./emitter.js";
@@ -152,6 +153,14 @@ class Run {
   established = false;
   /** Where the stream is: the last batch's cursor, sent to the signer to resume. */
   cursor = "";
+  /** The last batch's internalExt, for a reconnect's WebSocket URL. */
+  internalExt = "";
+  /**
+   * The push server and route params of the last connect that entered the
+   * room. A reconnect's signed batch, asked for with a cursor, comes without
+   * them, so the run reuses these (PROTOCOL.md, "Reconnects").
+   */
+  kept: { pushServer: string; routeParams: RouteParam[] } | undefined;
   /** The session being opened, or the open one. */
   session: WebcastSession | undefined;
   /** Whether `session` is in the room. Until then its batches wait in `pending`. */
@@ -161,6 +170,14 @@ class Run {
   get signal(): AbortSignal {
     return this.controller.signal;
   }
+}
+
+/** What a socket connects with: its push server and URL parameters. */
+interface PushTarget {
+  pushServer: string;
+  routeParams: RouteParam[];
+  internalExt: string;
+  cursor: string;
 }
 
 /** Where a run's reconnect attempts stand after a drop. */
@@ -377,8 +394,8 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
   ): Promise<string> {
     const context = this.#roomContext(run.signal);
     const found = await this.#findRoom(run, context, attempt, resolveRoom);
-    const { roomId, batch } = await this.#sign(run, context, found);
-    await this.#enter(run, roomId, batch, attempt);
+    const { roomId, batch, target } = await this.#sign(run, context, found);
+    await this.#enter(run, roomId, batch, target, attempt);
     return roomId;
   }
 
@@ -397,6 +414,11 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
       this.#check(run);
       this.#log("debug", `@${this.username} is in room ${roomId}`);
     }
+    // A cursor is a place in one room's stream: another room starts over.
+    if (roomId !== this.#roomId) {
+      run.cursor = "";
+      run.internalExt = "";
+    }
     this.#roomId = roomId;
     const reconnect = this.#options.reconnect;
     if (
@@ -414,14 +436,14 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
 
   // Signs the connection, resuming from the run's cursor, within
   // requestTimeoutMs (callSigner also turns what the signer throws into
-  // ConnectorErrors). The cookies go to the jar; the body is the first batch,
-  // with the push server and cursor the socket needs. The signer may name the
-  // room it connected to.
+  // ConnectorErrors). The cookies go to the jar, where the earlier ones stay;
+  // the body is the first batch, with what the socket needs. The signer may
+  // name the room it connected to.
   async #sign(
     run: Run,
     context: RoomContext,
     roomId: string,
-  ): Promise<{ roomId: string; batch: FetchResult }> {
+  ): Promise<{ roomId: string; batch: FetchResult; target: PushTarget }> {
     const sessionCookies = this.#http.sessionCookieHeader();
     const request = {
       roomId,
@@ -436,18 +458,51 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
     this.#check(run);
     this.#http.addCookies(signed.cookies);
     const batch = decodeFetchResult(signed.body, this.#decodeOptions);
-    if (batch.pushServer === "") {
-      throw new ProtocolError("The signed connect has no push server");
-    }
-    if (batch.cursor === "") {
-      throw new ProtocolError("The signed connect has no cursor");
-    }
+    // What the batch holds, logged before anything is refused: on a
+    // reconnect it tells whether the gap's messages come in it (PROTOCOL.md,
+    // open item 5).
     this.#log("debug", "Signed the connection", {
       roomId,
+      resumed: request.cursor !== "",
+      messages: batch.messages.length,
+      history: batch.messages.filter(({ isHistory }) => isHistory).length,
+      cursor: batch.cursor !== "",
+      internalExt: batch.internalExt !== "",
+      pushServer: batch.pushServer !== "",
+      routeParams: batch.routeParams.length,
       requestId: signed.requestId,
       agentId: signed.agentId,
     });
-    return { roomId: this.#signedRoom(signed.roomId, roomId), batch };
+    return {
+      roomId: this.#signedRoom(signed.roomId, roomId),
+      batch,
+      target: this.#pushTarget(run, batch),
+    };
+  }
+
+  // What the socket connects with: the signed batch's push server, route
+  // params, internalExt and cursor. A reconnect's batch, asked for with a
+  // cursor, can leave them out; the run's kept ones stand in then. With
+  // nothing kept (the first connect of a run), a batch without a push server
+  // or a cursor is a ProtocolError.
+  #pushTarget(run: Run, batch: FetchResult): PushTarget {
+    const { kept } = run;
+    const pushServer = batch.pushServer || kept?.pushServer;
+    if (!pushServer) {
+      throw new ProtocolError("The signed connect has no push server");
+    }
+    const cursor = batch.cursor || run.cursor;
+    if (!cursor) throw new ProtocolError("The signed connect has no cursor");
+    const routeParams =
+      kept !== undefined && !batch.routeParams.some(({ value }) => value)
+        ? kept.routeParams
+        : batch.routeParams;
+    return {
+      pushServer,
+      routeParams,
+      internalExt: batch.internalExt || run.internalExt,
+      cursor,
+    };
   }
 
   // The room the signer says it connected to (Euler Stream's x-room-id)
@@ -471,6 +526,7 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
     run: Run,
     roomId: string,
     batch: FetchResult,
+    target: PushTarget,
     attempt: number,
   ): Promise<void> {
     const session = new WebcastSession();
@@ -492,7 +548,7 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
       else ended = closed;
     });
     await session.open({
-      url: this.#webSocketUrl(roomId, batch),
+      url: this.#webSocketUrl(roomId, target),
       headers: mergeHeaders(
         webSocketHeaders({ Cookie: this.#http.cookieHeader() }),
         this.#options.headers,
@@ -511,6 +567,10 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
 
     run.live = true;
     run.established = true;
+    run.kept = {
+      pushServer: target.pushServer,
+      routeParams: target.routeParams,
+    };
     this.#state = "connected";
     this.#log("info", `Connected to room ${roomId}`, { attempt });
     this.emit("connected", { roomId, reconnected: attempt > 0, attempt });
@@ -665,7 +725,7 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
   }
 
   #dispatchBatch(run: Run, batch: FetchResult): void {
-    if (batch.cursor !== "") run.cursor = batch.cursor;
+    this.#follow(run, batch);
     for (const message of batch.messages) {
       // A message may have ended the stream, or a listener disconnected.
       if (run.stopped !== undefined) return;
@@ -684,19 +744,25 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
   }
 
   // The first connect's backlog, without processInitialData: its messages
-  // count as seen, so a reconnect's backlog doesn't bring them back. (A
-  // signed batch always has a cursor.)
+  // count as seen, so a reconnect's backlog doesn't bring them back.
   #skipBatch(run: Run, batch: FetchResult): void {
-    run.cursor = batch.cursor;
+    this.#follow(run, batch);
     for (const { msgId } of batch.messages) {
-      if (msgId !== "0") this.#context.recentIds.add(msgId);
+      if (msgId !== "0" && msgId !== "") this.#context.recentIds.add(msgId);
     }
+  }
+
+  // Where the stream is: a batch's cursor and internalExt, when it has them,
+  // replace the run's.
+  #follow(run: Run, batch: FetchResult): void {
+    if (batch.cursor !== "") run.cursor = batch.cursor;
+    if (batch.internalExt !== "") run.internalExt = batch.internalExt;
   }
 
   // PROTOCOL.md, "WebSocket": the push server, the default params with the
   // clientParams overrides, the connection's own params, the route params,
   // then the second version_code.
-  #webSocketUrl(roomId: string, batch: FetchResult): string {
+  #webSocketUrl(roomId: string, target: PushTarget): string {
     const params = new Map(
       Object.entries(
         webSocketParams(this.#http.userAgent, this.#options.clientParams),
@@ -704,16 +770,16 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
     );
     params.set("compress", "gzip");
     params.set("room_id", roomId);
-    params.set("internal_ext", batch.internalExt);
-    params.set("cursor", batch.cursor);
+    params.set("internal_ext", target.internalExt);
+    params.set("cursor", target.cursor);
     // A key that is there already keeps its place.
     for (const [key, value] of Object.entries(
-      routeParamsToRecord(batch.routeParams),
+      routeParamsToRecord(target.routeParams),
     )) {
       if (value !== "") params.set(key, value);
     }
     const query = new URLSearchParams([...params]).toString();
-    return `${batch.pushServer}?${query}${WEBSOCKET_URL_SUFFIX}`;
+    return `${target.pushServer}?${query}${WEBSOCKET_URL_SUFFIX}`;
   }
 
   #roomContext(signal: AbortSignal): RoomContext {

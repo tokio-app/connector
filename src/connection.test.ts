@@ -1011,12 +1011,83 @@ describe("reconnecting", () => {
       ROOM_ID,
       OTHER_ROOM_ID,
     ]);
+    // A cursor is a place in one room's stream: the new room starts over.
+    expect(signer.calls.map(({ request }) => request.cursor)).toEqual([
+      "",
+      "signed-cursor-1",
+      "",
+    ]);
     expect(ofType("connected")[1]).toEqual({
       roomId: OTHER_ROOM_ID,
       reconnected: true,
       attempt: 2,
     });
     expect(connection.roomId).toBe(OTHER_ROOM_ID);
+  });
+
+  it("reuses the push server and route params when a reconnect's signed batch has none", async () => {
+    signer.batch = { routeParams: [{ key: "wrds_v", value: "7" }] };
+    const { connection, ofType, raw, logger } = create();
+    await connection.connect();
+    // TikTok answers a connect with a cursor without its push server (the
+    // first smoke run), nor its route params here.
+    signer.batch = { pushServer: "", messages: [chat("1")] };
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+
+    expect(signer.calls[1]?.request.cursor).toBe("signed-cursor-1");
+    const [first, second] = fake.connections;
+    expect(second?.url.pathname).toBe(first?.url.pathname);
+    const params = second!.url.searchParams;
+    expect(params.get("wrds_v")).toBe("7");
+    expect(params.get("cursor")).toBe("signed-cursor-2");
+    expect(params.get("internal_ext")).toBe("signed-ext-2");
+    expect(raw).toEqual(["1"]);
+    expect(logger).toHaveBeenCalledWith(
+      "debug",
+      "Signed the connection",
+      expect.objectContaining({
+        resumed: true,
+        messages: 1,
+        history: 0,
+        cursor: true,
+        internalExt: true,
+        pushServer: false,
+        routeParams: 0,
+      }),
+    );
+  });
+
+  it("falls back on the last cursor and internalExt when a reconnect's signed batch has none", async () => {
+    const { connection, ofType, raw } = create();
+    await connection.connect();
+    fake.push([chat("1")], { cursor: "ws-cursor-a", internalExt: "ws-ext-a" });
+    await until(() => expect(raw).toEqual(["1"]));
+    signer.batch = { pushServer: "", cursor: "", internalExt: "" };
+    fake.dropSocket();
+    await until(() => expect(ofType("connected")).toHaveLength(2));
+
+    expect(signer.calls[1]?.request.cursor).toBe("ws-cursor-a");
+    const params = fake.connections[1]!.url.searchParams;
+    expect(params.get("cursor")).toBe("ws-cursor-a");
+    expect(params.get("internal_ext")).toBe("ws-ext-a");
+  });
+
+  it("uses a reconnect's own push server when its signed batch has one", async () => {
+    const other = await FakeTikTok.start();
+    try {
+      const { connection, ofType } = create();
+      await connection.connect();
+      signer.pushServers = [other.url];
+      fake.dropSocket();
+      await until(() => expect(ofType("connected")).toHaveLength(2));
+      expect(other.connections).toHaveLength(1);
+    } finally {
+      await Promise.all(
+        connections.map((connection) => connection.disconnect()),
+      );
+      await other.close();
+    }
   });
 
   it("resolves the room id only once, then stops on a failure that can't be retried", async () => {
