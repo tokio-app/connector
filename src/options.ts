@@ -41,7 +41,11 @@ export interface ReconnectOptions {
   checkLiveBeforeRetry: boolean;
 }
 
-/** Options of a `TikTokLiveConnection`. All of them are optional. */
+/**
+ * Options of a `TikTokLiveConnection`. All of them are optional. Times are in
+ * milliseconds, up to 2147483647 (about 24.8 days, the longest a Node timer
+ * waits).
+ */
 export interface ConnectOptions {
   /** Signs the WebSocket connection. Default: an `EulerSigner` without an API key. */
   signer?: Signer;
@@ -156,8 +160,17 @@ function check(
   return value;
 }
 
-const positive = (value: number) => Number.isFinite(value) && value > 0;
-const nonNegative = (value: number) => Number.isFinite(value) && value >= 0;
+/**
+ * The longest delay Node's timers keep, in milliseconds (about 24.8 days): a
+ * longer one fires after 1 ms. The options that set a timer stop here.
+ */
+export const MAX_TIMER_MS = 2_147_483_647;
+
+// A delay of at least `min` that a timer can keep.
+const delay = (min: number) => (value: number) =>
+  Number.isFinite(value) && value >= min && value <= MAX_TIMER_MS;
+// A delay above 0.
+const positive = (value: number) => delay(0)(value) && value > 0;
 const count = (value: number) => Number.isInteger(value) && value >= 0;
 
 function resolveReconnect(
@@ -174,14 +187,14 @@ function resolveReconnect(
   check(
     "reconnect.baseDelayMs",
     merged.baseDelayMs,
-    nonNegative,
-    "a number of at least 0",
+    delay(0),
+    `a number from 0 to ${MAX_TIMER_MS}`,
   );
   check(
     "reconnect.maxDelayMs",
     merged.maxDelayMs,
-    (value) => nonNegative(value) && value >= merged.baseDelayMs,
-    "a number of at least reconnect.baseDelayMs",
+    delay(merged.baseDelayMs),
+    `a number from reconnect.baseDelayMs to ${MAX_TIMER_MS}`,
   );
   check(
     "reconnect.factor",
@@ -233,25 +246,25 @@ export function resolveOptions(options: ConnectOptions = {}): ResolvedOptions {
       "heartbeatIntervalMs",
       options.heartbeatIntervalMs ?? DEFAULT_OPTIONS.heartbeatIntervalMs,
       positive,
-      "a number above 0",
+      `a number above 0, up to ${MAX_TIMER_MS}`,
     ),
     idleTimeoutMs: check(
       "idleTimeoutMs",
       options.idleTimeoutMs ?? DEFAULT_OPTIONS.idleTimeoutMs,
-      nonNegative,
-      "a number of at least 0",
+      delay(0),
+      `a number from 0 to ${MAX_TIMER_MS}`,
     ),
     connectTimeoutMs: check(
       "connectTimeoutMs",
       options.connectTimeoutMs ?? DEFAULT_OPTIONS.connectTimeoutMs,
       positive,
-      "a number above 0",
+      `a number above 0, up to ${MAX_TIMER_MS}`,
     ),
     requestTimeoutMs: check(
       "requestTimeoutMs",
       options.requestTimeoutMs ?? DEFAULT_OPTIONS.requestTimeoutMs,
       positive,
-      "a number above 0",
+      `a number above 0, up to ${MAX_TIMER_MS}`,
     ),
     dedupeSize: check(
       "dedupeSize",

@@ -1,5 +1,5 @@
 // The wait before each reconnect attempt (`ReconnectOptions` in options.ts).
-import type { ReconnectOptions } from "../options.js";
+import { MAX_TIMER_MS, type ReconnectOptions } from "../options.js";
 import type { RandomSource } from "./random.js";
 
 /** The options {@link backoffDelay} reads. */
@@ -28,7 +28,8 @@ export function backoffDelay(
 
 /**
  * `delayMs`, or the wait the signer asked for (a `RateLimitError`'s
- * `retryAfterMs`) when that is longer.
+ * `retryAfterMs`) when that is longer, up to {@link MAX_TIMER_MS}: a timer
+ * fires a longer wait at once.
  */
 export function withRetryAfter(
   delayMs: number,
@@ -37,6 +38,6 @@ export function withRetryAfter(
   return retryAfterMs !== undefined &&
     Number.isFinite(retryAfterMs) &&
     retryAfterMs > delayMs
-    ? Math.ceil(retryAfterMs)
+    ? Math.min(Math.ceil(retryAfterMs), MAX_TIMER_MS)
     : delayMs;
 }

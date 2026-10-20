@@ -50,6 +50,10 @@ describe("withRetryAfter", () => {
     expect(withRetryAfter(500, 1_500.2)).toBe(1_501);
   });
 
+  it("waits no longer than a timer can", () => {
+    expect(withRetryAfter(500, 1e12)).toBe(2_147_483_647);
+  });
+
   it("keeps the delay when it is longer or nothing was asked", () => {
     expect(withRetryAfter(5_000, 2_000)).toBe(5_000);
     expect(withRetryAfter(500, undefined)).toBe(500);

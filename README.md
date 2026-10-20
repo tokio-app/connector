@@ -117,7 +117,7 @@ A gift of type 1 (`isStreakable(gift)`) can be sent in a streak. Each update of 
 | `signal`              | none                | An `AbortSignal` that stops the connection for good (`disconnected` with reason `aborted`)                                                                      |
 | `logger`              | `consoleLogger`     | `(level, message, data?) => void`. The default prints warnings and errors to the console ([Logging](#logging))                                                  |
 
-The constructor throws a `RangeError` for a number out of range and a `TypeError` for a `roomId` that isn't numeric. `DEFAULT_OPTIONS` holds the defaults.
+The constructor throws a `RangeError` for a number out of range (times go up to 2147483647 ms, about 24.8 days, the longest a Node timer waits) and a `TypeError` for a `roomId` that isn't numeric. `DEFAULT_OPTIONS` holds the defaults.
 
 `clientParams` and `headers` are the way around a TikTok change before a release fixes it: they override the defaults the library sends.
 

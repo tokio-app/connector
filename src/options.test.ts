@@ -201,26 +201,38 @@ describe("resolveOptions", () => {
   it.each<[ConnectOptions, string]>([
     [
       { heartbeatIntervalMs: 0 },
-      "heartbeatIntervalMs must be a number above 0, got 0",
+      "heartbeatIntervalMs must be a number above 0, up to 2147483647, got 0",
     ],
+    [{ heartbeatIntervalMs: 2 ** 31 }, "got 2147483648"],
     [{ heartbeatIntervalMs: Infinity }, "heartbeatIntervalMs"],
     [{ heartbeatIntervalMs: Number.NaN }, "got NaN"],
     [
       { idleTimeoutMs: -1 },
-      "idleTimeoutMs must be a number of at least 0, got -1",
+      "idleTimeoutMs must be a number from 0 to 2147483647, got -1",
     ],
+    [{ idleTimeoutMs: 1e10 }, "idleTimeoutMs"],
     [{ connectTimeoutMs: 0 }, "connectTimeoutMs"],
+    [{ connectTimeoutMs: 3e9 }, "connectTimeoutMs"],
     [{ requestTimeoutMs: -5 }, "requestTimeoutMs"],
+    [{ requestTimeoutMs: 3e9 }, "requestTimeoutMs"],
     [{ dedupeSize: 1.5 }, "dedupeSize must be a whole number of at least 0"],
     [{ dedupeSize: "10" as unknown as number }, "got 10"],
     [{ reconnect: { maxAttempts: -1 } }, "reconnect.maxAttempts"],
     [{ reconnect: { maxAttempts: 1.5 } }, "reconnect.maxAttempts"],
     [{ reconnect: { baseDelayMs: -1 } }, "reconnect.baseDelayMs"],
     [
+      { reconnect: { baseDelayMs: 3e9, maxDelayMs: 3e9 } },
+      "reconnect.baseDelayMs must be a number from 0 to 2147483647",
+    ],
+    [
       { reconnect: { baseDelayMs: 2_000, maxDelayMs: 1_000 } },
       "reconnect.maxDelayMs",
     ],
     [{ reconnect: { maxDelayMs: Infinity } }, "reconnect.maxDelayMs"],
+    [
+      { reconnect: { maxDelayMs: 1e10 } },
+      "reconnect.maxDelayMs must be a number from reconnect.baseDelayMs to 2147483647",
+    ],
     [
       { reconnect: { factor: 0.5 } },
       "reconnect.factor must be a number of at least 1",
