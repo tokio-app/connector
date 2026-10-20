@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  PinCardTextType,
   PinCardType,
   SubPinAction,
   type SubPinEventMessage,
@@ -27,8 +28,8 @@ import {
 const decode = (bytes: Uint8Array) =>
   decodeMessage(SubPinEventMessageSchema, bytes);
 
-describe("SubPinAction and PinCardType", () => {
-  it("have the values of webcast.im.SubPinEventMessage_ActionType and webcast.model.data.PinCardType", () => {
+describe("SubPinAction, PinCardType and PinCardTextType", () => {
+  it("have the values of webcast.im.SubPinEventMessage_ActionType and webcast.model.data's PinCardType, SubPinCard_Text_TextType and SubPinCardText_TextType", () => {
     expect(SubPinAction).toEqual({ UNKNOWN: 0, PIN: 1, UNPIN: 2 });
     expect(PinCardType).toEqual({
       UNKNOWN: 0,
@@ -39,8 +40,14 @@ describe("SubPinAction and PinCardType", () => {
       SMB_SUB_PLAN: 5,
       SMB_COURSE: 6,
     });
+    expect(PinCardTextType).toEqual({
+      UNKNOWN: 0,
+      ORIGINAL: 1,
+      STARLING_KEY: 2,
+    });
     expect(Object.isFrozen(SubPinAction)).toBe(true);
     expect(Object.isFrozen(PinCardType)).toBe(true);
+    expect(Object.isFrozen(PinCardTextType)).toBe(true);
   });
 });
 

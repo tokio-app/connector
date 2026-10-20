@@ -97,6 +97,7 @@ const UserAttrSchema = defineSchema<UserAttr>("UserAttr", {
 const SubscribeInfoSchema = defineSchema<SubscribeInfo>("SubscribeInfo", {
   isSubscribe: f.bool(2),
   isSubscribedToAnchor: f.bool(7),
+  status: f.enum(11),
 });
 
 /** `webcast.model.base.user.FansClubInfo` [proto: webcast/model/base/user.proto, line 101]. */

@@ -190,7 +190,13 @@ describe("encodeMessage", () => {
       },
       content: "hi",
       contentLanguage: "",
-      emotes: [{ index: 0, emote: { emoteId: "e1" } }],
+      emotes: [
+        {
+          index: 0,
+          emote: { emoteId: "e1", auditStatus: 0, emoteType: 0, emoteScene: 0 },
+        },
+      ],
+      commentTag: [],
       mentionUsers: [],
     });
   });

@@ -42,9 +42,11 @@ describe("EmoteChatMessageSchema", () => {
         3,
         fields.string(1, "7300000000000000001"),
         fields.message(2, fields.string(2, "tos/e")),
-        fields.varint(3, 1), // audit_status, not read
-        fields.varint(5, 2), // emote_type, not read
-        fields.varint(13, 2), // emote_scene, not read
+        fields.varint(3, 1),
+        fields.string(4, "uuid"), // uuid, not read
+        fields.varint(5, 2),
+        fields.varint(12, 1_760_000_000), // create_time, not read
+        fields.varint(13, 2),
       ),
       fields.message(3, fields.string(1, "7300000000000000002")),
       fields.message(4, fields.varint(1, 1), fields.varint(2, 1)),
@@ -75,8 +77,16 @@ describe("EmoteChatMessageSchema", () => {
         {
           emoteId: "7300000000000000001",
           image: { urlList: [], uri: "tos/e" },
+          auditStatus: 1,
+          emoteType: 2,
+          emoteScene: 2,
         },
-        { emoteId: "7300000000000000002" },
+        {
+          emoteId: "7300000000000000002",
+          auditStatus: 0,
+          emoteType: 0,
+          emoteScene: 0,
+        },
       ],
       msgFilter: { isGifter: true, isSubscribedToAnchor: true },
       userIdentity: {
@@ -90,7 +100,7 @@ describe("EmoteChatMessageSchema", () => {
   it("leaves out what the message leaves out", () => {
     expect(decode(new Uint8Array(0))).toStrictEqual({ emoteList: [] });
     expect(decode(fields.message(3)).emoteList).toStrictEqual([
-      { emoteId: "" },
+      { emoteId: "", auditStatus: 0, emoteType: 0, emoteScene: 0 },
     ]);
   });
 
@@ -99,8 +109,19 @@ describe("EmoteChatMessageSchema", () => {
       common: sampleCommon("WebcastEmoteChatMessage"),
       user: SAMPLE_USER,
       emoteList: [
-        { emoteId: "7300000000000000001", image: SAMPLE_IMAGE },
-        { emoteId: "7300000000000000002" },
+        {
+          emoteId: "7300000000000000001",
+          image: SAMPLE_IMAGE,
+          auditStatus: 3,
+          emoteType: 1,
+          emoteScene: 1,
+        },
+        {
+          emoteId: "7300000000000000002",
+          auditStatus: 1,
+          emoteType: 0,
+          emoteScene: 0,
+        },
       ],
       msgFilter: { isGifter: false, isSubscribedToAnchor: true },
       userIdentity: {
@@ -130,7 +151,15 @@ describe("EmoteChatMessageSchema", () => {
     );
     expect(decode(bytes)).toStrictEqual({
       user: { userId: "0", nickname: "Ann", displayId: "", badgeList: [] },
-      emoteList: [{ emoteId: "e1", image: { urlList: [], uri: "tos" } }],
+      emoteList: [
+        {
+          emoteId: "e1",
+          image: { urlList: [], uri: "tos" },
+          auditStatus: 0,
+          emoteType: 0,
+          emoteScene: 0,
+        },
+      ],
       msgFilter: { isGifter: true, isSubscribedToAnchor: false },
       userIdentity: {
         isSubscriberOfAnchor: false,
@@ -145,12 +174,14 @@ describe("EmoteChatMessageSchema", () => {
       [
         "12 02", // user (2), 2 bytes
         "08 07", //   id (1): 7
-        "1a 09", // emote_list (3), 9 bytes
+        "1a 0b", // emote_list (3), 11 bytes
         "0a 02 65 31", //   emote_id (1): "e1"
         "12 03", //   image (2), 3 bytes
         "12 01 74", //     uri (2): "t"
-        "1a 04", // emote_list (3), 4 bytes
+        "28 01", //   emote_type (5): 1
+        "1a 06", // emote_list (3), 6 bytes
         "0a 02 65 32", //   emote_id (1): "e2"
+        "68 02", //   emote_scene (13): 2
         "22 02", // msg_filter (4), 2 bytes
         "10 01", //   is_subscribed_to_anchor (2): true
         "2a 02", // user_identity (5), 2 bytes
@@ -160,8 +191,14 @@ describe("EmoteChatMessageSchema", () => {
     const emote: EmoteChatMessage = {
       user: { userId: "7", nickname: "", displayId: "", badgeList: [] },
       emoteList: [
-        { emoteId: "e1", image: { urlList: [], uri: "t" } },
-        { emoteId: "e2" },
+        {
+          emoteId: "e1",
+          image: { urlList: [], uri: "t" },
+          auditStatus: 0,
+          emoteType: 1,
+          emoteScene: 0,
+        },
+        { emoteId: "e2", auditStatus: 0, emoteType: 0, emoteScene: 2 },
       ],
       msgFilter: { isGifter: false, isSubscribedToAnchor: true },
       userIdentity: {
@@ -187,10 +224,11 @@ describe("EmoteChatMessageSchema", () => {
         "0a 05", // common (1), 5 bytes
         "20 e8 07", //   create_time (4): 1000
         "30 01", //   is_show_msg (6): true
-        "1a 07", // emote_list (3), 7 bytes
-        "18 01", //   audit_status (3), not read
+        "1a 09", // emote_list (3), 9 bytes
+        "18 01", //   audit_status (3): 1
         "0a 01 78", //   emote_id (1): "x"
-        "28 02", //   emote_type (5), not read
+        "28 02", //   emote_type (5): 2
+        "22 00", //   uuid (4), empty, not read
         "45 01 00 00 00", // field 8, fixed32, not read
         "22 02", // msg_filter (4), 2 bytes
         "08 01", //   is_gifter (1): true
@@ -212,7 +250,10 @@ describe("EmoteChatMessageSchema", () => {
         displayId: "",
         badgeList: [],
       },
-      emoteList: [{ emoteId: "x" }, { emoteId: "" }],
+      emoteList: [
+        { emoteId: "x", auditStatus: 1, emoteType: 2, emoteScene: 0 },
+        { emoteId: "", auditStatus: 0, emoteType: 0, emoteScene: 0 },
+      ],
       msgFilter: { isGifter: true, isSubscribedToAnchor: false },
       userIdentity: {
         isSubscriberOfAnchor: false,

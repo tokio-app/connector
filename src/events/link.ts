@@ -350,6 +350,19 @@ export const MuteStatus = Object.freeze({
 } as const);
 
 /**
+ * The values of {@link LinkLayerListUser.userType} TikTok defines
+ * (`webcast.linkmic.common.LinkerUserType`).
+ */
+export const LinkerUserType = Object.freeze({
+  /** TikTok didn't say. */
+  UNKNOWN: 0,
+  /** A guest. */
+  GUEST: 1,
+  /** The host. */
+  HOST: 2,
+} as const);
+
+/**
  * The values of {@link LinkUserState.audioMuted} and
  * {@link LinkUserState.videoMuted} TikTok defines
  * (`webcast.linkmic.common.MediaState`).
@@ -890,8 +903,7 @@ export interface LinkLayerListUser {
   linkmicId: string;
   /**
    * What the user is in the link: `1` a guest, `2` the host
-   * (`webcast.linkmic.common.LinkerUserType`). Other values may come: it
-   * stays a number.
+   * ({@link LinkerUserType}). Other values may come: it stays a number.
    */
   userType: number;
 }

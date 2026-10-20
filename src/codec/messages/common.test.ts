@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BadgeSceneType,
   FansClubStatus,
+  PayStatus,
   PunishTypeId,
   type MsgFilter,
   type PunishEventInfo,
@@ -158,6 +159,19 @@ describe("FansClubStatus", () => {
   });
 });
 
+describe("PayStatus", () => {
+  it("has the values of webcast.model.data.User_SubscribeInfo_PayStatus", () => {
+    expect(PayStatus).toEqual({
+      UNKNOWN: 0,
+      ONE_TIME: 1,
+      AUTO_DEDUCTION: 2,
+      AUTO_DEDUCTION_CANCELED: 3,
+      REVOKE: 4,
+    });
+    expect(Object.isFrozen(PayStatus)).toBe(true);
+  });
+});
+
 describe("UserSchema", () => {
   it("reads id (1), nickname (3), avatar_thumb (9), display_id (38) and badge_list (64)", () => {
     const bytes = concat(
@@ -225,7 +239,9 @@ describe("UserSchema", () => {
         fields.varint(1, 1), // qualification, not read
         fields.varint(2, 1),
         fields.varint(7, 1),
-        fields.varint(11, 2), // status, not read
+        fields.varint(10, 1), // anchor_gift_sub_auth, not read
+        fields.varint(11, 2),
+        fields.varint(12, 1_760_000_000), // sub_end_time, not read
       ),
       fields.message(
         66,
@@ -247,7 +263,11 @@ describe("UserSchema", () => {
       payGrade: { name: "Level 12", level: 12 },
       fansClub: { data: { clubName: "Fans", level: 5, status: 1 } },
       userAttr: { isMuted: false, isAdmin: true, isSuperAdmin: false },
-      subscribeInfo: { isSubscribe: true, isSubscribedToAnchor: true },
+      subscribeInfo: {
+        isSubscribe: true,
+        isSubscribedToAnchor: true,
+        status: PayStatus.AUTO_DEDUCTION,
+      },
       fansClubInfo: { fansLevel: 7, fansClubName: "The Fans" },
     });
   });
@@ -267,7 +287,11 @@ describe("UserSchema", () => {
       displayId: "",
       badgeList: [],
       fansClub: {},
-      subscribeInfo: { isSubscribe: false, isSubscribedToAnchor: false },
+      subscribeInfo: {
+        isSubscribe: false,
+        isSubscribedToAnchor: false,
+        status: 0,
+      },
     });
   });
 
@@ -278,7 +302,11 @@ describe("UserSchema", () => {
       payGrade: { name: "", level: 3 },
       fansClub: { data: { clubName: "c", level: 1, status: 2 } },
       userAttr: { isMuted: true, isAdmin: false, isSuperAdmin: true },
-      subscribeInfo: { isSubscribe: false, isSubscribedToAnchor: true },
+      subscribeInfo: {
+        isSubscribe: false,
+        isSubscribedToAnchor: true,
+        status: PayStatus.REVOKE,
+      },
       fansClubInfo: { fansLevel: 4, fansClubName: "c" },
     };
     expect(
@@ -290,6 +318,7 @@ describe("UserSchema", () => {
     const bytes = concat(
       fields.message(22, unknownFields(), fields.varint(2, 5)),
       fields.message(32, unknownFields(), fields.varint(1, 1)),
+      fields.message(63, unknownFields(), fields.varint(11, 3)),
       fields.message(66, unknownFields(), fields.varint(2, 2)),
       unknownFields(1_000),
     );
@@ -300,6 +329,11 @@ describe("UserSchema", () => {
       badgeList: [],
       followInfo: { followingCount: 0, followerCount: 5, followStatus: 0 },
       userAttr: { isMuted: true, isAdmin: false, isSuperAdmin: false },
+      subscribeInfo: {
+        isSubscribe: false,
+        isSubscribedToAnchor: false,
+        status: PayStatus.AUTO_DEDUCTION_CANCELED,
+      },
       fansClubInfo: { fansLevel: 2, fansClubName: "" },
     });
   });

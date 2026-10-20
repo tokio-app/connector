@@ -416,24 +416,6 @@ export const ExhibitionType = Object.freeze({
   PUBLIC_SCREEN: 2,
 } as const);
 
-/**
- * The values of a subscription's pay status TikTok defines
- * (`webcast.model.data.User_SubscribeInfo_PayStatus`, `SubscribeInfo.status`
- * in the proto; not decoded yet).
- */
-export const PayStatus = Object.freeze({
-  /** TikTok didn't say. */
-  UNKNOWN: 0,
-  /** A one-time payment. */
-  ONE_TIME: 1,
-  /** Auto-renewing. */
-  AUTO_DEDUCTION: 2,
-  /** Auto-renewal canceled. */
-  AUTO_DEDUCTION_CANCELED: 3,
-  /** Revoked. */
-  REVOKE: 4,
-} as const);
-
 /** A subscription, or a subscription notice (`subNotify` event). */
 export interface SubNotifyMessage {
   /** Data every message carries. */
@@ -476,9 +458,26 @@ export interface SubNotifyMessage {
   giftSource: number;
 }
 
+/**
+ * The values of {@link SubPinCardText.type} TikTok defines
+ * (`webcast.model.data.SubPinCardText_TextType` and
+ * `SubPinCard_Text_TextType`, which have the same values).
+ */
+export const PinCardTextType = Object.freeze({
+  /** TikTok didn't say. */
+  UNKNOWN: 0,
+  /** `content` is the text itself. */
+  ORIGINAL: 1,
+  /** `content` is a translation key (a "starling key"). */
+  STARLING_KEY: 2,
+} as const);
+
 /** A text of a subscription pin card: its content, in a given form. */
 export interface SubPinCardText {
-  /** How to read `content`: `1` the text itself, `2` a translation key. Other values may come: it stays a number. */
+  /**
+   * How to read `content`: `1` the text itself, `2` a translation key
+   * ({@link PinCardTextType}). Other values may come: it stays a number.
+   */
   type: number;
   /** The text. */
   content: string;

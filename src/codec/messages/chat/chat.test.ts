@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMessage } from "../../../events/index.js";
+import {
+  AuditStatus,
+  CommentTag,
+  EmoteScene,
+  EmoteType,
+  type ChatMessage,
+} from "../../../events/index.js";
 import { decodeMessage } from "../../decode.js";
 import { ChatMessageSchema } from "./chat.js";
 import {
@@ -17,14 +23,34 @@ import {
 } from "../../../../test/helpers/samples.js";
 
 // Field numbers: WebcastChatMessage in webcast/model/message/messages.proto,
-// EmoteWithIndex and EmoteModel in webcast/model/base/emoji.proto. The bytes
+// EmoteWithIndex and EmoteModel in webcast/model/base/emoji.proto; the
+// constants' values in webcast/model/data/messages.proto and
+// webcast/synthetic_enums.proto. The bytes
 // are written field by field (fields.*) or by hand, not from the schema, so a
 // wrong number in the table fails here.
 
 const decode = (bytes: Uint8Array) => decodeMessage(ChatMessageSchema, bytes);
 
+describe("CommentTag, AuditStatus, EmoteType and EmoteScene", () => {
+  it("have the values of webcast.im.CommentTag and webcast.model.data's AuditStatus, EmoteType and EmoteScene", () => {
+    expect(CommentTag).toEqual({ NORMAL: 0, CANDIDATE: 1, OVERAGE: 2 });
+    expect(AuditStatus).toEqual({
+      UNKNOWN: 0,
+      PASS: 1,
+      FAILED: 2,
+      REVIEWING: 3,
+      FORBIDDEN: 4,
+    });
+    expect(EmoteType).toEqual({ NORMAL: 0, WITH_STICKER: 1, FANS: 2 });
+    expect(EmoteScene).toEqual({ SUBSCRIPTION: 0, GAME: 1, FANS_CLUB: 2 });
+    for (const constant of [CommentTag, AuditStatus, EmoteType, EmoteScene]) {
+      expect(Object.isFrozen(constant)).toBe(true);
+    }
+  });
+});
+
 describe("ChatMessageSchema", () => {
-  it("reads common (1), user (2), content (3), at_user (12), emotes (13), content_language (14), msg_filter (15), user_identity (18) and mention_users (28)", () => {
+  it("reads common (1), user (2), content (3), at_user (12), emotes (13), content_language (14), msg_filter (15), user_identity (18), comment_tag (20) and mention_users (28)", () => {
     const bytes = concat(
       fields.message(
         1,
@@ -46,7 +72,12 @@ describe("ChatMessageSchema", () => {
           2,
           fields.string(1, "7300000000000000001"),
           fields.message(2, fields.string(2, "tos/e")),
-          fields.varint(5, 1), // emote_type, not read
+          fields.varint(3, 1),
+          fields.string(4, "uuid"), // uuid, not read
+          fields.varint(5, 1),
+          fields.varint(6, 1), // content_source, not read
+          fields.varint(12, 1_760_000_000), // create_time, not read
+          fields.varint(13, 2),
         ),
       ),
       fields.message(13, fields.varint(1, 9)),
@@ -61,7 +92,9 @@ describe("ChatMessageSchema", () => {
         fields.varint(5, 1),
         fields.varint(6, 1), // is_anchor, not read
       ),
-      fields.varint(20, 1), // comment_tag, not read
+      fields.message(19), // comment_quality_scores, not read
+      fields.varint(20, 1),
+      fields.varint(20, 2),
       fields.varint(22, 1_760_000_000), // screen_time, not read
       fields.varint(27, 6_900_000_000_000_000_002n), // mention_user_list, not read
       fields.message(
@@ -93,6 +126,9 @@ describe("ChatMessageSchema", () => {
           emote: {
             emoteId: "7300000000000000001",
             image: { urlList: [], uri: "tos/e" },
+            auditStatus: AuditStatus.PASS,
+            emoteType: EmoteType.WITH_STICKER,
+            emoteScene: EmoteScene.FANS_CLUB,
           },
         },
         { index: 9 },
@@ -104,6 +140,7 @@ describe("ChatMessageSchema", () => {
         isFollowerOfAnchor: true,
         isModeratorOfAnchor: true,
       },
+      commentTag: [CommentTag.CANDIDATE, CommentTag.OVERAGE],
       mentionUsers: [
         {
           userId: "6900000000000000002",
@@ -121,12 +158,19 @@ describe("ChatMessageSchema", () => {
       content: "",
       contentLanguage: "",
       emotes: [],
+      commentTag: [],
       mentionUsers: [],
     });
     expect(
       decode(concat(fields.message(13), fields.message(13, fields.message(2))))
         .emotes,
-    ).toStrictEqual([{ index: 0 }, { index: 0, emote: { emoteId: "" } }]);
+    ).toStrictEqual([
+      { index: 0 },
+      {
+        index: 0,
+        emote: { emoteId: "", auditStatus: 0, emoteType: 0, emoteScene: 0 },
+      },
+    ]);
     expect(decode(fields.message(28)).mentionUsers).toStrictEqual([
       { userId: "0", nickname: "", displayId: "", badgeList: [] },
     ]);
@@ -153,11 +197,26 @@ describe("ChatMessageSchema", () => {
       emotes: [
         {
           index: 6,
-          emote: { emoteId: "7300000000000000001", image: SAMPLE_IMAGE },
+          emote: {
+            emoteId: "7300000000000000001",
+            image: SAMPLE_IMAGE,
+            auditStatus: AuditStatus.REVIEWING,
+            emoteType: EmoteType.FANS,
+            emoteScene: EmoteScene.GAME,
+          },
         },
-        { index: 14, emote: { emoteId: "7300000000000000002" } },
+        {
+          index: 14,
+          emote: {
+            emoteId: "7300000000000000002",
+            auditStatus: 0,
+            emoteType: 0,
+            emoteScene: 7,
+          },
+        },
         { index: 20 },
       ],
+      commentTag: [CommentTag.OVERAGE, CommentTag.NORMAL, 9],
       mentionUsers: [
         SAMPLE_USER,
         {
@@ -192,7 +251,12 @@ describe("ChatMessageSchema", () => {
       user: { userId: "0", nickname: "Ann", displayId: "", badgeList: [] },
       content: "hi",
       atUser: { userId: "0", nickname: "At", displayId: "", badgeList: [] },
-      emotes: [{ index: 1, emote: { emoteId: "e1" } }],
+      emotes: [
+        {
+          index: 1,
+          emote: { emoteId: "e1", auditStatus: 0, emoteType: 0, emoteScene: 0 },
+        },
+      ],
       contentLanguage: "",
       msgFilter: { isGifter: false, isSubscribedToAnchor: true },
       userIdentity: {
@@ -200,6 +264,7 @@ describe("ChatMessageSchema", () => {
         isFollowerOfAnchor: false,
         isModeratorOfAnchor: true,
       },
+      commentTag: [],
       mentionUsers: [
         { userId: "0", nickname: "", displayId: "m1", badgeList: [] },
       ],
@@ -215,15 +280,20 @@ describe("ChatMessageSchema", () => {
         "1a 02 68 69", // content (3): "hi"
         "62 02", // at_user (12), 2 bytes
         "08 02", //   id (1): 2
-        "6a 08", // emotes (13), 8 bytes
+        "6a 0e", // emotes (13), 14 bytes
         "08 02", //   index (1): 2
-        "12 04", //   emote (2), 4 bytes
+        "12 0a", //   emote (2), 10 bytes
         "0a 02 65 31", //     emote_id (1): "e1"
+        "18 01", //     audit_status (3): 1
+        "28 02", //     emote_type (5): 2
+        "68 01", //     emote_scene (13): 1
         "72 02 65 6e", // content_language (14): "en"
         "7a 02", // msg_filter (15), 2 bytes
         "08 01", //   is_gifter (1): true
         "92 01 02", // user_identity (18), 2 bytes
         "10 01", //   is_subscriber_of_anchor (2): true
+        "a0 01 01", // comment_tag (20): 1
+        "a0 01 02", // comment_tag (20): 2
         "e2 01 05", // mention_users (28), 5 bytes
         "1a 03 42 6f 62", //   nickname (3): "Bob"
       ].join(" "),
@@ -232,7 +302,12 @@ describe("ChatMessageSchema", () => {
       user: { userId: "1", nickname: "Ann", displayId: "", badgeList: [] },
       content: "hi",
       atUser: { userId: "2", nickname: "", displayId: "", badgeList: [] },
-      emotes: [{ index: 2, emote: { emoteId: "e1" } }],
+      emotes: [
+        {
+          index: 2,
+          emote: { emoteId: "e1", auditStatus: 1, emoteType: 2, emoteScene: 1 },
+        },
+      ],
       contentLanguage: "en",
       msgFilter: { isGifter: true, isSubscribedToAnchor: false },
       userIdentity: {
@@ -240,6 +315,7 @@ describe("ChatMessageSchema", () => {
         isFollowerOfAnchor: false,
         isModeratorOfAnchor: false,
       },
+      commentTag: [1, 2],
       mentionUsers: [
         { userId: "0", nickname: "Bob", displayId: "", badgeList: [] },
       ],
@@ -262,13 +338,16 @@ describe("ChatMessageSchema", () => {
         "82 04 05", //   badge_list (64), 5 bytes
         "62 03", //     privilege_log_extra (12), 3 bytes
         "2a 01 37", //       level (5): "7"
-        "6a 0e", // emotes (13), 14 bytes
+        "6a 12", // emotes (13), 18 bytes
         "08 00", //   index (1): 0
-        "12 0a", //   emote (2), 10 bytes
+        "12 0e", //   emote (2), 14 bytes
+        "68 02", //     emote_scene (13): 2
         "0a 01 61", //     emote_id (1): "a"
+        "18 04", //     audit_status (3): 4
         "12 05", //     image (2), 5 bytes
         "12 03 74 6f 73", //       uri (2): "tos"
         "45 01 00 00 00", // field 8, fixed32, not read
+        "a2 01 02 02 00", // comment_tag (20), packed: 2, 0
         "da 01 02 05 06", // mention_user_list (27), packed, not read
         "6a 02", // emotes (13), 2 bytes
         "08 05", //   index (1): 5
@@ -280,6 +359,7 @@ describe("ChatMessageSchema", () => {
         "20 01", //   is_follower_of_anchor (4): true
         "28 01", //   is_moderator_of_anchor (5): true
         "e2 01 00", // mention_users (28), empty
+        "a0 01 01", // comment_tag (20): 1, after the packed ones
       ].join(" "),
     );
     expect(decode(bytes)).toStrictEqual({
@@ -300,7 +380,13 @@ describe("ChatMessageSchema", () => {
       emotes: [
         {
           index: 0,
-          emote: { emoteId: "a", image: { urlList: [], uri: "tos" } },
+          emote: {
+            emoteId: "a",
+            image: { urlList: [], uri: "tos" },
+            auditStatus: AuditStatus.FORBIDDEN,
+            emoteType: 0,
+            emoteScene: 2,
+          },
         },
         { index: 5 },
       ],
@@ -311,6 +397,7 @@ describe("ChatMessageSchema", () => {
         isFollowerOfAnchor: true,
         isModeratorOfAnchor: true,
       },
+      commentTag: [2, 0, 1],
       mentionUsers: [
         { userId: "9", nickname: "", displayId: "", badgeList: [] },
         { userId: "0", nickname: "", displayId: "", badgeList: [] },

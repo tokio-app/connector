@@ -41,6 +41,7 @@ describe("chatDescribers", () => {
         content: "hello\n  there",
         contentLanguage: "",
         emotes: [],
+        commentTag: [],
         mentionUsers: [],
       }),
     ).toBe('Ana: "hello there"');
@@ -49,6 +50,7 @@ describe("chatDescribers", () => {
         content: "x".repeat(80),
         contentLanguage: "",
         emotes: [],
+        commentTag: [],
         mentionUsers: [],
       }),
     ).toBe(`(no nickname): "${"x".repeat(59)}…"`);
@@ -56,11 +58,19 @@ describe("chatDescribers", () => {
 
   it("counts the emotes of an emote comment", () => {
     expect(
-      chatDescribers.emote({ user: user("Bo"), emoteList: [{ emoteId: "1" }] }),
+      chatDescribers.emote({
+        user: user("Bo"),
+        emoteList: [
+          { emoteId: "1", auditStatus: 0, emoteType: 0, emoteScene: 0 },
+        ],
+      }),
     ).toBe("Bo sent 1 emote");
     expect(
       chatDescribers.emote({
-        emoteList: [{ emoteId: "1" }, { emoteId: "2" }],
+        emoteList: [
+          { emoteId: "1", auditStatus: 0, emoteType: 0, emoteScene: 0 },
+          { emoteId: "2", auditStatus: 0, emoteType: 0, emoteScene: 0 },
+        ],
       }),
     ).toBe("(no nickname) sent 2 emotes");
   });
@@ -122,6 +132,7 @@ describe("chatDescribers", () => {
           content: "pin me",
           contentLanguage: "",
           emotes: [],
+          commentTag: [],
           mentionUsers: [],
         },
       }),

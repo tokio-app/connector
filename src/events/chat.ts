@@ -29,6 +29,11 @@ export interface ChatMessage {
   contentLanguage: string;
   /** The emotes in the comment. */
   emotes: ChatEmote[];
+  /**
+   * TikTok's tags of the comment: `0` normal, `1` candidate, `2` overage
+   * ({@link CommentTag}). Other values may come: they stay numbers.
+   */
+  commentTag: number[];
   /** The users the comment mentions. */
   mentionUsers: User[];
 }
@@ -81,8 +86,8 @@ export const PinAction = Object.freeze({
 } as const);
 
 /**
- * The values of a comment's tag TikTok defines (`webcast.im.CommentTag`,
- * `WebcastChatMessage.comment_tag` in the proto; not decoded yet).
+ * The values of {@link ChatMessage.commentTag} TikTok defines
+ * (`webcast.im.CommentTag`).
  */
 export const CommentTag = Object.freeze({
   /** A normal comment. */
@@ -91,46 +96,6 @@ export const CommentTag = Object.freeze({
   CANDIDATE: 1,
   /** An overage comment. */
   OVERAGE: 2,
-} as const);
-
-/**
- * The values of an emote's type TikTok defines (`webcast.model.data.EmoteType`,
- * `EmoteModel.emote_type` in the proto; not decoded yet).
- */
-export const EmoteType = Object.freeze({
-  /** A normal emote. */
-  NORMAL: 0,
-  /** An emote with a sticker. */
-  WITH_STICKER: 1,
-  /** A fan club emote. */
-  FANS: 2,
-} as const);
-
-/** The values of an emote's scene TikTok defines (`webcast.model.data.EmoteScene`). */
-export const EmoteScene = Object.freeze({
-  /** A subscription emote. */
-  SUBSCRIPTION: 0,
-  /** A game emote. */
-  GAME: 1,
-  /** A fan club emote. */
-  FANS_CLUB: 2,
-} as const);
-
-/**
- * The values of an audit status TikTok defines (`webcast.model.data.AuditStatus`,
- * `EmoteModel.audit_status` in the proto; not decoded yet).
- */
-export const AuditStatus = Object.freeze({
-  /** TikTok didn't say. */
-  UNKNOWN: 0,
-  /** Passed. */
-  PASS: 1,
-  /** Failed. */
-  FAILED: 2,
-  /** Under review. */
-  REVIEWING: 3,
-  /** Forbidden. */
-  FORBIDDEN: 4,
 } as const);
 
 /**

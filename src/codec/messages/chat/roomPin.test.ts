@@ -80,6 +80,7 @@ describe("RoomPinMessageSchema", () => {
         content: "pin me",
         contentLanguage: "",
         emotes: [],
+        commentTag: [],
         mentionUsers: [],
       },
       giftMessage: {
@@ -121,7 +122,18 @@ describe("RoomPinMessageSchema", () => {
         user: SAMPLE_USER,
         content: "pinned",
         contentLanguage: "en",
-        emotes: [{ index: 0, emote: { emoteId: "e1" } }],
+        emotes: [
+          {
+            index: 0,
+            emote: {
+              emoteId: "e1",
+              auditStatus: 0,
+              emoteType: 0,
+              emoteScene: 0,
+            },
+          },
+        ],
+        commentTag: [],
         mentionUsers: [],
       },
       socialMessage: {
@@ -181,6 +193,7 @@ describe("RoomPinMessageSchema", () => {
         content: "hi",
         contentLanguage: "",
         emotes: [],
+        commentTag: [],
         mentionUsers: [],
       },
       method: "",
@@ -212,6 +225,7 @@ describe("RoomPinMessageSchema", () => {
         content: "hi",
         contentLanguage: "",
         emotes: [],
+        commentTag: [],
         mentionUsers: [],
       },
       method: "WebcastChatMessage",

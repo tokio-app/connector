@@ -14,6 +14,9 @@ import {
 export const EmoteSchema = defineSchema<Emote>("EmoteModel", {
   emoteId: f.string(1),
   image: f.message(2, ImageSchema),
+  auditStatus: f.enum(3),
+  emoteType: f.enum(5),
+  emoteScene: f.enum(13),
 });
 
 /** `webcast.model.base.emoji.EmoteWithIndex` [proto: webcast/model/base/emoji.proto, line 32]. */
@@ -34,6 +37,7 @@ export const ChatMessageSchema = defineSchema<ChatMessage>(
     contentLanguage: f.string(14),
     msgFilter: f.message(15, MsgFilterSchema),
     userIdentity: f.message(18, UserIdentitySchema),
+    commentTag: f.repeated.enum(20),
     mentionUsers: f.repeated.message(28, UserSchema),
   },
 );

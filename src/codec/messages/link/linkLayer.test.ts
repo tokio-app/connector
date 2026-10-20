@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { LinkLayerMessage, Player } from "../../../events/index.js";
+import {
+  LinkerUserType,
+  type LinkLayerMessage,
+  type Player,
+} from "../../../events/index.js";
 import { decodeMessage } from "../../decode.js";
 import { LinkLayerMessageSchema } from "./linkLayer.js";
 import {
@@ -18,14 +22,22 @@ import {
 // webcast/model/message/linkcore_webcast_link_layer_message.proto; the
 // contents, AllListUser and LinkLayerListUser in
 // webcast/model/message/linkcore.proto; Player in
-// webcast/model/message/linkcore_player.proto. The bytes are written field by
-// field (fields.*) or by hand, not from the schema, so a wrong number in the
-// table fails here.
+// webcast/model/message/linkcore_player.proto; LinkerUserType in
+// webcast/linkmic/common.proto. The bytes are written field by field
+// (fields.*) or by hand, not from the schema, so a wrong number in the table
+// fails here.
 
 const decode = (bytes: Uint8Array) =>
   decodeMessage(LinkLayerMessageSchema, bytes);
 
 const player = (userId: string, roomId = "0"): Player => ({ roomId, userId });
+
+describe("LinkerUserType", () => {
+  it("has the values of webcast.linkmic.common.LinkerUserType", () => {
+    expect(LinkerUserType).toEqual({ UNKNOWN: 0, GUEST: 1, HOST: 2 });
+    expect(Object.isFrozen(LinkerUserType)).toBe(true);
+  });
+});
 
 describe("LinkLayerMessageSchema", () => {
   it("reads common (1), message_type (2), channel_id (3), scene (4), linker_mode (9), list_change_content (102), invite_content (103), apply_content (104), permit_apply_content (105), reply_invite_content (106), kick_out_content (107), leave_content (110) and finish_content (111)", () => {
@@ -128,7 +140,7 @@ describe("LinkLayerMessageSchema", () => {
             {
               user: player("11", "7100000000000000001"),
               linkmicId: "linkmic-11",
-              userType: 2,
+              userType: LinkerUserType.HOST,
             },
           ],
           appliedList: [{ user: player("22"), linkmicId: "", userType: 0 }],

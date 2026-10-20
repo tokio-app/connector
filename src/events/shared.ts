@@ -161,12 +161,35 @@ export interface UserAttr {
   isSuperAdmin: boolean;
 }
 
+/**
+ * The values of {@link SubscribeInfo.status} TikTok defines
+ * (`webcast.model.data.User_SubscribeInfo_PayStatus`).
+ */
+export const PayStatus = Object.freeze({
+  /** TikTok didn't say. */
+  UNKNOWN: 0,
+  /** A one-time payment. */
+  ONE_TIME: 1,
+  /** Auto-renewing. */
+  AUTO_DEDUCTION: 2,
+  /** Auto-renewal canceled. */
+  AUTO_DEDUCTION_CANCELED: 3,
+  /** Revoked. */
+  REVOKE: 4,
+} as const);
+
 /** A user's subscription to the host. */
 export interface SubscribeInfo {
   /** The user subscribes. */
   isSubscribe: boolean;
   /** The user subscribes to the host. */
   isSubscribedToAnchor: boolean;
+  /**
+   * How the subscription is paid: `1` once, `2` auto-renewing, `3` renewal
+   * canceled, `4` revoked ({@link PayStatus}). Other values may come: it
+   * stays a number.
+   */
+  status: number;
 }
 
 /** A user's fan club level and club. */
@@ -269,12 +292,70 @@ export interface PunishEventInfo {
   showReason: string;
 }
 
+/**
+ * The values of {@link Emote.auditStatus} TikTok defines
+ * (`webcast.model.data.AuditStatus`).
+ */
+export const AuditStatus = Object.freeze({
+  /** TikTok didn't say. */
+  UNKNOWN: 0,
+  /** Passed. */
+  PASS: 1,
+  /** Failed. */
+  FAILED: 2,
+  /** Under review. */
+  REVIEWING: 3,
+  /** Forbidden. */
+  FORBIDDEN: 4,
+} as const);
+
+/**
+ * The values of {@link Emote.emoteType} TikTok defines
+ * (`webcast.model.data.EmoteType`).
+ */
+export const EmoteType = Object.freeze({
+  /** A normal emote. */
+  NORMAL: 0,
+  /** An emote with a sticker. */
+  WITH_STICKER: 1,
+  /** A fan club emote. */
+  FANS: 2,
+} as const);
+
+/**
+ * The values of {@link Emote.emoteScene} TikTok defines
+ * (`webcast.model.data.EmoteScene`).
+ */
+export const EmoteScene = Object.freeze({
+  /** A subscription emote. */
+  SUBSCRIPTION: 0,
+  /** A game emote. */
+  GAME: 1,
+  /** A fan club emote. */
+  FANS_CLUB: 2,
+} as const);
+
 /** A custom emote. */
 export interface Emote {
   /** The emote id. */
   emoteId: string;
   /** The emote image. */
   image?: Image;
+  /**
+   * The emote's review: `1` passed, `2` failed, `3` under review, `4`
+   * forbidden ({@link AuditStatus}). Other values may come: it stays a number.
+   */
+  auditStatus: number;
+  /**
+   * The emote's type: `0` normal, `1` with a sticker, `2` a fan club emote
+   * ({@link EmoteType}). Other values may come: it stays a number.
+   */
+  emoteType: number;
+  /**
+   * Where the emote comes from: `0` a subscription, `1` a game, `2` the fan
+   * club ({@link EmoteScene}). Other values may come: it stays a number.
+   */
+  emoteScene: number;
 }
 
 /** An emote inside a chat comment. */

@@ -29,6 +29,7 @@ function chat(content: string, nickname = "Ana"): ChatMessage {
     content,
     contentLanguage: "",
     emotes: [],
+    commentTag: [],
     mentionUsers: [],
   };
 }
