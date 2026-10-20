@@ -72,7 +72,7 @@ describe("dispatch", () => {
       const { context, emitted, ended } = fakeContext();
       dispatch(context, control(3));
       expect(ended).toEqual(["ended"]);
-      expect(emitted).toEqual([]);
+      expect(names(emitted)).toEqual(["controlMessage"]);
     });
 
     it("decodes only the common data for a raw listener", () => {

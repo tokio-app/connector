@@ -418,15 +418,17 @@ describe("roomRoutes", () => {
       },
     );
 
-    it("is decoded without a listener, for the stream end, and then emits nothing", () => {
+    it("is decoded without a listener, for the stream end, and still emitted", () => {
+      // The fake context records every emit, heard or not; the connection's
+      // emitter drops an unheard one.
       const { context, emitted, ended } = fakeContext();
       dispatch(context, control(3));
       expect(ended).toEqual(["ended"]);
-      expect(emitted).toEqual([]);
+      expect(names(emitted)).toEqual(["controlMessage"]);
       const paused = fakeContext({ listen: ["streamEnd"] });
       dispatch(paused.context, control(1));
       expect(paused.ended).toEqual([]);
-      expect(paused.emitted).toEqual([]);
+      expect(names(paused.emitted)).toEqual(["controlMessage"]);
     });
   });
 

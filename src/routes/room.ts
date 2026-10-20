@@ -28,17 +28,15 @@ import { defineRoute, forward, type AnyRoute } from "./route.js";
 export const roomRoutes: Readonly<Record<string, AnyRoute>> = Object.freeze({
   WebcastRoomUserSeqMessage: forward("roomUser", RoomUserMessageSchema),
   // Decoded without listeners (`always`): the connection must see the LIVE
-  // end. Every control message is a `controlMessage`, emitted only when
-  // someone listens (the decode happened for the stream end, not for it);
-  // then the connection emits `streamEnd` itself on 3 and 4, and disconnects.
+  // end. Every control message is a `controlMessage` (an unheard emit costs
+  // nothing), then the connection emits `streamEnd` itself on 3 and 4, and
+  // disconnects.
   WebcastControlMessage: defineRoute({
     schema: ControlMessageSchema,
     events: ["controlMessage", "streamEnd"],
     always: true,
     emit(message, context) {
-      if (context.listenerCount("controlMessage") > 0) {
-        context.emit("controlMessage", message);
-      }
+      context.emit("controlMessage", message);
       if (message.action === ControlAction.STREAM_ENDED) {
         context.endStream("ended");
       } else if (message.action === ControlAction.STREAM_SUSPENDED) {
