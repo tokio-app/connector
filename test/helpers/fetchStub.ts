@@ -1,6 +1,7 @@
 // A stubbed `fetch` for the HTTP client, room and signer tests: it records
 // every request and answers from a handler, so no test touches the network.
 import { vi, type Mock } from "vitest";
+import type { ConnectorError } from "../../src/errors.js";
 import type { Logger } from "../../src/logger.js";
 import type { SignContext } from "../../src/signer/types.js";
 
@@ -44,21 +45,12 @@ export function stubFetch(handler: StubHandler): FetchStub {
   return { fetch, requests };
 }
 
-/** Answers the requests in order, one handler each (the last one repeats). */
-export function stubFetchSequence(...handlers: StubHandler[]): FetchStub {
-  let next = 0;
-  return stubFetch((request) => {
-    const handler = handlers[Math.min(next++, handlers.length - 1)]!;
-    return handler(request);
-  });
-}
-
-/** A response that never comes: rejects with the signal's reason once it aborts. */
+/** A response that never comes: rejects with the signal's reason once it aborts (at once if it has). */
 export function never(request: StubRequest): Promise<Response> {
   return new Promise((_, reject) => {
-    request.signal?.addEventListener("abort", () =>
-      reject(request.signal?.reason),
-    );
+    const { signal } = request;
+    if (signal?.aborted) reject(signal.reason);
+    signal?.addEventListener("abort", () => reject(signal.reason));
   });
 }
 
@@ -102,4 +94,16 @@ export function signContextFor(
     logger: vi.fn<Logger>(),
     ...overrides,
   } as SignContext & { logger: Mock<Logger> };
+}
+
+/** What `promise` rejects with; fails the test when it resolves. */
+export async function rejectionOf(
+  promise: Promise<unknown>,
+): Promise<ConnectorError> {
+  try {
+    await promise;
+  } catch (error) {
+    return error as ConnectorError;
+  }
+  throw new Error("Expected the promise to reject");
 }
