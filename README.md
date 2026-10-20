@@ -316,7 +316,7 @@ const rose = gifts.find((gift) => gift.name === "Rose"); // { id, name, diamondC
 | `signer` | The signer's list for the room (`signer.fetchGifts`)                                                                 | A room id, and a signer that has one                 |
 | `region` | TikTok's list for a region and language: `fetchGifts({ region: "MX", language: "es-MX" })`, default `US` and `en-US` | Nothing                                              |
 
-A source that fails or returns no gift hands over to the next, and without a room id only `region` runs. It rejects with a `ConnectorError` with code `GIFTS_UNAVAILABLE` only when every source failed.
+A source that fails or returns no gift hands over to the next, and without a room id only `region` runs. It rejects with a `ConnectorError` with code `GIFTS_UNAVAILABLE` only when every source failed (each source's error is in its `cause`), and with an `AbortError` when the `signal` option aborts. `disconnect()` doesn't stop it.
 
 ## Raw messages
 

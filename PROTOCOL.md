@@ -139,7 +139,7 @@ The first step that answers wins; each runs within `requestTimeoutMs` [TLC: src/
 2. **The API.** `GET https://www.tiktok.com/api-live/user/room/?{client params}&uniqueId={username}&sourceType=54`. JSON: a `statusCode` other than `0` fails the step (`message` says why); a missing one passes, as in 2.4.0. Then `data.user.roomId` [TLC: src/lib/web/routes/base/fetch-room-info-api-live.ts]. `data.liveRoom.status` has the same meaning as above.
 3. **The signer.** `signer.resolveRoomId(username)`; `null` fails the step. Euler Stream's route is below.
 
-The signed connect may name a different room in `x-room-id`; that one replaces the resolved id.
+The signed connect may name a different room in `x-room-id`; when it is numeric, it replaces the resolved id (otherwise a warning is logged and the resolved id stays).
 
 ## Is the room LIVE?
 
