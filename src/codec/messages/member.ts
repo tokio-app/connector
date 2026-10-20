@@ -1,5 +1,5 @@
-// Owned by T1 (Phase 1). Initial table from PROTOCOL.md; T1 checks every field
-// number against reference/src/TikTok-Webcast-Protobuf and adds the tests.
+// Membership changes (WebcastMemberMessage). Field numbers: PROTOCOL.md,
+// "Field numbers", from reference/src/TikTok-Webcast-Protobuf/src/slim/v3.
 import type { MemberMessage } from "../../events.js";
 import { defineSchema, f } from "../schema.js";
 import { CommonSchema, UserSchema } from "./common.js";
