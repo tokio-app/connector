@@ -1,10 +1,6 @@
 // The routes of the gift group: gifts, money and membership. The rules are
 // PROTOCOL.md's "Routing". A new message type gets its route here and its
 // table in src/codec/messages/gift/.
-//
-// `barrage` is declared in WebcastEventMap and GIFT_EVENTS, but not emitted
-// yet: emitting it before `superFanJoin`/`superFan` is Phase 1 work of this
-// group.
 import { BarrageMessageSchema } from "../codec/messages/gift/barrage.js";
 import { EnvelopeMessageSchema } from "../codec/messages/gift/envelope.js";
 import { GiftMessageSchema } from "../codec/messages/gift/gift.js";
@@ -73,10 +69,13 @@ export const giftRoutes: Readonly<Record<string, AnyRoute>> = Object.freeze({
       context.emit("envelope", message);
     },
   }),
+  // Every banner is a `barrage`; a super fan banner is then a
+  // `superFanJoin` or `superFan` (base events before derived ones).
   WebcastBarrageMessage: defineRoute({
     schema: BarrageMessageSchema,
-    events: ["superFanJoin", "superFan"],
+    events: ["barrage", "superFanJoin", "superFan"],
     emit(message, context) {
+      context.emit("barrage", message);
       const event = superFanEvent(message);
       if (event !== undefined) context.emit(event, message);
     },

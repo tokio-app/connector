@@ -20,6 +20,7 @@ import { ViewerPicksUpdateMessageSchema } from "../codec/messages/gift/viewerPic
 import { dispatch } from "../dispatch.js";
 import type { EnvelopeMessage } from "../events/index.js";
 import { giftRoutes } from "./gift.js";
+import { GIFT_EVENTS } from "./groups.js";
 import { encodeMessage, type EncodeInput } from "../../test/helpers/encoder.js";
 import {
   encoded,
@@ -63,7 +64,7 @@ describe("giftRoutes", () => {
       WebcastGiftMessage: ["gift"],
       WebcastMemberMessage: ["member"],
       WebcastEnvelopeMessage: ["superFanBox", "envelope"],
-      WebcastBarrageMessage: ["superFanJoin", "superFan"],
+      WebcastBarrageMessage: ["barrage", "superFanJoin", "superFan"],
       WebcastSubNotifyMessage: ["subNotify"],
       WebcastSubPinEventMessage: ["subPinEvent"],
       WebcastGiftBroadcastMessage: ["giftBroadcast"],
@@ -77,6 +78,11 @@ describe("giftRoutes", () => {
       WebcastGuideMessage: ["guide"],
       WebcastBoostCardMessage: ["boostCard"],
     });
+  });
+
+  it("lists every event of GIFT_EVENTS", () => {
+    const events = Object.values(giftRoutes).flatMap((route) => route.events);
+    expect(new Set(events)).toEqual(new Set(GIFT_EVENTS));
   });
 
   it("emits only the events a route lists", () => {
@@ -358,22 +364,36 @@ describe("giftRoutes", () => {
   describe("WebcastBarrageMessage", () => {
     const route = (contentKey?: string, commonKey?: string) => {
       const { context, emitted } = fakeContext({
-        listen: ["superFan", "superFanJoin"],
+        listen: ["barrage", "superFan", "superFanJoin"],
       });
       dispatch(context, barrage(contentKey, commonKey));
       return emitted;
     };
 
-    it("is a super fan join when a key has the joined key, in any case", () => {
+    it("is a barrage, whatever its keys", () => {
+      expect(names(route())).toEqual(["barrage"]);
+      expect(names(route("", ""))).toEqual(["barrage"]);
+      const emitted = route("pm_mt_gift_gallery", "ttlive_superfa");
+      expect(names(emitted)).toEqual(["barrage"]);
+      expect(payloads(emitted, "barrage")[0]).toMatchObject({
+        content: { key: "pm_mt_gift_gallery" },
+        commonBarrageContent: { key: "ttlive_superfa" },
+        user: SAMPLE_USER,
+      });
+    });
+
+    it("is a super fan join after the barrage when a key has the joined key, in any case", () => {
       const emitted = route("ttlive_superfan_commentnotif_superfanjoined");
-      expect(names(emitted)).toEqual(["superFanJoin"]);
+      expect(names(emitted)).toEqual(["barrage", "superFanJoin"]);
       expect(payloads(emitted, "superFanJoin")[0]).toMatchObject({
         content: { key: "ttlive_superfan_commentnotif_superfanjoined" },
         user: SAMPLE_USER,
       });
+      // Both events get the same message.
+      expect(emitted[0]?.[1]).toBe(emitted[1]?.[1]);
       expect(
         names(route(undefined, "TTLIVE_SuperFan_CommentNotif_SuperFanJoined")),
-      ).toEqual(["superFanJoin"]);
+      ).toEqual(["barrage", "superFanJoin"]);
       // The joined key wins over a super fan key in the other text.
       expect(
         names(
@@ -382,20 +402,25 @@ describe("giftRoutes", () => {
             "ttlive_superfan_commentnotif_superfanjoined_v2",
           ),
         ),
-      ).toEqual(["superFanJoin"]);
+      ).toEqual(["barrage", "superFanJoin"]);
     });
 
-    it("is a super fan banner when a key has ttlive_superfan, in any case", () => {
-      expect(names(route("ttlive_superfan_banner"))).toEqual(["superFan"]);
+    it("is a super fan banner after the barrage when a key has ttlive_superfan, in any case", () => {
+      expect(names(route("ttlive_superfan_banner"))).toEqual([
+        "barrage",
+        "superFan",
+      ]);
       expect(names(route("pm_mt_gift", "TTLIVE_SUPERFAN"))).toEqual([
+        "barrage",
         "superFan",
       ]);
     });
 
-    it("is neither otherwise", () => {
-      expect(route()).toEqual([]);
-      expect(route("", "")).toEqual([]);
-      expect(route("pm_mt_gift_gallery", "ttlive_superfa")).toEqual([]);
+    it("is decoded with a listener on superFan alone, and is still a barrage first", () => {
+      const { context, emitted } = fakeContext({ listen: ["superFan"] });
+      dispatch(context, barrage("pm_mt_other"));
+      dispatch(context, barrage("ttlive_superfan_banner"));
+      expect(names(emitted)).toEqual(["barrage", "barrage", "superFan"]);
     });
   });
 
@@ -418,6 +443,4 @@ describe("giftRoutes", () => {
       });
     });
   });
-
-  it.todo("lists every event of GIFT_EVENTS");
 });
