@@ -207,7 +207,8 @@ A gift of type 1 (`isStreakable(gift)`) can be sent in a streak. Each update of 
 | `heartbeatIntervalMs` | `10000`             | How often to send a heartbeat                                                                                                                                   |
 | `idleTimeoutMs`       | `30000`             | Reconnect when no frame arrives for this long. `0` turns it off                                                                                                 |
 | `connectTimeoutMs`    | `20000`             | How long the WebSocket may take to open and enter the room                                                                                                      |
-| `requestTimeoutMs`    | `10000`             | How long each HTTP request, to TikTok or the signer, may take                                                                                                   |
+| `requestTimeoutMs`    | `10000`             | How long each HTTP request to TikTok, and each signer call but the signed connect, may take                                                                     |
+| `signTimeoutMs`       | `requestTimeoutMs`  | How long a signed connect may take: the signer's `fetchConnect`, for the socket and for a reconnect's gap                                                       |
 | `dedupeSize`          | `2048`              | How many recent message ids to remember, to drop duplicates. `0` keeps none                                                                                     |
 | `clientParams`        | none                | Query parameters to add to, or replace in, every request to TikTok and the WebSocket URL                                                                        |
 | `headers`             | none                | Headers to add to, or replace in, every request to TikTok and the WebSocket                                                                                     |

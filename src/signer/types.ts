@@ -16,8 +16,9 @@ export interface SignContext {
    */
   readonly signal: AbortSignal;
   /**
-   * How long one call may take, in milliseconds (the `requestTimeoutMs`
-   * option). A call still running after that fails with a `TimeoutError`
+   * How long one call may take, in milliseconds: the `signTimeoutMs` option
+   * for `fetchConnect`, `requestTimeoutMs` for the other calls. A call still
+   * running after that fails with a `TimeoutError`
    * (phase `sign`). To also cancel the request then, pass `fetch`
    * `AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])`.
    */

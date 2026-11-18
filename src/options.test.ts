@@ -106,6 +106,7 @@ describe("resolveOptions", () => {
       idleTimeoutMs: 30_000,
       connectTimeoutMs: 20_000,
       requestTimeoutMs: 10_000,
+      signTimeoutMs: 10_000,
       dedupeSize: 2_048,
       clientParams: {},
       headers: {},
@@ -135,6 +136,7 @@ describe("resolveOptions", () => {
       idleTimeoutMs: 0,
       connectTimeoutMs: 1,
       requestTimeoutMs: 2,
+      signTimeoutMs: 3,
       dedupeSize: 0,
       clientParams: { aid: "1234" },
       headers: { "User-Agent": "test" },
@@ -160,6 +162,7 @@ describe("resolveOptions", () => {
       idleTimeoutMs: 0,
       connectTimeoutMs: 1,
       requestTimeoutMs: 2,
+      signTimeoutMs: 3,
       dedupeSize: 0,
       clientParams: { aid: "1234" },
       headers: { "User-Agent": "test" },
@@ -168,6 +171,16 @@ describe("resolveOptions", () => {
       logger,
     });
     expect(Object.isFrozen(resolved.reconnect)).toBe(true);
+  });
+
+  it("defaults signTimeoutMs to requestTimeoutMs", () => {
+    expect(resolveOptions().signTimeoutMs).toBe(10_000);
+    expect(resolveOptions({ requestTimeoutMs: 2_000 }).signTimeoutMs).toBe(
+      2_000,
+    );
+    expect(
+      resolveOptions({ requestTimeoutMs: 2_000, signTimeoutMs: 20_000 }),
+    ).toMatchObject({ requestTimeoutMs: 2_000, signTimeoutMs: 20_000 });
   });
 
   it("copies clientParams and headers", () => {
@@ -225,6 +238,12 @@ describe("resolveOptions", () => {
     [{ connectTimeoutMs: 3e9 }, "connectTimeoutMs"],
     [{ requestTimeoutMs: -5 }, "requestTimeoutMs"],
     [{ requestTimeoutMs: 3e9 }, "requestTimeoutMs"],
+    [
+      { signTimeoutMs: 0 },
+      "signTimeoutMs must be a number above 0, up to 2147483647, got 0",
+    ],
+    [{ signTimeoutMs: 3e9 }, "signTimeoutMs"],
+    [{ signTimeoutMs: Number.NaN }, "signTimeoutMs"],
     [{ dedupeSize: 1.5 }, "dedupeSize must be a whole number of at least 0"],
     [{ dedupeSize: "10" as unknown as number }, "got 10"],
     [{ reconnect: { maxAttempts: -1 } }, "reconnect.maxAttempts"],

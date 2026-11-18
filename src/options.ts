@@ -86,8 +86,16 @@ export interface ConnectOptions {
   idleTimeoutMs?: number;
   /** How long the WebSocket may take to open and enter the room, in milliseconds. Default `20000`. */
   connectTimeoutMs?: number;
-  /** How long each HTTP request (to TikTok or the signer) may take, in milliseconds. Default `10000`. */
+  /**
+   * How long each HTTP request to TikTok, and each signer call but the signed
+   * connect, may take, in milliseconds. Default `10000`.
+   */
   requestTimeoutMs?: number;
+  /**
+   * How long a signed connect (the signer's `fetchConnect`, for the socket and
+   * for a reconnect's gap) may take, in milliseconds. Default: `requestTimeoutMs`.
+   */
+  signTimeoutMs?: number;
   /** How many recent message ids to remember to drop duplicates; `0` keeps none. Default `2048`. */
   dedupeSize?: number;
   /**
@@ -130,6 +138,7 @@ export interface ResolvedOptions {
   idleTimeoutMs: number;
   connectTimeoutMs: number;
   requestTimeoutMs: number;
+  signTimeoutMs: number;
   dedupeSize: number;
   clientParams: Readonly<Record<string, string>>;
   headers: Readonly<Record<string, string>>;
@@ -262,6 +271,12 @@ export function resolveOptions(options: ConnectOptions = {}): ResolvedOptions {
   if (roomId !== undefined && !/^\d+$/.test(roomId)) {
     throw new TypeError(`roomId must be a numeric string, got "${roomId}"`);
   }
+  const requestTimeoutMs = check(
+    "requestTimeoutMs",
+    options.requestTimeoutMs ?? DEFAULT_OPTIONS.requestTimeoutMs,
+    positive,
+    `a number above 0, up to ${MAX_TIMER_MS}`,
+  );
   return {
     signer: options.signer,
     session: resolveSession(options.session),
@@ -287,9 +302,10 @@ export function resolveOptions(options: ConnectOptions = {}): ResolvedOptions {
       positive,
       `a number above 0, up to ${MAX_TIMER_MS}`,
     ),
-    requestTimeoutMs: check(
-      "requestTimeoutMs",
-      options.requestTimeoutMs ?? DEFAULT_OPTIONS.requestTimeoutMs,
+    requestTimeoutMs,
+    signTimeoutMs: check(
+      "signTimeoutMs",
+      options.signTimeoutMs ?? requestTimeoutMs,
       positive,
       `a number above 0, up to ${MAX_TIMER_MS}`,
     ),

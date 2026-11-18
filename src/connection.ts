@@ -481,9 +481,10 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
   }
 
   // Signs a connect with `cursor` ("" for a fresh one, whose batch has what
-  // a socket needs), within requestTimeoutMs (callSigner also turns what the
-  // signer throws into ConnectorErrors). The cookies go to the jar, where the
-  // earlier ones stay. The signer may name the room it connected to.
+  // a socket needs), within signTimeoutMs, while the signer's other calls keep
+  // requestTimeoutMs (callSigner also turns what the signer throws into
+  // ConnectorErrors). The cookies go to the jar, where the earlier ones stay.
+  // The signer may name the room it connected to.
   async #sign(
     run: Run,
     context: RoomContext,
@@ -497,8 +498,10 @@ export class TikTokLiveConnection extends TypedEmitter<WebcastEventMap> {
       ...(sessionCookies === undefined ? {} : { sessionCookies }),
     };
     const signed = checkSigned(
-      await callSigner("The signed connect", context.signContext, (ctx) =>
-        this.#signer.fetchConnect(request, ctx),
+      await callSigner(
+        "The signed connect",
+        { ...context.signContext, timeoutMs: this.#options.signTimeoutMs },
+        (ctx) => this.#signer.fetchConnect(request, ctx),
       ),
     );
     this.#check(run);

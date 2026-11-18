@@ -471,4 +471,59 @@ describe("connect() through the room lookup and the HTTP client", () => {
     expect(http.requests).toHaveLength(2);
     expect(signer.calls).toEqual([]);
   });
+
+  // TikTok answers nothing, and the signer's fallbacks never answer.
+  function slowFallbacks() {
+    const logger = vi.fn();
+    const http = stubFetch(() => new Response("", { status: 404 }));
+    const options: ConnectOptions = {
+      fetch: http.fetch,
+      logger,
+      requestTimeoutMs: 50,
+      signTimeoutMs: 2_000,
+      signer: {
+        fetchConnect: (request, context) =>
+          signer.fetchConnect(request, context),
+        resolveRoomId: () => new Promise(() => {}),
+        fetchRoomInfo: () => new Promise(() => {}),
+      },
+    };
+    return { logger, options };
+  }
+
+  it("times the signer's room id lookup out after requestTimeoutMs, not signTimeoutMs", async () => {
+    const { connection } = create([], slowFallbacks().options);
+    const error = await connection
+      .connect()
+      .catch((failure: unknown) => failure as ConnectorError);
+    expect(error).toMatchObject({
+      code: "ROOM_NOT_FOUND",
+      cause: [
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          code: "TIMEOUT",
+          phase: "sign",
+          message: "The signer's room id lookup took longer than 50 ms",
+        }),
+      ],
+    });
+  });
+
+  it("times the signer's room info out after requestTimeoutMs, not signTimeoutMs", async () => {
+    const { logger, options } = slowFallbacks();
+    const { connection } = create([], { ...options, roomId: ROOM_ID });
+    await expect(connection.connect()).resolves.toEqual({ roomId: ROOM_ID });
+    expect(logger).toHaveBeenCalledWith(
+      "debug",
+      `The signer's room info failed for room ${ROOM_ID}`,
+      {
+        error: expect.objectContaining({
+          code: "TIMEOUT",
+          phase: "sign",
+          message: "The signer's room info took longer than 50 ms",
+        }),
+      },
+    );
+  });
 });

@@ -398,6 +398,23 @@ describe("connect()", () => {
     expect(signer.calls).toHaveLength(1);
   });
 
+  it("gives the signed connect signTimeoutMs, and the room lookup requestTimeoutMs", async () => {
+    const fetchConnect = signer.fetchConnect.bind(signer);
+    signer.fetchConnect = async (request, context) => {
+      await delay(150);
+      return fetchConnect(request, context);
+    };
+    const { connection } = create({
+      requestTimeoutMs: 50,
+      signTimeoutMs: 1_000,
+    });
+    await expect(connection.connect()).resolves.toEqual({ roomId: ROOM_ID });
+    expect(signer.calls[0]?.context.timeoutMs).toBe(1_000);
+    const [, context] = vi.mocked(resolveRoomId).mock.calls[0]!;
+    expect(context.signContext.timeoutMs).toBe(50);
+    expect(checkLive).toHaveBeenCalledWith(ROOM_ID, context);
+  });
+
   describe("when the first connect fails", () => {
     it.each([
       [
@@ -530,15 +547,21 @@ describe("connect()", () => {
       });
     });
 
-    it("times out a signer that doesn't answer", async () => {
-      signer.hold = new Promise(() => {});
-      const { connection } = create({ requestTimeoutMs: 100 });
-      await expect(connection.connect()).rejects.toMatchObject({
-        code: "TIMEOUT",
-        phase: "sign",
-        message: "The signed connect took longer than 100 ms",
-      });
-    });
+    it.each<[string, ConnectOptions]>([
+      ["requestTimeoutMs, by default", { requestTimeoutMs: 100 }],
+      ["signTimeoutMs", { requestTimeoutMs: 50, signTimeoutMs: 100 }],
+    ])(
+      "times out a signer that doesn't answer after %s",
+      async (_, options) => {
+        signer.hold = new Promise(() => {});
+        const { connection } = create(options);
+        await expect(connection.connect()).rejects.toMatchObject({
+          code: "TIMEOUT",
+          phase: "sign",
+          message: "The signed connect took longer than 100 ms",
+        });
+      },
+    );
 
     it.each([
       ["nothing", undefined, "The signer answered without a body"],
@@ -1194,6 +1217,27 @@ describe("reconnecting", () => {
       "Couldn't get the messages of the gap: reconnecting without them",
       { error: expect.objectContaining({ code: "SIGN_FAILED" }) },
     );
+  });
+
+  it("gives the gap's sign signTimeoutMs too", async () => {
+    const { connection, raw } = create({
+      requestTimeoutMs: 50,
+      signTimeoutMs: 1_000,
+    });
+    await connection.connect();
+    fake.push([chat("1")], { cursor: "ws-cursor-a" });
+    await until(() => expect(raw).toEqual(["1"]));
+    signer.resumed = { messages: [chat("2")] };
+    const fetchConnect = signer.fetchConnect.bind(signer);
+    signer.fetchConnect = async (request, context) => {
+      if (request.cursor !== "") await delay(150);
+      return fetchConnect(request, context);
+    };
+    fake.dropSocket();
+    await until(() => expect(raw).toEqual(["1", "2"]));
+    expect(signer.calls.map(({ context }) => context.timeoutMs)).toEqual([
+      1_000, 1_000, 1_000,
+    ]);
   });
 
   it("stops while the gap is fetched when disconnect() is called", async () => {
