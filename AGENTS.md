@@ -4,7 +4,7 @@
 
 `@tokioapp/connector` is a Node library that connects to a TikTok LIVE and emits every LIVE message type as a typed event (66 message types, 71 events: chat, gifts, likes, follows, members, viewer counts, battles, polls, goals and the rest), with reconnects, typed errors, and lazy decoding. It is written from scratch, MIT-licensed, ESM only, and has one runtime dependency, `ws`. Published to npm as `@tokioapp/connector`; repository `tokio-app/connector`.
 
-It will replace `tiktok-live-connector` (AGPL since 2.4.1) in Tokio, the Electron app at `../tokio`, once it has been proven against real LIVEs. That swap is a separate change in the Tokio repo, not here.
+Tokio, the Electron app at `../tokio`, uses it in place of `tiktok-live-connector` (AGPL since 2.4.1).
 
 Stack: Node >= 24, TypeScript 7, `ws`, Vitest (on Vite 7), Yarn 1. No Zod or protobuf runtime: the wire codec is hand-written.
 
